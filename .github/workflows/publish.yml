@@ -1,0 +1,58 @@
+name: publish
+
+# nuget.org'a Trusted Publishing (OIDC) ile yayın.
+# Tetik: GitHub'da bir Release "published" olduğunda; ya da elle (workflow_dispatch).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # nuget.org OIDC token değişimi için zorunlu
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Compute version
+        id: ver
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"          # 'v0.1.0' -> '0.1.0'
+          if [ -z "$VERSION" ]; then VERSION="0.1.0-alpha"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Yayınlanacak sürüm: $VERSION"
+
+      - name: Restore
+        run: dotnet restore BaseForge.slnx
+
+      - name: Build
+        run: dotnet build BaseForge.slnx -c Release --no-restore -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: Test
+        run: dotnet test BaseForge.slnx -c Release --no-build
+
+      - name: Pack
+        run: dotnet pack BaseForge.slnx -c Release --no-build -o artifacts -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: NuGet login (OIDC -> geçici API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: CNRSoft
+
+      - name: Push
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
