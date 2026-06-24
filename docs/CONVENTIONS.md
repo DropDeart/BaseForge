@@ -28,9 +28,11 @@ Bu doküman, BaseForge ve onu kullanan mikroservislerde uyulması gereken kod ya
 
 ## Veri Erişimi
 
-- **Entity Framework Core kullanılmaz.** ADO.NET + base query builder tercih edilir.
-- SQL ham yazılır; parametreli sorgular kullanılır (SQL injection'a karşı).
-- Tüm entity'ler `BaseEntity`'den türer; audit alanları (`CreatedAt`, `UpdatedAt`, `CreatedBy`) ve soft delete otomatik yönetilir.
+- **EF Core 10** birincil ORM'dir: yazma, change tracking ve migration. CRUD'un çoğu LINQ ile yazılır.
+- **Dapper** ağır okuma / karmaşık join sorgularında ham SQL için kullanılır (sonuç → DTO mapping). EF `DbContext`'inin bağlantısı üzerinden çalışır.
+- SQL elle yazıldığında (Dapper veya EF `FromSql`) **parametreli** sorgu zorunludur (SQL injection'a karşı).
+- Dapper ile yazılan sorgularda soft delete koşulu (`is_deleted = false`) elle eklenir; EF global query filter Dapper'ı kapsamaz.
+- Tüm entity'ler `BaseEntity`'den türer; audit alanları (`CreatedAt`, `UpdatedAt`, `CreatedBy`) ve soft delete EF `SaveChanges`/query filter ile otomatik yönetilir.
 
 ## CQRS
 

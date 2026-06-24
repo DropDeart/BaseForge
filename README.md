@@ -13,7 +13,7 @@
 | Servisler arası (async) | RabbitMQ |
 | Auth | Merkezi Identity Service + JWT / OAuth2 |
 | Veritabanı | PostgreSQL (her mikroservis kendi DB'si) |
-| ORM / Data Access | ADO.NET (raw SQL, query builder) |
+| ORM / Data Access | EF Core 10 (yazma + tracking) + Dapper (ham SQL okuma) |
 | Container | Docker + Docker Compose |
 | Paket | Public NuGet (nuget.org) |
 
@@ -22,7 +22,7 @@
 | Paket | Açıklama |
 | --- | --- |
 | `BaseForge.Core` | Sadece interface ve entity base'leri (dış bağımlılık yok) |
-| `BaseForge.Infrastructure` | Repository implementasyonları, ADO.NET builder |
+| `BaseForge.Infrastructure` | Repository implementasyonları (EF Core), Dapper sorgu yardımcıları |
 | `BaseForge.API` | Controller base, middleware, DI extension'ları |
 
 ## Hızlı Başlangıç
@@ -41,7 +41,7 @@ builder.Services.AddBaseForge(options =>
 ```
 src/
   BaseForge.Core/            → Entity base'leri, interface'ler, CQRS sözleşmeleri, exception'lar
-  BaseForge.Infrastructure/  → GenericRepository, ADO.NET query builder, DI extension'ları
+  BaseForge.Infrastructure/  → GenericRepository (EF Core), Dapper sorgu yardımcıları, DI extension'ları
   BaseForge.API/             → BaseController, middleware, AddBaseForge()
 tests/
   BaseForge.UnitTests/

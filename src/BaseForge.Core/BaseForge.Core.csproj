@@ -4,6 +4,12 @@
     <IsPackable>true</IsPackable>
     <PackageId>BaseForge.Core</PackageId>
     <Description>BaseForge çekirdek katmanı: entity base'leri, repository/CQRS interface'leri ve exception tipleri. Dış bağımlılığı yoktur (yalnızca MediatR sözleşmeleri).</Description>
+    <!-- CQRS marker (boş) interface'leri (CA1040) ve domaine özel exception ctor'ları (CA1032) bilinçlidir -->
+    <NoWarn>$(NoWarn);CA1040;CA1032</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.5.0" />
+  </ItemGroup>
 
 </Project>

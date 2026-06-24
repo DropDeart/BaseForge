@@ -17,7 +17,7 @@ Bu dosya, BaseForge projesinin mimari kurallarını ve geliştirme kontratını 
 | Servisler arası (async) | RabbitMQ |
 | Auth | Merkezi Identity Service + JWT / OAuth2 |
 | Veritabanı | PostgreSQL (her mikroservis kendi DB'si) |
-| ORM / Data Access | ADO.NET (raw SQL, query builder) |
+| ORM / Data Access | EF Core 10 (yazma + change tracking) + Dapper (ham SQL okuma / karmaşık join) |
 | Container | Docker + Docker Compose |
 | Paket | Public NuGet (nuget.org) |
 
@@ -56,9 +56,10 @@ builder.Services.AddBaseForge(options =>
 
 ### Veritabanı
 
-- ORM kullanılmaz, ADO.NET tercih edilir
-- Base query builder lib içinde bulunur
-- Soft delete, audit log (`CreatedAt`, `UpdatedAt`, `CreatedBy`) `BaseEntity`'de tanımlıdır
+- **EF Core 10** birincil ORM'dir: yazma (insert/update/delete), change tracking ve migration EF Core ile yapılır; CRUD'un çoğu LINQ ile yazılır.
+- **Dapper** ağır okuma ve karmaşık join sorgularında ham SQL için kullanılır (sonuç → DTO mapping). Dapper, EF'in `DbContext`'iyle aynı `DbConnection` ve transaction üzerinde çalışır.
+- Karmaşık join'lerde elle SQL serbesttir (EF `FromSql` veya Dapper). Parametreli sorgu zorunlu (SQL injection'a karşı).
+- Soft delete, audit log (`CreatedAt`, `UpdatedAt`, `CreatedBy`) `BaseEntity`'de tanımlıdır; EF `SaveChanges` sırasında otomatik doldurulur, soft delete global query filter ile uygulanır.
 
 ## Klasör Yapısı
 
@@ -72,8 +73,8 @@ BaseForge/
 │   │   └── Exceptions/        → BaseException, NotFoundException, ValidationException
 │   │
 │   ├── BaseForge.Infrastructure/
-│   │   ├── Repositories/      → GenericRepository implementasyonu
-│   │   ├── Data/              → DbContext base, ADO.NET query builder
+│   │   ├── Repositories/      → GenericRepository (EF Core) implementasyonu
+│   │   ├── Data/              → DbContext base (EF Core), Dapper bağlantı/sorgu yardımcıları
 │   │   └── Extensions/        → DI extension metodları
 │   │
 │   └── BaseForge.API/
@@ -97,7 +98,7 @@ BaseForge/
 
 ```
 BaseForge.Core            → Sadece interface ve entity base'leri (bağımlılık yok)
-BaseForge.Infrastructure  → Repository implementasyonları, ADO.NET builder
+BaseForge.Infrastructure  → Repository implementasyonları (EF Core), Dapper sorgu yardımcıları, DbContext base
 BaseForge.API             → Controller base, middleware, DI extensions
 ```
 
@@ -148,7 +149,7 @@ Bu proje Claude Code ile birlikte geliştirilmektedir.
 - Yeni bir özellik eklerken önce `docs/ARCH.md` güncellenir
 - Kod üretilirken yukarıdaki naming conventions'a uyulur
 - Her zaman Clean Architecture katman kurallarına uyulur
-- ADO.NET tercih edilir, Entity Framework Core kullanılmaz
+- Veri erişimi: EF Core 10 birincil ORM'dir (yazma/tracking/migration); ağır okuma ve karmaşık join'lerde Dapper ile ham SQL yazılır
 - MediatR dışında yeni bir CQRS kütüphanesi eklenmez
 
 ## Gelecek Planlar (Backlog)

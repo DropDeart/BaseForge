@@ -45,17 +45,35 @@ BaseForge.API  ──►  BaseForge.Infrastructure  ──►  BaseForge.Core
 - Her servis bu sözleşmeleri extend eder.
 - **Karar:** MediatR dışında başka bir CQRS/mediator kütüphanesi eklenmez.
 
-## 4. Veri Erişimi — ADO.NET (EF Core Yok)
+## 4. Veri Erişimi — EF Core 10 (ORM) + Dapper (ham SQL)
 
-- **ORM kullanılmaz.** Entity Framework Core projeye eklenmez.
-- Ham SQL + bir **base query builder** ile çalışılır; query builder lib içinde bulunur.
-- `GenericRepository`, `IRepository<T>` sözleşmesini ADO.NET ile implemente eder.
-- **Gerekçe:** Mikroservislerde SQL üzerinde tam kontrol, öngörülebilir performans ve ORM sürpriz davranışlarından kaçınma.
+> **Karar değişikliği (2026-06-24):** PDF spesifikasyonundaki "ORM kullanılmaz, ADO.NET tercih edilir" maddesi proje sahibi tarafından revize edildi. Gerekçe: EF Core'un LINQ + change tracking üretkenliği ile ham SQL esnekliği aynı anda elde edilebiliyor; saf ADO.NET'in boilerplate maliyeti üretkenliği düşürüyor.
+
+Hibrit yaklaşım benimsenir:
+
+- **EF Core 10** birincil ORM'dir. Sorumlulukları: yazma işlemleri (insert/update/delete), change tracking (identity map / first-level cache), migration'lar ve CRUD'un büyük kısmı LINQ ile.
+- **Dapper** (micro-ORM) ağır okuma ve karmaşık join sorgularında ham SQL için kullanılır; sonuçları DTO'lara hızlıca map eder. Dapper bir sorgu üreticisi/ORM değildir — SQL elle yazılır, yalnızca mapping sağlar.
+- Dapper, EF Core `DbContext`'inin `DbConnection`'ı üzerinden çalıştırılır (`Database.GetDbConnection()`), böylece aynı bağlantı ve transaction paylaşılır.
+- `GenericRepository`, `IRepository<TEntity, TKey>` sözleşmesini EF Core ile implemente eder. Karmaşık okuma senaryoları için Dapper tabanlı bir sorgu yardımcısı (`ISqlQuery` benzeri) sunulur.
+
+**Rol dağılımı:**
+
+| İhtiyaç | Araç |
+| --- | --- |
+| CRUD, ilişki yükleme, LINQ | EF Core |
+| Change tracking, migration | EF Core |
+| Karmaşık join / projeksiyon / rapor sorgusu | Dapper (ham SQL) veya EF `FromSql` |
+| Toplu set-based update/delete | EF `ExecuteUpdate` / `ExecuteDelete` |
+| Tam kontrol / saf bağlantı | `DbContext.Database.GetDbConnection()` |
+
+PostgreSQL sağlayıcısı: `Npgsql.EntityFrameworkCore.PostgreSQL`.
 
 ### Audit & Soft Delete
 
-- `BaseEntity` üzerinde `CreatedAt`, `UpdatedAt`, `CreatedBy` alanları (audit log) tanımlıdır.
-- Soft delete `ISoftDelete` üzerinden işaretlenir; silme işlemleri fiziksel değil mantıksaldır.
+- `BaseEntity` üzerinde `CreatedAt`, `UpdatedAt`, `CreatedBy` (audit) ve `IsDeleted`/`DeletedAt` (soft delete) alanları tanımlıdır.
+- Audit alanları EF Core `SaveChanges` override'ında otomatik doldurulur.
+- Soft delete EF Core **global query filter** ile uygulanır; silinmiş kayıtlar varsayılan sorgularda görünmez.
+- **Not:** Dapper EF'in query filter'ını bilmez; Dapper ile yazılan ham SQL'de soft delete koşulu (`WHERE is_deleted = false`) elle eklenmelidir.
 
 ## 5. Mikroservis İletişimi
 
@@ -83,4 +101,6 @@ BaseForge.API  ──►  BaseForge.Infrastructure  ──►  BaseForge.Core
 | Tarih | Karar | Durum |
 | --- | --- | --- |
 | 2026-06-24 | Proje iskeleti (.NET 10, 3 src + 2 test projesi, .slnx) kuruldu | ✅ |
-| 2026-06-24 | Opinionated Library + Clean Architecture + CQRS(MediatR) + ADO.NET kararları PDF spesifikasyonundan alındı | ✅ |
+| 2026-06-24 | Opinionated Library + Clean Architecture + CQRS(MediatR) kararları PDF spesifikasyonundan alındı | ✅ |
+| 2026-06-24 | Veri erişimi PDF'teki "ADO.NET, ORM yok" yerine **EF Core 10 (ORM) + Dapper (ham SQL)** olarak revize edildi | ✅ |
+| 2026-06-24 | CQRS için MediatR **12.5.0** (son ücretsiz/Apache-2.0 sürüm; v13+ ticari) sabitlendi | ✅ |
