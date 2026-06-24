@@ -4,6 +4,9 @@
     <IsPackable>true</IsPackable>
     <PackageId>BaseForge.API</PackageId>
     <Description>BaseForge API katmanı: BaseController, exception/auth/logging middleware ve AddBaseForge() DI extension'ları. Core ve Infrastructure'a bağımlıdır.</Description>
+    <!-- Top-level exception middleware bilinçli olarak genel Exception yakalar (CA1031);
+         basit logging için LoggerMessage delege zorunluluğu (CA1848) gevşetildi -->
+    <NoWarn>$(NoWarn);CA1031;CA1848</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +16,11 @@
   <ItemGroup>
     <ProjectReference Include="..\BaseForge.Infrastructure\BaseForge.Infrastructure.csproj" />
     <ProjectReference Include="..\BaseForge.Core\BaseForge.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.5.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
   </ItemGroup>
 
 </Project>
