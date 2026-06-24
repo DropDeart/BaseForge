@@ -69,9 +69,14 @@ internal static class CliRunner
             return 0;
         }
 
-        // Step 3: Scriban tabanlı kod üretimi buraya bağlanacak.
-        Console.WriteLine("Kod üretimi (Entity/DbContext/CQRS/Controller/Program/Dockerfile) bir sonraki sürümde eklenecek.");
-        Console.WriteLine($"Hedef klasör: {Path.GetFullPath(output)}");
+        var files = CodeGenerator.Generate(spec, output);
+        Console.WriteLine();
+        Console.WriteLine($"{files.Count} dosya üretildi ({Path.GetFullPath(output)}):");
+        foreach (var file in files)
+        {
+            Console.WriteLine($"  + {Path.GetRelativePath(output, file)}");
+        }
+
         return 0;
     }
 
