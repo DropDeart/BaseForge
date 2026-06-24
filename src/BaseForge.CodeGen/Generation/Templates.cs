@@ -299,11 +299,14 @@ internal static class Templates
     public const string Program =
         """
         using BaseForge.API.Extensions;
+        using Microsoft.EntityFrameworkCore;
+        using Scalar.AspNetCore;
         using {{ Namespace }}.Data;
 
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddControllers();
+        builder.Services.AddOpenApi();
         builder.Services.AddBaseForge(options =>
         {
             options.UsePostgreSQL<{{ ContextName }}>(
@@ -315,6 +318,25 @@ internal static class Templates
 
         var app = builder.Build();
 
+        if (app.Environment.IsDevelopment())
+        {
+            // Hızlı başlangıç: migration yerine şemayı oluştur (yalnızca geliştirme).
+            // Postgres erişilemezse uygulama yine de açılır; API arayüzü görülebilir.
+            try
+            {
+                using var scope = app.Services.CreateScope();
+                scope.ServiceProvider.GetRequiredService<{{ ContextName }}>().Database.EnsureCreated();
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogWarning(ex, "Veritabanı şeması oluşturulamadı (Postgres çalışıyor mu?). API arayüzü yine de açık.");
+            }
+
+            // API arayüzü: /scalar/v1 (OpenAPI: /openapi/v1.json)
+            app.MapOpenApi();
+            app.MapScalarApiReference();
+        }
+
         app.UseBaseForge();
         app.MapControllers();
         app.Run();
@@ -325,7 +347,7 @@ internal static class Templates
         """
         {
           "ConnectionStrings": {
-            "Default": "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+            "Default": "Host=localhost;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
           },
           "Logging": {
             "LogLevel": {
@@ -402,9 +424,29 @@ internal static class Templates
 
           <ItemGroup>
             <PackageReference Include="BaseForge.API" Version="{{ BaseForgeVersion }}" />
+            <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+            <PackageReference Include="Scalar.AspNetCore" Version="2.16.5" />
           </ItemGroup>
 
         </Project>
+
+        """;
+
+    public const string LaunchSettings =
+        """
+        {
+          "$schema": "https://json.schemastore.org/launchsettings.json",
+          "profiles": {
+            "{{ Namespace }}": {
+              "commandName": "Project",
+              "launchBrowser": false,
+              "applicationUrl": "http://localhost:5080",
+              "environmentVariables": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+              }
+            }
+          }
+        }
 
         """;
 }

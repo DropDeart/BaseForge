@@ -43,6 +43,7 @@ internal static class CodeGenerator
 
         var host = new HostFileModel { Namespace = ns, Service = spec.Service, Database = spec.Database };
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
+        written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), TemplateEngine.Render(Templates.LaunchSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Dockerfile"), TemplateEngine.Render(Templates.Dockerfile, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.snippet.yml"), TemplateEngine.Render(Templates.ComposeSnippet, host)));
 

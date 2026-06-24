@@ -1,0 +1,31 @@
+<mxfile host="BaseForge.CodeGen">
+  <diagram name="ER - orders" id="er">
+    <mxGraphModel dx="1000" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n_Order" value="&lt;b&gt;Order&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;Id : uuid (PK)&lt;br/&gt;status : text&lt;br/&gt;total : numeric&lt;br/&gt;placedAt : timestamptz&lt;br/&gt;CustomerId : uuid (ext -&amp;gt; customers/Customer)&lt;br/&gt;CreatedAt : timestamptz&lt;br/&gt;IsDeleted : boolean" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=8;spacingRight=8;spacingTop=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="230" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="n_OrderItem" value="&lt;b&gt;OrderItem&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;Id : uuid (PK)&lt;br/&gt;quantity : integer&lt;br/&gt;unitPrice : numeric&lt;br/&gt;OrderId : uuid (FK -&amp;gt; Order)&lt;br/&gt;ProductId : uuid (ext -&amp;gt; catalog/Product)&lt;br/&gt;CreatedAt : timestamptz&lt;br/&gt;IsDeleted : boolean" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=8;spacingRight=8;spacingTop=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="340" y="40" width="230" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="x_customers_Customer" value="&lt;b&gt;customers/Customer&lt;/b&gt;&lt;br/&gt;&lt;i&gt;(dış servis)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="230" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="x_catalog_Product" value="&lt;b&gt;catalog/Product&lt;/b&gt;&lt;br/&gt;&lt;i&gt;(dış servis)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="340" y="300" width="230" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" style="endArrow=block;html=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="n_OrderItem" target="n_Order">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" style="endArrow=open;html=1;dashed=1;strokeColor=#999999;" edge="1" parent="1" source="n_Order" target="x_customers_Customer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="endArrow=open;html=1;dashed=1;strokeColor=#999999;" edge="1" parent="1" source="n_OrderItem" target="x_catalog_Product">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
