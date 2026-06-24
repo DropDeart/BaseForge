@@ -242,9 +242,156 @@ internal static class Templates
 
         """;
 
+    public const string Controller =
+        """
+        using BaseForge.API.Controllers;
+        using Microsoft.AspNetCore.Mvc;
+        using {{ Namespace }}.Features.{{ Name }}s;
+
+        namespace {{ Namespace }}.Controllers;
+
+        /// <summary>{{ Name }} CRUD uçları.</summary>
+        [Route("api/[controller]")]
+        public sealed class {{ Name }}sController : BaseController
+        {
+            /// <summary>Kimliğe göre tek bir {{ Name }} getirir.</summary>
+            [HttpGet("{id:guid}")]
+            public async Task<ActionResult<{{ Name }}Dto>> GetById(Guid id, CancellationToken cancellationToken)
+            {
+                var result = await Mediator.Send(new Get{{ Name }}ByIdQuery { Id = id }, cancellationToken);
+                return result is null ? NotFound() : Ok(result);
+            }
+
+            /// <summary>Tüm {{ Name }} kayıtlarını listeler.</summary>
+            [HttpGet]
+            public async Task<ActionResult<IReadOnlyList<{{ Name }}Dto>>> List(CancellationToken cancellationToken)
+                => Ok(await Mediator.Send(new List{{ Name }}Query(), cancellationToken));
+
+            /// <summary>Yeni bir {{ Name }} oluşturur.</summary>
+            [HttpPost]
+            public async Task<ActionResult<Guid>> Create(Create{{ Name }}Command command, CancellationToken cancellationToken)
+            {
+                var id = await Mediator.Send(command, cancellationToken);
+                return CreatedAtAction(nameof(GetById), new { id }, id);
+            }
+
+            /// <summary>Var olan bir {{ Name }} kaydını günceller.</summary>
+            [HttpPut("{id:guid}")]
+            public async Task<IActionResult> Update(Guid id, Update{{ Name }}Command command, CancellationToken cancellationToken)
+            {
+                ArgumentNullException.ThrowIfNull(command);
+                command.Id = id;
+                await Mediator.Send(command, cancellationToken);
+                return NoContent();
+            }
+
+            /// <summary>Bir {{ Name }} kaydını siler.</summary>
+            [HttpDelete("{id:guid}")]
+            public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+            {
+                await Mediator.Send(new Delete{{ Name }}Command { Id = id }, cancellationToken);
+                return NoContent();
+            }
+        }
+
+        """;
+
+    public const string Program =
+        """
+        using BaseForge.API.Extensions;
+        using {{ Namespace }}.Data;
+
+        var builder = WebApplication.CreateBuilder(args);
+
+        builder.Services.AddControllers();
+        builder.Services.AddBaseForge(options =>
+        {
+            options.UsePostgreSQL<{{ ContextName }}>(
+                builder.Configuration.GetConnectionString("Default")
+                    ?? throw new InvalidOperationException("ConnectionStrings:Default tanımlı değil."));
+            options.EnableCQRS(typeof(Program).Assembly);
+            options.EnableAuditLog();
+        });
+
+        var app = builder.Build();
+
+        app.UseBaseForge();
+        app.MapControllers();
+        app.Run();
+
+        """;
+
+    public const string AppSettings =
+        """
+        {
+          "ConnectionStrings": {
+            "Default": "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+          },
+          "Logging": {
+            "LogLevel": {
+              "Default": "Information",
+              "Microsoft.AspNetCore": "Warning"
+            }
+          }
+        }
+
+        """;
+
+    public const string Dockerfile =
+        """
+        FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+        WORKDIR /src
+        COPY . .
+        RUN dotnet publish {{ Namespace }}.csproj -c Release -o /app
+
+        FROM mcr.microsoft.com/dotnet/aspnet:10.0
+        WORKDIR /app
+        COPY --from=build /app .
+        ENTRYPOINT ["dotnet", "{{ Namespace }}.dll"]
+
+        """;
+
+    public const string ComposeSnippet =
+        """
+        # Bu bloğu kök docker-compose.yml'a ekleyin (postgres servisinin yanına).
+        services:
+          {{ Service }}-service:
+            build: .
+            environment:
+              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+            depends_on:
+              postgres:
+                condition: service_healthy
+
+        """;
+
+    public const string GrpcStub =
+        """
+        namespace {{ Namespace }}.Integration;
+
+        /// <summary>
+        /// {{ Target }} servisine senkron (gRPC) erişim sözleşmesi (stub).
+        /// Gerçek gRPC istemcisi ve .proto dosyası ayrıca eklenmelidir; bu servis
+        /// uzak kaydın yalnızca kimliğini tutar (cross-DB FK yoktur).
+        /// </summary>
+        public interface I{{ Entity }}Client
+        {
+            /// <summary>Uzak servisten {{ Entity }} referansını getirir.</summary>
+            Task<{{ Entity }}Reference?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        }
+
+        /// <summary>Uzak {{ Entity }} kaydının yerel referans görünümü.</summary>
+        public sealed class {{ Entity }}Reference
+        {
+            /// <summary>Uzak kaydın kimliği.</summary>
+            public Guid Id { get; set; }
+        }
+
+        """;
+
     public const string Project =
         """
-        <Project Sdk="Microsoft.NET.Sdk">
+        <Project Sdk="Microsoft.NET.Sdk.Web">
 
           <PropertyGroup>
             <TargetFramework>net10.0</TargetFramework>
@@ -254,7 +401,7 @@ internal static class Templates
           </PropertyGroup>
 
           <ItemGroup>
-            <PackageReference Include="BaseForge.Infrastructure" Version="{{ BaseForgeVersion }}" />
+            <PackageReference Include="BaseForge.API" Version="{{ BaseForgeVersion }}" />
           </ItemGroup>
 
         </Project>

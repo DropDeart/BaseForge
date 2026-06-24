@@ -31,6 +31,27 @@ internal static class CodeGenerator
             written.Add(WriteFile(Path.Combine(featureDir, name + "Dto.cs"), TemplateEngine.Render(Templates.Dto, feature)));
             written.Add(WriteFile(Path.Combine(featureDir, name + "Commands.cs"), TemplateEngine.Render(Templates.Commands, feature)));
             written.Add(WriteFile(Path.Combine(featureDir, name + "Queries.cs"), TemplateEngine.Render(Templates.Queries, feature)));
+
+            var controller = TemplateEngine.Render(Templates.Controller, new ControllerFileModel { Namespace = ns, Name = name });
+            written.Add(WriteFile(Path.Combine(outputDir, "Controllers", name + "sController.cs"), controller));
+        }
+
+        // Program.cs + host dosyaları
+        written.Add(WriteFile(
+            Path.Combine(outputDir, "Program.cs"),
+            TemplateEngine.Render(Templates.Program, new ProgramFileModel { Namespace = ns, ContextName = contextName })));
+
+        var host = new HostFileModel { Namespace = ns, Service = spec.Service, Database = spec.Database };
+        written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
+        written.Add(WriteFile(Path.Combine(outputDir, "Dockerfile"), TemplateEngine.Render(Templates.Dockerfile, host)));
+        written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.snippet.yml"), TemplateEngine.Render(Templates.ComposeSnippet, host)));
+
+        // gRPC client stub'ları (via: grpc olan dış referanslar için)
+        foreach (var stub in CollectGrpcStubs(spec, ns))
+        {
+            written.Add(WriteFile(
+                Path.Combine(outputDir, "Integration", stub.Entity + "Client.cs"),
+                TemplateEngine.Render(Templates.GrpcStub, stub)));
         }
 
         var contextModel = new ContextFileModel
@@ -71,6 +92,30 @@ internal static class CodeGenerator
         }
 
         return model;
+    }
+
+    private static List<GrpcStubFileModel> CollectGrpcStubs(ServiceSpec spec, string ns)
+    {
+        var stubs = new Dictionary<string, GrpcStubFileModel>(StringComparer.Ordinal);
+        foreach (var entity in spec.Entities.Values)
+        {
+            foreach (var externalRef in entity.ExternalRefs.Values)
+            {
+                if (!string.Equals(externalRef.Via, "grpc", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var target = externalRef.Target;
+                var entityName = target.Contains('/', StringComparison.Ordinal)
+                    ? target[(target.LastIndexOf('/') + 1)..]
+                    : target;
+                entityName = NameUtil.Pascal(entityName);
+                stubs[entityName] = new GrpcStubFileModel { Namespace = ns, Target = target, Entity = entityName };
+            }
+        }
+
+        return [.. stubs.Values];
     }
 
     /// <summary>Entity'nin yazılabilir skaler alanları: props + (many/one-to-one) FK id + dış ref id.</summary>

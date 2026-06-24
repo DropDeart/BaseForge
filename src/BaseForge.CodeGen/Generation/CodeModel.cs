@@ -71,3 +71,39 @@ internal sealed class FeatureFileModel
     /// <summary>Yazılabilir alanlar (props + FK id + dış ref id). Id ve audit hariç.</summary>
     public List<ScalarModel> Fields { get; set; } = [];
 }
+
+/// <summary>Controller şablonu için model.</summary>
+internal sealed class ControllerFileModel
+{
+    public string Namespace { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>Program.cs şablonu için model.</summary>
+internal sealed class ProgramFileModel
+{
+    public string Namespace { get; set; } = string.Empty;
+
+    public string ContextName { get; set; } = string.Empty;
+}
+
+/// <summary>appsettings / Dockerfile / docker-compose şablonları için model.</summary>
+internal sealed class HostFileModel
+{
+    public string Namespace { get; set; } = string.Empty;
+
+    public string Service { get; set; } = string.Empty;
+
+    public string Database { get; set; } = string.Empty;
+}
+
+/// <summary>gRPC client stub şablonu için model.</summary>
+internal sealed class GrpcStubFileModel
+{
+    public string Namespace { get; set; } = string.Empty;
+
+    public string Target { get; set; } = string.Empty;
+
+    public string Entity { get; set; } = string.Empty;
+}
