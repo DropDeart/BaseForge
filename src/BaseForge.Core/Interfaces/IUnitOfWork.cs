@@ -6,6 +6,9 @@ namespace BaseForge.Core.Interfaces;
 /// </summary>
 public interface IUnitOfWork : IAsyncDisposable
 {
+    /// <summary>Bekleyen tüm değişiklikleri veritabanına yazar ve etkilenen satır sayısını döndürür.</summary>
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Yeni bir veritabanı transaction'ı başlatır.</summary>
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 

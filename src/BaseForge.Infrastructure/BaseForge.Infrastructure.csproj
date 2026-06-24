@@ -3,11 +3,17 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>BaseForge.Infrastructure</PackageId>
-    <Description>BaseForge altyapı katmanı: GenericRepository, ADO.NET query builder ve DbContext base implementasyonları. Core'a bağımlıdır.</Description>
+    <Description>BaseForge altyapı katmanı: EF Core DbContext base (audit + soft delete), GenericRepository ve Dapper tabanlı ham SQL sorgu yardımcıları. Core'a bağımlıdır.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BaseForge.Core\BaseForge.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
   </ItemGroup>
 
 </Project>
