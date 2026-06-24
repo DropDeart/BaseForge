@@ -420,6 +420,9 @@ internal static class Templates
             <Nullable>enable</Nullable>
             <ImplicitUsings>enable</ImplicitUsings>
             <RootNamespace>{{ Namespace }}</RootNamespace>
+            <!-- Üretilen iskele kodu; üst klasörden miras kalabilecek katı ayarları nötrle -->
+            <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+            <GenerateDocumentationFile>false</GenerateDocumentationFile>
           </PropertyGroup>
 
           <ItemGroup>
