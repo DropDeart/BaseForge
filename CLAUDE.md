@@ -100,6 +100,7 @@ BaseForge/
 BaseForge.Core            → Sadece interface ve entity base'leri (bağımlılık yok)
 BaseForge.Infrastructure  → Repository implementasyonları (EF Core), Dapper sorgu yardımcıları, DbContext base
 BaseForge.API             → Controller base, middleware, DI extensions
+BaseForge.Tools           → Geliştirme araçları (EF Core model'inden DBML ER diyagramı)
 ```
 
 ## Geliştirme Kuralları
@@ -155,7 +156,7 @@ Bu proje Claude Code ile birlikte geliştirilmektedir.
 ## Gelecek Planlar (Backlog)
 
 - [ ] Code Generator: Entity tanımından otomatik servis, repository ve SQL üretimi
-- [ ] ER Diagram görselleştirme
+- [x] ER Diagram görselleştirme → `BaseForge.Tools.DbmlGenerator` (EF Core model → DBML / dbdiagram.io)
 - [ ] gRPC proto generator
 - [ ] Identity Service referans implementasyonu
 - [ ] Örnek mikroservis projesi (BaseForge kullanan demo)

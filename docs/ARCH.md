@@ -104,3 +104,5 @@ PostgreSQL sağlayıcısı: `Npgsql.EntityFrameworkCore.PostgreSQL`.
 | 2026-06-24 | Opinionated Library + Clean Architecture + CQRS(MediatR) kararları PDF spesifikasyonundan alındı | ✅ |
 | 2026-06-24 | Veri erişimi PDF'teki "ADO.NET, ORM yok" yerine **EF Core 10 (ORM) + Dapper (ham SQL)** olarak revize edildi | ✅ |
 | 2026-06-24 | CQRS için MediatR **12.5.0** (son ücretsiz/Apache-2.0 sürüm; v13+ ticari) sabitlendi | ✅ |
+| 2026-06-24 | nuget.org **Trusted Publishing** (OIDC, `.github/workflows/publish.yml`) kuruldu; klasik API key yerine | ✅ |
+| 2026-06-24 | Backlog "ER Diagram": **BaseForge.Tools** paketi + `DbmlGenerator` (EF Core model → DBML) eklendi; kaynak=EF Core model, çıktı=DBML | ✅ |

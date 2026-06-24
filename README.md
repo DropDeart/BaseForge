@@ -24,6 +24,7 @@
 | `BaseForge.Core` | Sadece interface ve entity base'leri (dış bağımlılık yok) |
 | `BaseForge.Infrastructure` | Repository implementasyonları (EF Core), Dapper sorgu yardımcıları |
 | `BaseForge.API` | Controller base, middleware, DI extension'ları |
+| `BaseForge.Tools` | Geliştirme araçları: EF Core model'inden DBML ER diyagramı üretimi |
 
 ## Hızlı Başlangıç
 
@@ -50,6 +51,20 @@ docs/
   ARCH.md                    → Detaylı mimari kararlar
   CONVENTIONS.md             → Kod standartları ve naming kuralları
 ```
+
+## ER Diyagramı (BaseForge.Tools)
+
+EF Core model'inden DBML üretir; çıktıyı [dbdiagram.io](https://dbdiagram.io)'ya yapıştırarak görselleştir:
+
+```csharp
+using BaseForge.Tools;
+
+// Bir DbContext örneğinden (DB bağlantısı gerekmez, sadece model okunur)
+string dbml = DbmlGenerator.Generate(dbContext);
+File.WriteAllText("docs/er.dbml", dbml);
+```
+
+Gerçek tablo/kolon adları, kolon tipleri (provider'a göre, örn. PostgreSQL `uuid`/`timestamptz`), birincil anahtarlar ve FK ilişkileri yansıtılır.
 
 ## Geliştirme
 
