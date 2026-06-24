@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BaseForge.API/BaseForge.API.csproj" />
+    <Project Path="src/BaseForge.Core/BaseForge.Core.csproj" />
+    <Project Path="src/BaseForge.Infrastructure/BaseForge.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BaseForge.IntegrationTests/BaseForge.IntegrationTests.csproj" />
+    <Project Path="tests/BaseForge.UnitTests/BaseForge.UnitTests.csproj" />
+  </Folder>
+</Solution>

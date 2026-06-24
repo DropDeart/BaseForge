@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>BaseForge.Infrastructure</PackageId>
+    <Description>BaseForge altyapı katmanı: GenericRepository, ADO.NET query builder ve DbContext base implementasyonları. Core'a bağımlıdır.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BaseForge.Core\BaseForge.Core.csproj" />
+  </ItemGroup>
+
+</Project>

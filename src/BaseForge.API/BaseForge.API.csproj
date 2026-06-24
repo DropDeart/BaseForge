@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>BaseForge.API</PackageId>
+    <Description>BaseForge API katmanı: BaseController, exception/auth/logging middleware ve AddBaseForge() DI extension'ları. Core ve Infrastructure'a bağımlıdır.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BaseForge.Infrastructure\BaseForge.Infrastructure.csproj" />
+    <ProjectReference Include="..\BaseForge.Core\BaseForge.Core.csproj" />
+  </ItemGroup>
+
+</Project>

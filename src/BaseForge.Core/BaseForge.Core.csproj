@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>BaseForge.Core</PackageId>
+    <Description>BaseForge çekirdek katmanı: entity base'leri, repository/CQRS interface'leri ve exception tipleri. Dış bağımlılığı yoktur (yalnızca MediatR sözleşmeleri).</Description>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,47 @@
+# BaseForge — paylaşılan altyapı (infra)
+# Mikroservisler bu compose dosyasına eklenir. Her servis kendi DB'sine sahiptir.
+# Konfigürasyon .env dosyasından okunur (örnek için bkz. .env.example).
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: baseforge-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: baseforge-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # Mikroservisler buraya eklenir, örnek:
+  # users-service:
+  #   build: ./services/Users
+  #   env_file: .env
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #     rabbitmq: { condition: service_healthy }
+
+volumes:
+  postgres_data:
