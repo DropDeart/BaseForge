@@ -11,8 +11,10 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
-  <!-- NuGet paket metadata'sı (sadece src/ paketleri için) -->
-  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+  <!-- NuGet paket metadata'sı. Koşulsuzdur: IsPackable bu dosya okunurken henüz
+       tanımlı olmadığından koşul kullanılamaz. Paketlenmeyen (test) projelerde
+       bu değerler zararsızdır; ayrıca testlerde GenerateDocumentationFile kapatılır. -->
+  <PropertyGroup>
     <Authors>DropDeart</Authors>
     <Company>DropDeart</Company>
     <Product>BaseForge</Product>
@@ -21,13 +23,13 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>microservice;clean-architecture;cqrs;mediatr;ado.net;postgresql;base-library</PackageTags>
+    <PackageTags>microservice;clean-architecture;cqrs;mediatr;efcore;dapper;postgresql;base-library</PackageTags>
     <Version>0.1.0-alpha</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(IsPackable)' == 'true'">
-    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
 </Project>

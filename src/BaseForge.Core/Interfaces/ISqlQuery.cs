@@ -6,7 +6,7 @@ namespace BaseForge.Core.Interfaces;
 /// bağlantısı/transaction'ı üzerinde çalışır. Karmaşık join ve rapor sorgularında kullanılır.
 /// </summary>
 /// <remarks>
-/// SQL elle yazıldığı için parametreler her zaman <paramref name="parameters"/> ile geçilmeli
+/// SQL elle yazıldığı için parametreler her zaman <c>parameters</c> argümanıyla geçilmeli
 /// (SQL injection'a karşı). Soft delete koşulu (<c>is_deleted = false</c>) sorguya elle eklenmelidir.
 /// </remarks>
 public interface ISqlQuery

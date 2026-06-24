@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <!-- Test metot adlarında alt çizgi serbest (CreateUser_WhenValid_Returns...) -->
     <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
