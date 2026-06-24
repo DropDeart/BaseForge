@@ -25,6 +25,12 @@ internal static class CodeGenerator
         {
             var code = TemplateEngine.Render(Templates.Entity, BuildEntityModel(ns, name, entity));
             written.Add(WriteFile(Path.Combine(outputDir, "Entities", name + ".cs"), code));
+
+            var feature = new FeatureFileModel { Namespace = ns, Name = name, Fields = BuildScalars(entity) };
+            var featureDir = Path.Combine(outputDir, "Features", name + "s");
+            written.Add(WriteFile(Path.Combine(featureDir, name + "Dto.cs"), TemplateEngine.Render(Templates.Dto, feature)));
+            written.Add(WriteFile(Path.Combine(featureDir, name + "Commands.cs"), TemplateEngine.Render(Templates.Commands, feature)));
+            written.Add(WriteFile(Path.Combine(featureDir, name + "Queries.cs"), TemplateEngine.Render(Templates.Queries, feature)));
         }
 
         var contextModel = new ContextFileModel
@@ -45,12 +51,37 @@ internal static class CodeGenerator
 
     private static EntityFileModel BuildEntityModel(string ns, string name, EntitySpec entity)
     {
-        var model = new EntityFileModel { Namespace = ns, Name = name };
+        var model = new EntityFileModel
+        {
+            Namespace = ns,
+            Name = name,
+            Scalars = BuildScalars(entity),
+        };
+
+        foreach (var (relName, relation) in entity.Relations)
+        {
+            var kind = relation.Kind.ToUpperInvariant();
+            var isCollection = kind is not ("MANY-TO-ONE" or "ONE-TO-ONE");
+            model.Navigations.Add(new NavModel
+            {
+                Name = NameUtil.Pascal(relName),
+                Type = relation.Target,
+                IsCollection = isCollection,
+            });
+        }
+
+        return model;
+    }
+
+    /// <summary>Entity'nin yazılabilir skaler alanları: props + (many/one-to-one) FK id + dış ref id.</summary>
+    private static List<ScalarModel> BuildScalars(EntitySpec entity)
+    {
+        var scalars = new List<ScalarModel>();
 
         foreach (var (propName, propType) in entity.Props)
         {
             var csharp = TypeMap.ToCSharp(propType);
-            model.Scalars.Add(new ScalarModel
+            scalars.Add(new ScalarModel
             {
                 Name = NameUtil.Pascal(propName),
                 Type = csharp,
@@ -63,21 +94,16 @@ internal static class CodeGenerator
             var kind = relation.Kind.ToUpperInvariant();
             if (kind is "MANY-TO-ONE" or "ONE-TO-ONE")
             {
-                model.Scalars.Add(new ScalarModel { Name = NameUtil.Pascal(relName) + "Id", Type = "Guid" });
-                model.Navigations.Add(new NavModel { Name = NameUtil.Pascal(relName), Type = relation.Target, IsCollection = false });
-            }
-            else
-            {
-                model.Navigations.Add(new NavModel { Name = NameUtil.Pascal(relName), Type = relation.Target, IsCollection = true });
+                scalars.Add(new ScalarModel { Name = NameUtil.Pascal(relName) + "Id", Type = "Guid" });
             }
         }
 
         foreach (var externalRef in entity.ExternalRefs.Values)
         {
-            model.Scalars.Add(new ScalarModel { Name = NameUtil.Pascal(externalRef.Store), Type = "Guid" });
+            scalars.Add(new ScalarModel { Name = NameUtil.Pascal(externalRef.Store), Type = "Guid" });
         }
 
-        return model;
+        return scalars;
     }
 
     private static string WriteFile(string path, string content)

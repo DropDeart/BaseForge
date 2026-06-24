@@ -60,3 +60,14 @@ internal sealed class ProjectFileModel
 
     public string BaseForgeVersion { get; set; } = string.Empty;
 }
+
+/// <summary>CQRS feature dosyaları (Dto/Commands/Queries) için model.</summary>
+internal sealed class FeatureFileModel
+{
+    public string Namespace { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Yazılabilir alanlar (props + FK id + dış ref id). Id ve audit hariç.</summary>
+    public List<ScalarModel> Fields { get; set; } = [];
+}

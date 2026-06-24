@@ -54,6 +54,194 @@ internal static class Templates
 
         """;
 
+    public const string Dto =
+        """
+        using {{ Namespace }}.Entities;
+
+        namespace {{ Namespace }}.Features.{{ Name }}s;
+
+        /// <summary>{{ Name }} veri transfer nesnesi.</summary>
+        public sealed class {{ Name }}Dto
+        {
+            /// <summary>Kayıt kimliği.</summary>
+            public Guid Id { get; set; }
+        {{~ for f in Fields ~}}
+            /// <summary>{{ f.Name }}.</summary>
+            public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
+        {{~ end ~}}
+
+            /// <summary>Bir {{ Name }} entity'sinden DTO üretir.</summary>
+            public static {{ Name }}Dto From({{ Name }} entity)
+            {
+                ArgumentNullException.ThrowIfNull(entity);
+                return new {{ Name }}Dto
+                {
+                    Id = entity.Id,
+        {{~ for f in Fields ~}}
+                    {{ f.Name }} = entity.{{ f.Name }},
+        {{~ end ~}}
+                };
+            }
+        }
+
+        """;
+
+    public const string Commands =
+        """
+        using BaseForge.Core.CQRS;
+        using BaseForge.Core.Exceptions;
+        using BaseForge.Core.Interfaces;
+        using {{ Namespace }}.Entities;
+
+        namespace {{ Namespace }}.Features.{{ Name }}s;
+
+        /// <summary>Yeni bir {{ Name }} oluşturur; üretilen kimliği döndürür.</summary>
+        public sealed class Create{{ Name }}Command : ICommand<Guid>
+        {
+        {{~ for f in Fields ~}}
+            /// <summary>{{ f.Name }}.</summary>
+            public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
+        {{~ end ~}}
+        }
+
+        internal sealed class Create{{ Name }}Handler : ICommandHandler<Create{{ Name }}Command, Guid>
+        {
+            private readonly IRepository<{{ Name }}> _repository;
+            private readonly IUnitOfWork _unitOfWork;
+
+            public Create{{ Name }}Handler(IRepository<{{ Name }}> repository, IUnitOfWork unitOfWork)
+            {
+                _repository = repository;
+                _unitOfWork = unitOfWork;
+            }
+
+            public async Task<Guid> Handle(Create{{ Name }}Command request, CancellationToken cancellationToken)
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                var entity = new {{ Name }}
+                {
+        {{~ for f in Fields ~}}
+                    {{ f.Name }} = request.{{ f.Name }},
+        {{~ end ~}}
+                };
+                await _repository.AddAsync(entity, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                return entity.Id;
+            }
+        }
+
+        /// <summary>Var olan bir {{ Name }} kaydını günceller.</summary>
+        public sealed class Update{{ Name }}Command : ICommand
+        {
+            /// <summary>Güncellenecek kaydın kimliği.</summary>
+            public Guid Id { get; set; }
+        {{~ for f in Fields ~}}
+            /// <summary>{{ f.Name }}.</summary>
+            public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
+        {{~ end ~}}
+        }
+
+        internal sealed class Update{{ Name }}Handler : ICommandHandler<Update{{ Name }}Command>
+        {
+            private readonly IRepository<{{ Name }}> _repository;
+            private readonly IUnitOfWork _unitOfWork;
+
+            public Update{{ Name }}Handler(IRepository<{{ Name }}> repository, IUnitOfWork unitOfWork)
+            {
+                _repository = repository;
+                _unitOfWork = unitOfWork;
+            }
+
+            public async Task Handle(Update{{ Name }}Command request, CancellationToken cancellationToken)
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                var entity = await _repository.GetByIdAsync(request.Id, cancellationToken)
+                    ?? throw new NotFoundException("{{ Name }}", request.Id);
+        {{~ for f in Fields ~}}
+                entity.{{ f.Name }} = request.{{ f.Name }};
+        {{~ end ~}}
+                await _repository.UpdateAsync(entity, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        /// <summary>Bir {{ Name }} kaydını siler (soft delete).</summary>
+        public sealed class Delete{{ Name }}Command : ICommand
+        {
+            /// <summary>Silinecek kaydın kimliği.</summary>
+            public Guid Id { get; set; }
+        }
+
+        internal sealed class Delete{{ Name }}Handler : ICommandHandler<Delete{{ Name }}Command>
+        {
+            private readonly IRepository<{{ Name }}> _repository;
+            private readonly IUnitOfWork _unitOfWork;
+
+            public Delete{{ Name }}Handler(IRepository<{{ Name }}> repository, IUnitOfWork unitOfWork)
+            {
+                _repository = repository;
+                _unitOfWork = unitOfWork;
+            }
+
+            public async Task Handle(Delete{{ Name }}Command request, CancellationToken cancellationToken)
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                var entity = await _repository.GetByIdAsync(request.Id, cancellationToken)
+                    ?? throw new NotFoundException("{{ Name }}", request.Id);
+                await _repository.DeleteAsync(entity, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        """;
+
+    public const string Queries =
+        """
+        using BaseForge.Core.CQRS;
+        using BaseForge.Core.Interfaces;
+        using {{ Namespace }}.Entities;
+
+        namespace {{ Namespace }}.Features.{{ Name }}s;
+
+        /// <summary>Kimliğe göre tek bir {{ Name }} getirir.</summary>
+        public sealed class Get{{ Name }}ByIdQuery : IQuery<{{ Name }}Dto?>
+        {
+            /// <summary>Aranan kaydın kimliği.</summary>
+            public Guid Id { get; set; }
+        }
+
+        internal sealed class Get{{ Name }}ByIdHandler : IQueryHandler<Get{{ Name }}ByIdQuery, {{ Name }}Dto?>
+        {
+            private readonly IRepository<{{ Name }}> _repository;
+
+            public Get{{ Name }}ByIdHandler(IRepository<{{ Name }}> repository) => _repository = repository;
+
+            public async Task<{{ Name }}Dto?> Handle(Get{{ Name }}ByIdQuery request, CancellationToken cancellationToken)
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                var entity = await _repository.GetByIdAsync(request.Id, cancellationToken);
+                return entity is null ? null : {{ Name }}Dto.From(entity);
+            }
+        }
+
+        /// <summary>Tüm {{ Name }} kayıtlarını getirir.</summary>
+        public sealed class List{{ Name }}Query : IQuery<IReadOnlyList<{{ Name }}Dto>>;
+
+        internal sealed class List{{ Name }}Handler : IQueryHandler<List{{ Name }}Query, IReadOnlyList<{{ Name }}Dto>>
+        {
+            private readonly IRepository<{{ Name }}> _repository;
+
+            public List{{ Name }}Handler(IRepository<{{ Name }}> repository) => _repository = repository;
+
+            public async Task<IReadOnlyList<{{ Name }}Dto>> Handle(List{{ Name }}Query request, CancellationToken cancellationToken)
+            {
+                var items = await _repository.ListAllAsync(cancellationToken);
+                return items.Select({{ Name }}Dto.From).ToList();
+            }
+        }
+
+        """;
+
     public const string Project =
         """
         <Project Sdk="Microsoft.NET.Sdk">
