@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>baseforge</ToolCommandName>
+    <IsPackable>true</IsPackable>
+    <PackageId>BaseForge.CodeGen</PackageId>
+    <Description>BaseForge kod üretici: YAML servis spec'inden mikroservis iskelesi (Entity, DbContext, CQRS CRUD, Controller, Program.cs, Dockerfile) ve draw.io ER diyagramı üretir. `dotnet tool` olarak çalışır.</Description>
+    <!-- Konsol aracı: public API doc'u gerekmez; YAML'a deserialize edilen spec sınıfları için analiz gevşetildi -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA2227;CA1812;CA1031</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Scriban" Version="7.2.5" />
+    <PackageReference Include="YamlDotNet" Version="18.0.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/BaseForge.API/BaseForge.API.csproj" />
+    <Project Path="src/BaseForge.CodeGen/BaseForge.CodeGen.csproj" />
     <Project Path="src/BaseForge.Core/BaseForge.Core.csproj" />
     <Project Path="src/BaseForge.Infrastructure/BaseForge.Infrastructure.csproj" />
     <Project Path="src/BaseForge.Tools/BaseForge.Tools.csproj" />

@@ -1,0 +1,34 @@
+# Örnek BaseForge servis spec'i — tek dosya = tek mikroservis = tek DB.
+# Üretmek için:  baseforge new-service --spec samples/orders.yaml
+service: orders
+database: orders_db
+
+entities:
+  Order:
+    props:
+      status: string
+      total: decimal
+      placedAt: datetime
+    relations:
+      items:
+        kind: one-to-many
+        target: OrderItem          # servis içi ilişki -> gerçek FK
+    externalRefs:
+      customer:
+        target: customers/Customer  # başka servis -> sadece ID, FK yok
+        store: CustomerId
+        via: grpc
+
+  OrderItem:
+    props:
+      quantity: int
+      unitPrice: decimal
+    relations:
+      order:
+        kind: many-to-one
+        target: Order
+    externalRefs:
+      product:
+        target: catalog/Product
+        store: ProductId
+        via: grpc
