@@ -86,6 +86,11 @@ internal sealed class ProgramFileModel
     public string Namespace { get; set; } = string.Empty;
 
     public string ContextName { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>OpenAPI açıklaması — hazır C# string literal'i (tırnaklar dahil, escape'lenmiş).</summary>
+    public string DescriptionLiteral { get; set; } = "\"\"";
 }
 
 /// <summary>appsettings / Dockerfile / docker-compose şablonları için model.</summary>

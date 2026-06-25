@@ -306,7 +306,17 @@ internal static class Templates
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddControllers();
-        builder.Services.AddOpenApi();
+        builder.Services.AddOpenApi(openApi =>
+        {
+            // Scalar'daki "Introduction" bölümü bu bilgilerden gelir (Markdown desteklenir).
+            openApi.AddDocumentTransformer((document, _, _) =>
+            {
+                document.Info.Title = "{{ Title }}";
+                document.Info.Version = "v1";
+                document.Info.Description = {{ DescriptionLiteral }};
+                return Task.CompletedTask;
+            });
+        });
         builder.Services.AddBaseForge(options =>
         {
             options.UsePostgreSQL<{{ ContextName }}>(
