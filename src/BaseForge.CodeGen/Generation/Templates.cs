@@ -338,7 +338,7 @@ internal static class Templates
             {
                 options.WithTitle("{{ Namespace }} API");
                 options.WithTheme(ScalarTheme.Default);
-                options.WithDarkModeToggle(true);
+                // Dark mode toggle varsayılan açık. Gizlemek için: options.HideDarkModeToggle();
 
                 // "Ask AI" (Agent Scalar): localhost'ta key'siz ücretsiz/limitli çalışır.
                 // Production'da Scalar Agent key'i ver: options.WithAgentKey("SCALAR_AGENT_KEY");
