@@ -334,7 +334,16 @@ internal static class Templates
 
             // API arayüzü: /scalar/v1 (OpenAPI: /openapi/v1.json)
             app.MapOpenApi();
-            app.MapScalarApiReference();
+            app.MapScalarApiReference(options =>
+            {
+                options.WithTitle("{{ Namespace }} API");
+                options.WithTheme(ScalarTheme.Default);
+                options.WithDarkModeToggle(true);
+
+                // "Ask AI" (Agent Scalar): localhost'ta key'siz ücretsiz/limitli çalışır.
+                // Production'da Scalar Agent key'i ver: options.WithAgentKey("SCALAR_AGENT_KEY");
+                // Veya veri gizliliği için tamamen kapat:        options.DisableAgent();
+            });
         }
 
         app.UseBaseForge();
