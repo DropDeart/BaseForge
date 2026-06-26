@@ -10,4 +10,7 @@
     <Project Path="tests/BaseForge.IntegrationTests/BaseForge.IntegrationTests.csproj" />
     <Project Path="tests/BaseForge.UnitTests/BaseForge.UnitTests.csproj" />
   </Folder>
+  <Folder Name="/services/">
+    <Project Path="services/BaseForge.Identity/BaseForge.Identity.csproj" />
+  </Folder>
 </Solution>
