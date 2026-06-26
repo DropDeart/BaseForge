@@ -1,0 +1,20 @@
+# Identity Service deployment: mevcut trace-postgres'e bağlanır (ayrı 'identity_db').
+# Parola .env'deki PG_PASSWORD'dan gelir (sunucuda oluşturulur).
+services:
+  identity:
+    build: .
+    image: baseforge-identity:local
+    container_name: baseforge-identity
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: "Host=trace-postgres;Port=5432;Database=identity_db;Username=trace;Password=${PG_PASSWORD}"
+    ports:
+      - "8081:8080"
+    networks:
+      - trace-prod-network
+    restart: unless-stopped
+
+networks:
+  trace-prod-network:
+    external: true
