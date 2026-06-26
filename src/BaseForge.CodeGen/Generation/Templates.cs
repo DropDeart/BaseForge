@@ -392,6 +392,57 @@ internal static class Templates
 
         """;
 
+    public const string DockerCompose =
+        """
+        # {{ Service }} — izole test ortamı: servis + kendi PostgreSQL'i (mevcut DB'ye dokunmaz).
+        # Ayağa kaldır:  docker compose up --build -d
+        # API arayüzü:   http://localhost:8080/scalar/v1
+        # Durdur+temizle: docker compose down -v
+        services:
+          postgres:
+            image: postgres:17-alpine
+            environment:
+              POSTGRES_USER: baseforge
+              POSTGRES_PASSWORD: change_me
+              POSTGRES_DB: {{ Database }}
+            healthcheck:
+              test: ["CMD-SHELL", "pg_isready -U baseforge -d {{ Database }}"]
+              interval: 10s
+              timeout: 5s
+              retries: 5
+            volumes:
+              - {{ Service }}-pgdata:/var/lib/postgresql/data
+
+          {{ Service }}:
+            build: .
+            environment:
+              ASPNETCORE_ENVIRONMENT: Development
+              ASPNETCORE_URLS: http://+:8080
+              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+            ports:
+              - "8080:8080"
+            depends_on:
+              postgres:
+                condition: service_healthy
+
+        volumes:
+          {{ Service }}-pgdata:
+
+        """;
+
+    public const string DockerIgnore =
+        """
+        bin/
+        obj/
+        **/bin/
+        **/obj/
+        .vs/
+        .git/
+        docs/
+        *.user
+
+        """;
+
     public const string ComposeSnippet =
         """
         # Bu bloğu kök docker-compose.yml'a ekleyin (postgres servisinin yanına).
