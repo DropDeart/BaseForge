@@ -36,3 +36,6 @@ Thumbs.db
 
 # Üretilmiş örnek servis çıktısı
 /out/
+
+# Yerel paket çıktısı (test)
+/localpkgs/

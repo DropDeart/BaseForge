@@ -81,15 +81,26 @@ public sealed class BaseForgeOptions
 /// <summary>
 /// JWT bearer doğrulama ayarları. Merkezi Identity Service tarafından üretilen token'lar
 /// her serviste lokal olarak (merkezi DB çağrısı olmadan) doğrulanır.
+/// İki mod: <see cref="Authority"/> verilirse asimetrik/JWKS (önerilen, merkez auth ile),
+/// aksi halde <see cref="SigningKey"/> ile simetrik (HMAC).
 /// </summary>
 public sealed class JwtOptions
 {
-    /// <summary>Beklenen token issuer (iss) değeri.</summary>
-    public string Issuer { get; set; } = string.Empty;
+    /// <summary>
+    /// Merkezi Identity Service'in adresi (örn. <c>http://identity:8080</c>). Verilirse imza
+    /// doğrulaması, bu adresin OpenID discovery + JWKS uçlarından otomatik (asimetrik) yapılır.
+    /// </summary>
+    public string? Authority { get; set; }
+
+    /// <summary>Discovery/JWKS için HTTPS zorunlu mu? Container içi HTTP'de <see langword="false"/> yapın.</summary>
+    public bool RequireHttpsMetadata { get; set; } = true;
 
     /// <summary>Beklenen token audience (aud) değeri.</summary>
     public string Audience { get; set; } = string.Empty;
 
-    /// <summary>Token imzasını doğrulamak için kullanılan simetrik anahtar.</summary>
+    /// <summary>Beklenen token issuer (iss) değeri. Yalnızca simetrik modda gereklidir.</summary>
+    public string Issuer { get; set; } = string.Empty;
+
+    /// <summary>Simetrik (HMAC) imza anahtarı. Yalnızca <see cref="Authority"/> verilmediğinde kullanılır.</summary>
     public string SigningKey { get; set; } = string.Empty;
 }

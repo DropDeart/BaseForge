@@ -6,7 +6,7 @@ namespace BaseForge.CodeGen.Generation;
 internal static class CodeGenerator
 {
     /// <summary>Üretilen kodun referans verdiği BaseForge NuGet paket sürümü.</summary>
-    private const string BaseForgeVersion = "0.2.0-alpha";
+    private const string BaseForgeVersion = "0.2.1-alpha";
 
     public static IReadOnlyList<string> Generate(ServiceSpec spec, string outputDir)
     {

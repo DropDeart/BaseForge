@@ -1,5 +1,6 @@
 using BaseForge.API.Middleware;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BaseForge.API.Extensions;
 
@@ -9,17 +10,26 @@ namespace BaseForge.API.Extensions;
 public static class ApplicationBuilderExtensions
 {
     /// <summary>
-    /// BaseForge middleware'lerini pipeline'a ekler: önce exception handling, ardından request logging.
-    /// Pipeline'ın başında çağrılmalıdır. JWT kullanılıyorsa, uygulamanın ayrıca
-    /// <c>UseAuthentication()</c>/<c>UseAuthorization()</c> çağırması gerekir.
+    /// BaseForge middleware'lerini pipeline'a ekler: exception handling, request logging ve
+    /// (AddBaseForge'da JWT etkinleştirildiyse) authentication + authorization.
+    /// Pipeline'ın başında, <c>MapControllers</c>'tan önce çağrılmalıdır.
     /// </summary>
     /// <param name="app">Uygulama pipeline'ı.</param>
     /// <returns>Zincirleme için aynı <paramref name="app"/>.</returns>
     public static IApplicationBuilder UseBaseForge(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
+
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseMiddleware<RequestLoggingMiddleware>();
+
+        var features = app.ApplicationServices.GetService<BaseForgeFeatures>();
+        if (features?.JwtEnabled == true)
+        {
+            app.UseAuthentication();
+            app.UseAuthorization();
+        }
+
         return app;
     }
 }

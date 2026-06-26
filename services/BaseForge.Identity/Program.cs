@@ -38,6 +38,13 @@ builder.Services.AddOpenIddict()
         .UseDbContext<IdentityServiceDbContext>())
     .AddServer(options =>
     {
+        // Sabit issuer (downstream servisler tutarlı doğrulasın). Yoksa istek host'una göre değişir.
+        var issuer = builder.Configuration["OpenIddict:Issuer"];
+        if (!string.IsNullOrWhiteSpace(issuer))
+        {
+            options.SetIssuer(new Uri(issuer));
+        }
+
         options.SetTokenEndpointUris("connect/token");
         options.SetAuthorizationEndpointUris("connect/authorize");
 

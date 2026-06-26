@@ -56,6 +56,9 @@ public static class ServiceCollectionExtensions
             AddJwtAuthentication(services, options.Jwt);
         }
 
+        // UseBaseForge'ın auth middleware'i ekleyip eklemeyeceğini bilmesi için işaret.
+        services.AddSingleton(new BaseForgeFeatures { JwtEnabled = options.Jwt is not null });
+
         return services;
     }
 
@@ -63,20 +66,44 @@ public static class ServiceCollectionExtensions
     {
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(bearer =>
+            .AddJwtBearer(options =>
             {
-                bearer.TokenValidationParameters = new TokenValidationParameters
+                if (!string.IsNullOrWhiteSpace(jwt.Authority))
                 {
-                    ValidateIssuer = true,
-                    ValidIssuer = jwt.Issuer,
-                    ValidateAudience = true,
-                    ValidAudience = jwt.Audience,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
-                    ValidateLifetime = true,
-                };
+                    // Asimetrik/JWKS: imza + issuer, Authority'nin discovery/JWKS'inden otomatik.
+                    options.Authority = jwt.Authority;
+                    options.RequireHttpsMetadata = jwt.RequireHttpsMetadata;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateAudience = true,
+                        ValidAudience = jwt.Audience,
+                        ValidateIssuer = true,
+                        ValidateLifetime = true,
+                    };
+                }
+                else
+                {
+                    // Simetrik (HMAC).
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = jwt.Issuer,
+                        ValidateAudience = true,
+                        ValidAudience = jwt.Audience,
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                        ValidateLifetime = true,
+                    };
+                }
             });
 
         services.AddAuthorization();
     }
+}
+
+/// <summary>UseBaseForge'ın hangi pipeline bileşenlerini ekleyeceğini belirleyen işaret nesnesi.</summary>
+internal sealed class BaseForgeFeatures
+{
+    /// <summary>JWT kimlik doğrulama etkin mi?</summary>
+    public bool JwtEnabled { get; init; }
 }
