@@ -40,14 +40,10 @@ public sealed class AuthorizationController : ControllerBase
         var result = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
         if (result?.Succeeded != true)
         {
-            // Giriş yoksa login sayfasına yönlendir (sonra buraya geri döner).
-            return Challenge(
-                authenticationSchemes: IdentityConstants.ApplicationScheme,
-                properties: new Microsoft.AspNetCore.Authentication.AuthenticationProperties
-                {
-                    RedirectUri = Request.PathBase + Request.Path + QueryString.Create(
-                        Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList()),
-                });
+            // Giriş yoksa login sayfasına 302 ile yönlendir (sonra buraya geri döner).
+            var returnUrl = Request.PathBase + Request.Path + QueryString.Create(
+                Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList());
+            return Redirect($"/Account/Login?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
         }
 
         var user = await _userManager.GetUserAsync(result.Principal!)
