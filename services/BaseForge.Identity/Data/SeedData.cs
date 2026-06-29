@@ -1,3 +1,4 @@
+using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 using OpenIddict.Abstractions;
@@ -5,91 +6,118 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace BaseForge.Identity.Data;
 
-/// <summary>İlk açılışta OpenIddict client'larını, scope'u ve bir admin kullanıcısını oluşturur.</summary>
+/// <summary>İlk açılışta OpenIddict scope/client'larını ve admin kullanıcıyı <see cref="AuthOptions"/>'tan oluşturur.</summary>
 public static class SeedData
 {
-    public const string ApiScope = "api";
-    public const string ApiResource = "baseforge-api";
-
-    public static async Task SeedAsync(IServiceProvider services, CancellationToken cancellationToken = default)
+    public static async Task SeedAsync(IServiceProvider services, AuthOptions auth, CancellationToken cancellationToken = default)
     {
-        await SeedClientsAsync(services, cancellationToken);
-        await SeedScopeAsync(services, cancellationToken);
-        await SeedAdminUserAsync(services);
+        ArgumentNullException.ThrowIfNull(auth);
+        await SeedScopesAsync(services, auth, cancellationToken);
+        await SeedClientsAsync(services, auth, cancellationToken);
+        await SeedAdminAsync(services, auth);
     }
 
-    private static async Task SeedClientsAsync(IServiceProvider services, CancellationToken ct)
-    {
-        var manager = services.GetRequiredService<IOpenIddictApplicationManager>();
-
-        // Servis-servis (makineler arası): client_id + secret ile token alır.
-        if (await manager.FindByClientIdAsync("service-worker", ct) is null)
-        {
-            await manager.CreateAsync(new OpenIddictApplicationDescriptor
-            {
-                ClientId = "service-worker",
-                ClientSecret = "service-secret",
-                ClientType = ClientTypes.Confidential,
-                DisplayName = "Service worker (machine-to-machine)",
-                Permissions =
-                {
-                    Permissions.Endpoints.Token,
-                    Permissions.GrantTypes.ClientCredentials,
-                    Permissions.Prefixes.Scope + ApiScope,
-                },
-            }, ct);
-        }
-
-        // Kullanıcı istemcisi (SPA): parola + refresh + (ileride) authorization_code.
-        if (await manager.FindByClientIdAsync("spa-client", ct) is null)
-        {
-            await manager.CreateAsync(new OpenIddictApplicationDescriptor
-            {
-                ClientId = "spa-client",
-                ClientType = ClientTypes.Public,
-                DisplayName = "SPA / kullanıcı istemcisi",
-                Permissions =
-                {
-                    Permissions.Endpoints.Token,
-                    Permissions.GrantTypes.Password,
-                    Permissions.GrantTypes.RefreshToken,
-                    Permissions.Prefixes.Scope + ApiScope,
-                    Permissions.Prefixes.Scope + Scopes.OfflineAccess,
-                },
-            }, ct);
-        }
-    }
-
-    private static async Task SeedScopeAsync(IServiceProvider services, CancellationToken ct)
+    private static async Task SeedScopesAsync(IServiceProvider services, AuthOptions auth, CancellationToken ct)
     {
         var manager = services.GetRequiredService<IOpenIddictScopeManager>();
-        if (await manager.FindByNameAsync(ApiScope, ct) is null)
+        foreach (var scope in auth.Scopes)
         {
-            await manager.CreateAsync(new OpenIddictScopeDescriptor
+            if (string.IsNullOrWhiteSpace(scope.Name) || await manager.FindByNameAsync(scope.Name, ct) is not null)
             {
-                Name = ApiScope,
-                DisplayName = "BaseForge API erişimi",
-                Resources = { ApiResource },
-            }, ct);
+                continue;
+            }
+
+            var descriptor = new OpenIddictScopeDescriptor { Name = scope.Name, DisplayName = scope.Name };
+            if (!string.IsNullOrWhiteSpace(scope.Resource))
+            {
+                descriptor.Resources.Add(scope.Resource);
+            }
+
+            await manager.CreateAsync(descriptor, ct);
         }
     }
 
-    private static async Task SeedAdminUserAsync(IServiceProvider services)
+    private static async Task SeedClientsAsync(IServiceProvider services, AuthOptions auth, CancellationToken ct)
     {
+        var manager = services.GetRequiredService<IOpenIddictApplicationManager>();
+        foreach (var client in auth.Clients)
+        {
+            if (string.IsNullOrWhiteSpace(client.ClientId) || await manager.FindByClientIdAsync(client.ClientId, ct) is not null)
+            {
+                continue;
+            }
+
+            var descriptor = new OpenIddictApplicationDescriptor
+            {
+                ClientId = client.ClientId,
+                ClientType = client.Public ? ClientTypes.Public : ClientTypes.Confidential,
+                DisplayName = client.ClientId,
+            };
+
+            if (!client.Public && !string.IsNullOrWhiteSpace(client.Secret))
+            {
+                descriptor.ClientSecret = client.Secret;
+            }
+
+            descriptor.Permissions.Add(Permissions.Endpoints.Token);
+
+            foreach (var grant in client.Grants)
+            {
+                switch (grant.Trim().ToLowerInvariant())
+                {
+                    case "password":
+                        descriptor.Permissions.Add(Permissions.GrantTypes.Password);
+                        break;
+                    case "client_credentials":
+                        descriptor.Permissions.Add(Permissions.GrantTypes.ClientCredentials);
+                        break;
+                    case "refresh_token":
+                        descriptor.Permissions.Add(Permissions.GrantTypes.RefreshToken);
+                        break;
+                    case "authorization_code":
+                        descriptor.Permissions.Add(Permissions.GrantTypes.AuthorizationCode);
+                        descriptor.Permissions.Add(Permissions.ResponseTypes.Code);
+                        descriptor.Permissions.Add(Permissions.Endpoints.Authorization);
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            foreach (var scope in client.Scopes)
+            {
+                descriptor.Permissions.Add(Permissions.Prefixes.Scope + scope);
+            }
+
+            foreach (var uri in client.RedirectUris)
+            {
+                descriptor.RedirectUris.Add(new Uri(uri));
+            }
+
+            await manager.CreateAsync(descriptor, ct);
+        }
+    }
+
+    private static async Task SeedAdminAsync(IServiceProvider services, AuthOptions auth)
+    {
+        if (auth.SeedAdmin is null || string.IsNullOrWhiteSpace(auth.SeedAdmin.Email))
+        {
+            return;
+        }
+
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        const string email = "admin@baseforge.local";
-        if (await userManager.FindByNameAsync(email) is not null)
+        if (await userManager.FindByNameAsync(auth.SeedAdmin.Email) is not null)
         {
             return;
         }
 
         var admin = new ApplicationUser
         {
-            UserName = email,
-            Email = email,
+            UserName = auth.SeedAdmin.Email,
+            Email = auth.SeedAdmin.Email,
             EmailConfirmed = true,
-            FullName = "BaseForge Admin",
+            FullName = "Administrator",
         };
-        await userManager.CreateAsync(admin, "Admin!2345");
+        await userManager.CreateAsync(admin, auth.SeedAdmin.Password);
     }
 }

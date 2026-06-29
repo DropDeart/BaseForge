@@ -17,11 +17,16 @@ public sealed class AuthorizationController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly IOpenIddictScopeManager _scopeManager;
 
-    public AuthorizationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+    public AuthorizationController(
+        UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
+        IOpenIddictScopeManager scopeManager)
     {
         _userManager = userManager;
         _signInManager = signInManager;
+        _scopeManager = scopeManager;
     }
 
     [HttpPost("~/connect/token")]
@@ -38,7 +43,7 @@ public sealed class AuthorizationController : ControllerBase
 
         if (request.IsClientCredentialsGrantType())
         {
-            return HandleClientCredentials(request);
+            return await HandleClientCredentialsAsync(request);
         }
 
         if (request.IsRefreshTokenGrantType())
@@ -67,7 +72,7 @@ public sealed class AuthorizationController : ControllerBase
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    private IActionResult HandleClientCredentials(OpenIddictRequest request)
+    private async Task<IActionResult> HandleClientCredentialsAsync(OpenIddictRequest request)
     {
         // İstemci (client_id/secret) OpenIddict tarafından zaten doğrulandı.
         var identity = new ClaimsIdentity(
@@ -80,7 +85,7 @@ public sealed class AuthorizationController : ControllerBase
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(request.GetScopes());
-        principal.SetResources(SeedData.ApiResource);
+        principal.SetResources(await ResolveResourcesAsync(principal.GetScopes()));
         SetDestinations(principal);
 
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -117,9 +122,21 @@ public sealed class AuthorizationController : ControllerBase
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(scopes);
-        principal.SetResources(SeedData.ApiResource);
+        principal.SetResources(await ResolveResourcesAsync(principal.GetScopes()));
         SetDestinations(principal);
         return principal;
+    }
+
+    /// <summary>İstenen scope'lara karşılık gelen kaynakları (audience) config'teki scope tanımlarından çözer.</summary>
+    private async Task<List<string>> ResolveResourcesAsync(IEnumerable<string> scopes)
+    {
+        var resources = new List<string>();
+        await foreach (var resource in _scopeManager.ListResourcesAsync([.. scopes]))
+        {
+            resources.Add(resource);
+        }
+
+        return resources;
     }
 
     /// <summary>Her claim'in hangi token'a (access/id) yazılacağını belirler.</summary>

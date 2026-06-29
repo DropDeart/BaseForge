@@ -1,3 +1,5 @@
+using System.Security.Cryptography.X509Certificates;
+using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -8,6 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("ConnectionStrings:Default tanımlı değil.");
+
+var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
+builder.Services.AddSingleton(authOptions);
 
 builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
 {
@@ -38,11 +43,10 @@ builder.Services.AddOpenIddict()
         .UseDbContext<IdentityServiceDbContext>())
     .AddServer(options =>
     {
-        // Sabit issuer (downstream servisler tutarlı doğrulasın). Yoksa istek host'una göre değişir.
-        var issuer = builder.Configuration["OpenIddict:Issuer"];
-        if (!string.IsNullOrWhiteSpace(issuer))
+        // Sabit issuer (config'ten) — downstream servisler tutarlı doğrulasın.
+        if (!string.IsNullOrWhiteSpace(authOptions.Issuer))
         {
-            options.SetIssuer(new Uri(issuer));
+            options.SetIssuer(new Uri(authOptions.Issuer));
         }
 
         options.SetTokenEndpointUris("connect/token");
@@ -54,12 +58,30 @@ builder.Services.AddOpenIddict()
                .AllowAuthorizationCodeFlow()
                .RequireProofKeyForCodeExchange();
 
-        options.RegisterScopes(SeedData.ApiScope, Scopes.Profile, Scopes.Email, Scopes.Roles, Scopes.OfflineAccess);
+        // Scope'lar config'ten + standart OIDC scope'ları.
+        var scopeNames = authOptions.Scopes
+            .Select(s => s.Name)
+            .Concat([Scopes.Profile, Scopes.Email, Scopes.Roles, Scopes.OfflineAccess])
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        options.RegisterScopes(scopeNames);
 
-        // Asimetrik imzalama (RSA) → JWKS ile yayınlanır; access token JWS (şifresiz) olsun ki
-        // downstream servisler public key ile offline doğrulayabilsin.
+        // Asimetrik imzalama (RSA) → JWKS. Sertifika verildiyse kalıcı, yoksa ephemeral (dev).
         options.AddEphemeralEncryptionKey();
-        options.AddEphemeralSigningKey();
+        if (!string.IsNullOrWhiteSpace(authOptions.SigningCertificatePath) && File.Exists(authOptions.SigningCertificatePath))
+        {
+            var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+                authOptions.SigningCertificatePath,
+                authOptions.SigningCertificatePassword);
+            options.AddSigningCertificate(certificate);
+        }
+        else
+        {
+            options.AddEphemeralSigningKey();
+        }
+
+        // Access token JWS (şifresiz) olsun ki downstream public key ile offline doğrulayabilsin.
         options.DisableAccessTokenEncryption();
 
         options.UseAspNetCore()
@@ -82,7 +104,7 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IdentityServiceDbContext>();
     await db.Database.EnsureCreatedAsync();
-    await SeedData.SeedAsync(scope.ServiceProvider);
+    await SeedData.SeedAsync(scope.ServiceProvider, authOptions);
 }
 
 app.UseAuthentication();

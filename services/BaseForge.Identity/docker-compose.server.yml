@@ -9,7 +9,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       # Sabit issuer: downstream servisler (docker ağında) bu adresten discovery/JWKS çeker.
-      OpenIddict__Issuer: "http://baseforge-identity:8080/"
+      Auth__Issuer: "http://baseforge-identity:8080/"
       ConnectionStrings__Default: "Host=trace-postgres;Port=5432;Database=identity_db;Username=trace;Password=${PG_PASSWORD}"
     ports:
       - "8081:8080"
