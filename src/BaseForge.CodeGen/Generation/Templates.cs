@@ -245,12 +245,18 @@ internal static class Templates
     public const string Controller =
         """
         using BaseForge.API.Controllers;
+        {{~ if Protect ~}}
+        using Microsoft.AspNetCore.Authorization;
+        {{~ end ~}}
         using Microsoft.AspNetCore.Mvc;
         using {{ Namespace }}.Features.{{ Name }}s;
 
         namespace {{ Namespace }}.Controllers;
 
         /// <summary>{{ Name }} CRUD uçları.</summary>
+        {{~ if Protect ~}}
+        [Authorize]
+        {{~ end ~}}
         [Route("api/[controller]")]
         public sealed class {{ Name }}sController : BaseController
         {
@@ -324,6 +330,14 @@ internal static class Templates
                     ?? throw new InvalidOperationException("ConnectionStrings:Default tanımlı değil."));
             options.EnableCQRS(typeof(Program).Assembly);
             options.EnableAuditLog();
+        {{~ if HasAuth ~}}
+            options.EnableJwt(jwt =>
+            {
+                jwt.Authority = "{{ Authority }}";          // merkez Identity (discovery/JWKS)
+                jwt.Audience = "{{ Audience }}";
+                jwt.RequireHttpsMetadata = {{ if RequireHttpsMetadata }}true{{ else }}false{{ end }};
+            });
+        {{~ end ~}}
         });
 
         var app = builder.Build();

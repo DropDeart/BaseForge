@@ -32,3 +32,11 @@ entities:
         target: catalog/Product
         store: ProductId
         via: grpc
+
+# Merkez auth (opsiyonel). Bu blok varsa üretilen servis EnableJwt + [Authorize] ile gelir.
+# (Yoksa `new-service` etkileşimli olarak sorar.)
+# auth:
+#   authority: http://localhost:5090
+#   audience: baseforge-api
+#   requireHttpsMetadata: false
+#   protect: true

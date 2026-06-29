@@ -100,6 +100,12 @@ internal static class CliRunner
             return 0;
         }
 
+        // Auth spec'te yoksa ve etkileşimliysek soru-bazlı sor.
+        if (spec.Auth is null && !options.ContainsKey("yes"))
+        {
+            spec.Auth = AskAuth();
+        }
+
         var files = CodeGenerator.Generate(spec, output);
         Console.WriteLine();
         Console.WriteLine($"{files.Count} dosya üretildi ({Path.GetFullPath(output)}):");
@@ -109,6 +115,39 @@ internal static class CliRunner
         }
 
         return 0;
+    }
+
+    private static ServiceAuthSpec? AskAuth()
+    {
+        Console.Write("Merkez auth (JWT) eklensin mi? (e/h): ");
+        if (!IsYes(Console.ReadLine()))
+        {
+            return null;
+        }
+
+        Console.Write("  Identity authority URL [http://localhost:5090]: ");
+        var authority = Console.ReadLine()?.Trim();
+        Console.Write("  Audience [baseforge-api]: ");
+        var audience = Console.ReadLine()?.Trim();
+        Console.Write("  Tüm controller'lar [Authorize] olsun mu? (E/h): ");
+        var protectAnswer = Console.ReadLine();
+
+        return new ServiceAuthSpec
+        {
+            Authority = string.IsNullOrWhiteSpace(authority) ? "http://localhost:5090" : authority,
+            Audience = string.IsNullOrWhiteSpace(audience) ? "baseforge-api" : audience,
+            RequireHttpsMetadata = false,
+            Protect = string.IsNullOrWhiteSpace(protectAnswer) || IsYes(protectAnswer),
+        };
+    }
+
+    private static bool IsYes(string? answer)
+    {
+        var value = answer?.Trim();
+        return string.Equals(value, "e", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "evet", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "y", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
     }
 
     private static ServiceSpec? LoadValidated(Dictionary<string, string> options, out int errorCode)

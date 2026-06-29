@@ -78,6 +78,9 @@ internal sealed class ControllerFileModel
     public string Namespace { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Controller [Authorize] ile korunsun mu?</summary>
+    public bool Protect { get; set; }
 }
 
 /// <summary>Program.cs şablonu için model.</summary>
@@ -91,6 +94,14 @@ internal sealed class ProgramFileModel
 
     /// <summary>OpenAPI açıklaması — hazır C# string literal'i (tırnaklar dahil, escape'lenmiş).</summary>
     public string DescriptionLiteral { get; set; } = "\"\"";
+
+    public bool HasAuth { get; set; }
+
+    public string Authority { get; set; } = string.Empty;
+
+    public string Audience { get; set; } = string.Empty;
+
+    public bool RequireHttpsMetadata { get; set; }
 }
 
 /// <summary>appsettings / Dockerfile / docker-compose şablonları için model.</summary>

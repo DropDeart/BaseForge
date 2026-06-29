@@ -32,7 +32,8 @@ internal static class CodeGenerator
             written.Add(WriteFile(Path.Combine(featureDir, name + "Commands.cs"), TemplateEngine.Render(Templates.Commands, feature)));
             written.Add(WriteFile(Path.Combine(featureDir, name + "Queries.cs"), TemplateEngine.Render(Templates.Queries, feature)));
 
-            var controller = TemplateEngine.Render(Templates.Controller, new ControllerFileModel { Namespace = ns, Name = name });
+            var controllerModel = new ControllerFileModel { Namespace = ns, Name = name, Protect = spec.Auth?.Protect == true };
+            var controller = TemplateEngine.Render(Templates.Controller, controllerModel);
             written.Add(WriteFile(Path.Combine(outputDir, "Controllers", name + "sController.cs"), controller));
         }
 
@@ -43,6 +44,10 @@ internal static class CodeGenerator
             ContextName = contextName,
             Title = ns + " API",
             DescriptionLiteral = CSharpLiteral(BuildDescription(spec, ns)),
+            HasAuth = spec.Auth is not null,
+            Authority = spec.Auth?.Authority ?? string.Empty,
+            Audience = spec.Auth?.Audience ?? string.Empty,
+            RequireHttpsMetadata = spec.Auth?.RequireHttpsMetadata ?? false,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "Program.cs"), TemplateEngine.Render(Templates.Program, programModel)));
 
