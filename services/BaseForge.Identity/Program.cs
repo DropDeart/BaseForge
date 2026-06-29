@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using BaseForge.Identity.Authentication;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
@@ -36,6 +37,16 @@ builder.Services.Configure<IdentityOptions>(options =>
     options.ClaimsIdentity.UserIdClaimType = Claims.Subject;
     options.ClaimsIdentity.RoleClaimType = Claims.Role;
 });
+
+// İnteraktif (authorization_code) akış: giriş yoksa login sayfasına yönlendir.
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/Account/Login";
+    options.AccessDeniedPath = "/Account/Login";
+});
+
+// Dış kimlik sağlayıcıları (config'te ClientId dolu olanlar).
+ExternalProviders.Add(builder.Services.AddAuthentication(), authOptions.Providers);
 
 builder.Services.AddOpenIddict()
     .AddCore(options => options
@@ -96,6 +107,7 @@ builder.Services.AddOpenIddict()
     });
 
 builder.Services.AddControllers();
+builder.Services.AddRazorPages();
 
 var app = builder.Build();
 
@@ -107,8 +119,10 @@ await using (var scope = app.Services.CreateAsyncScope())
     await SeedData.SeedAsync(scope.ServiceProvider, authOptions);
 }
 
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapRazorPages();
 
 app.Run();

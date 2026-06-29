@@ -72,6 +72,10 @@ internal static class IdentityGenerator
             <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
             <PackageReference Include="OpenIddict.AspNetCore" Version="7.5.0" />
             <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.5.0" />
+            <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.9" />
+            <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.9" />
+            <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" Version="10.0.9" />
+            <PackageReference Include="AspNet.Security.OAuth.GitHub" Version="10.0.0" />
           </ItemGroup>
 
         </Project>

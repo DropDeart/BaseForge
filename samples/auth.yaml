@@ -22,6 +22,13 @@ clients:
     public: false
     grants: [client_credentials]
     scopes: [api]
+  - clientId: web              # tarayıcı (authorization_code + PKCE) — sosyal/interaktif login
+    public: true
+    grants: [authorization_code, refresh_token]
+    scopes: [api]
+    redirectUris:
+      - https://oauth.pstmn.io/v1/callback
+      - http://localhost:3000/callback
 
 seedAdmin:
   email: admin@baseforge.local

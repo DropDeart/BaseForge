@@ -29,6 +29,34 @@ public sealed class AuthorizationController : ControllerBase
         _scopeManager = scopeManager;
     }
 
+    [HttpGet("~/connect/authorize")]
+    [HttpPost("~/connect/authorize")]
+    public async Task<IActionResult> Authorize()
+    {
+        var request = HttpContext.GetOpenIddictServerRequest()
+            ?? throw new InvalidOperationException("OpenIddict isteği çözümlenemedi.");
+
+        // Kullanıcı giriş yapmış mı? (interaktif cookie)
+        var result = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        if (result?.Succeeded != true)
+        {
+            // Giriş yoksa login sayfasına yönlendir (sonra buraya geri döner).
+            return Challenge(
+                authenticationSchemes: IdentityConstants.ApplicationScheme,
+                properties: new Microsoft.AspNetCore.Authentication.AuthenticationProperties
+                {
+                    RedirectUri = Request.PathBase + Request.Path + QueryString.Create(
+                        Request.HasFormContentType ? Request.Form.ToList() : Request.Query.ToList()),
+                });
+        }
+
+        var user = await _userManager.GetUserAsync(result.Principal!)
+            ?? throw new InvalidOperationException("Oturum açan kullanıcı bulunamadı.");
+
+        var principal = await CreateUserPrincipalAsync(user, request.GetScopes());
+        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
     [HttpPost("~/connect/token")]
     [Produces("application/json")]
     public async Task<IActionResult> Exchange()

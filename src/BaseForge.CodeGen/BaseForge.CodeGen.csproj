@@ -26,6 +26,10 @@
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\IdentityServiceDbContext.cs" LogicalName="identity/Data/IdentityServiceDbContext.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\SeedData.cs" LogicalName="identity/Data/SeedData.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AuthorizationController.cs" LogicalName="identity/Controllers/AuthorizationController.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Authentication\ExternalProviders.cs" LogicalName="identity/Authentication/ExternalProviders.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\_ViewImports.cshtml" LogicalName="identity/Pages/_ViewImports.cshtml" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml" LogicalName="identity/Pages/Account/Login.cshtml" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml.cs" LogicalName="identity/Pages/Account/Login.cshtml.cs" />
   </ItemGroup>
 
 </Project>
