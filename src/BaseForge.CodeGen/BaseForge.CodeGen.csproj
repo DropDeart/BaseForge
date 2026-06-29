@@ -17,4 +17,15 @@
     <PackageReference Include="YamlDotNet" Version="18.0.0" />
   </ItemGroup>
 
+  <!-- Identity referans servisi dosyaları: new-identity için gömülü şablon (tek doğru kaynak).
+       Üretimde 'BaseForge.Identity' namespace'i kullanıcının servis adıyla değiştirilir. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Program.cs" LogicalName="identity/Program.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Configuration\AuthOptions.cs" LogicalName="identity/Configuration/AuthOptions.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Entities\ApplicationUser.cs" LogicalName="identity/Entities/ApplicationUser.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\IdentityServiceDbContext.cs" LogicalName="identity/Data/IdentityServiceDbContext.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\SeedData.cs" LogicalName="identity/Data/SeedData.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AuthorizationController.cs" LogicalName="identity/Controllers/AuthorizationController.cs" />
+  </ItemGroup>
+
 </Project>

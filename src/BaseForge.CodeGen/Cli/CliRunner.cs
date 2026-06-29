@@ -23,6 +23,7 @@ internal static class CliRunner
             {
                 "er" => RunEr(options),
                 "new-service" => RunNewService(options),
+                "new-identity" => RunNewIdentity(options),
                 _ => Unknown(command),
             };
         }
@@ -31,6 +32,36 @@ internal static class CliRunner
             Console.Error.WriteLine($"Hata: {ex.Message}");
             return 1;
         }
+    }
+
+    private static int RunNewIdentity(Dictionary<string, string> options)
+    {
+        if (!options.TryGetValue("spec", out var specPath) || string.IsNullOrWhiteSpace(specPath))
+        {
+            Console.Error.WriteLine("'--spec <auth.yaml>' zorunludur.");
+            return 1;
+        }
+
+        var spec = SpecLoader.Load<AuthSpec>(specPath);
+        if (string.IsNullOrWhiteSpace(spec.Service) || string.IsNullOrWhiteSpace(spec.Database))
+        {
+            Console.Error.WriteLine("auth.yaml: 'service' ve 'database' zorunludur.");
+            return 1;
+        }
+
+        var output = options.GetValueOrDefault("output", $"./{spec.Service}");
+        var files = IdentityGenerator.Generate(spec, output);
+
+        Console.WriteLine($"{files.Count} dosya üretildi ({Path.GetFullPath(output)}):");
+        foreach (var file in files)
+        {
+            Console.WriteLine($"  + {Path.GetRelativePath(output, file)}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Çalıştırma:  cd \"" + output + "\" && docker compose up --build -d");
+        Console.WriteLine("Secret'ları .env.example -> .env'e taşıyabilirsiniz.");
+        return 0;
     }
 
     private static int RunEr(Dictionary<string, string> options)
@@ -172,12 +203,14 @@ internal static class CliRunner
         Console.WriteLine("BaseForge kod üretici (baseforge)");
         Console.WriteLine();
         Console.WriteLine("Kullanım:");
-        Console.WriteLine("  baseforge er          --spec <dosya.yaml> [--output <klasör>]");
-        Console.WriteLine("  baseforge new-service --spec <dosya.yaml> [--output <klasör>] [--yes]");
+        Console.WriteLine("  baseforge er           --spec <dosya.yaml> [--output <klasör>]");
+        Console.WriteLine("  baseforge new-service  --spec <dosya.yaml> [--output <klasör>] [--yes]");
+        Console.WriteLine("  baseforge new-identity --spec <auth.yaml>  [--output <klasör>]");
         Console.WriteLine();
         Console.WriteLine("Komutlar:");
         Console.WriteLine("  er            Spec'ten yalnızca draw.io ER diyagramı üretir.");
         Console.WriteLine("  new-service   ER üretir, onay alır ve servis iskelesini üretir.");
+        Console.WriteLine("  new-identity  auth.yaml'dan config-driven merkez auth (Identity) servisi üretir.");
         Console.WriteLine();
         Console.WriteLine("Seçenekler:");
         Console.WriteLine("  --spec    YAML servis spec dosyası (zorunlu).");

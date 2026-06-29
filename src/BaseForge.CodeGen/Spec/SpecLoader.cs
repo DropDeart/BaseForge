@@ -3,10 +3,12 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace BaseForge.CodeGen.Spec;
 
-/// <summary>YAML servis spec dosyalarını <see cref="ServiceSpec"/> nesnesine yükler.</summary>
+/// <summary>YAML spec dosyalarını ilgili modele yükler.</summary>
 internal static class SpecLoader
 {
-    public static ServiceSpec Load(string path)
+    public static ServiceSpec Load(string path) => Load<ServiceSpec>(path);
+
+    public static T Load<T>(string path)
     {
         if (!File.Exists(path))
         {
@@ -19,9 +21,7 @@ internal static class SpecLoader
             .IgnoreUnmatchedProperties()
             .Build();
 
-        var spec = deserializer.Deserialize<ServiceSpec>(yaml)
+        return deserializer.Deserialize<T>(yaml)
             ?? throw new InvalidDataException("Spec dosyası boş ya da okunamadı.");
-
-        return spec;
     }
 }

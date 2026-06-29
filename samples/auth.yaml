@@ -1,0 +1,34 @@
+# Örnek merkez auth (Identity) spec'i — config-driven.
+# Üret:  baseforge new-identity --spec samples/auth.yaml --output ./MyIdentity
+service: identity
+database: identity_db
+issuer: http://localhost:5090/
+
+signing:
+  certificatePath: ""          # prod: kalıcı .pfx; boşsa dev için ephemeral RSA
+  certificatePassword: ""
+
+scopes:
+  - name: api
+    resource: baseforge-api
+
+clients:
+  - clientId: spa-client       # kullanıcı (SPA/mobil) — public
+    public: true
+    grants: [password, refresh_token]
+    scopes: [api]
+  - clientId: service-worker   # servis-servis — confidential
+    secret: service-secret     # prod: .env'e taşı (Auth__Clients__1__Secret)
+    public: false
+    grants: [client_credentials]
+    scopes: [api]
+
+seedAdmin:
+  email: admin@baseforge.local
+  password: Admin!2345         # prod: .env'e taşı (Auth__SeedAdmin__Password)
+
+providers:                     # P3'te interaktif login devreye girer; secret'lar .env'den
+  google:    { clientId: "", clientSecret: "" }
+  github:    { clientId: "", clientSecret: "" }
+  microsoft: { clientId: "", clientSecret: "" }
+  facebook:  { clientId: "", clientSecret: "" }
