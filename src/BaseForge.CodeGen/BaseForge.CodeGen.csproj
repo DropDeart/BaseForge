@@ -12,6 +12,11 @@
     <NoWarn>$(NoWarn);CA2227;CA1812;CA1031</NoWarn>
   </PropertyGroup>
 
+  <!-- Designer arayüzü minimal API host'u için ASP.NET Core paylaşılan framework'ü -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Scriban" Version="7.2.5" />
     <PackageReference Include="YamlDotNet" Version="18.0.0" />
@@ -31,5 +36,29 @@
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml" LogicalName="identity/Pages/Account/Login.cshtml" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml.cs" LogicalName="identity/Pages/Account/Login.cshtml.cs" />
   </ItemGroup>
+
+  <!-- Designer React arayüzü: npm build çıktısını (dist) 'web/...' logical name'leriyle gömer.
+       DesignerServer içindeki EmbeddedWebFileProvider bu resource'ları sunar.
+       Node yoksa veya arayüz gerekmiyorsa: dotnet build -p:SkipWebBuild=true -->
+  <PropertyGroup>
+    <DesignerWebDir>$(MSBuildThisFileDirectory)..\BaseForge.Designer.Web</DesignerWebDir>
+  </PropertyGroup>
+
+  <Target Name="BuildDesignerWeb"
+          BeforeTargets="PrepareForBuild;CoreCompile"
+          Condition="'$(SkipWebBuild)' != 'true'">
+    <Message Importance="high" Text="BaseForge Designer arayüzü derleniyor (npm)…" />
+    <Exec Command="npm ci" WorkingDirectory="$(DesignerWebDir)"
+          Condition="!Exists('$(DesignerWebDir)\node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(DesignerWebDir)" />
+    <!-- Önce özel item tipine topla (EmbeddedResource üzerinde %() batch tuzağından kaçın),
+         sonra oradan transform ederek web/<yol> logical name'iyle göm. -->
+    <ItemGroup>
+      <_DesignerWebDist Include="$(DesignerWebDir)\dist\**\*" />
+      <EmbeddedResource Include="@(_DesignerWebDist)">
+        <LogicalName>web/$([System.String]::Copy('%(RecursiveDir)%(Filename)%(Extension)').Replace('\','/'))</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+  </Target>
 
 </Project>

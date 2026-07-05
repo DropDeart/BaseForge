@@ -1,0 +1,122 @@
+:root {
+  --bg: #0f1115;
+  --panel: #181b22;
+  --panel-2: #1a2027;
+  --border: #2a2f3a;
+  --text: #e6e9ef;
+  --muted: #8b93a3;
+  --accent: #5b8cff;
+  --accent-2: #3b6be0;
+  --green: #35c37d;
+  --red: #ff5c63;
+  --chip: #232833;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  transition: background 0.15s, border-color 0.15s;
+}
+button:hover { background: #232833; }
+button.primary { background: var(--accent-2); border-color: var(--accent); }
+button.primary:hover { background: var(--accent); }
+button.danger { color: var(--red); border-color: #3a2a2e; }
+button.ghost { background: transparent; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+input, select {
+  font: inherit;
+  background: #10131a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .logo { font-weight: 700; letter-spacing: 0.5px; }
+.topbar .logo span { color: var(--accent); }
+.tabs { display: flex; gap: 4px; margin-left: 8px; }
+.tab { padding: 6px 14px; border-radius: 6px; color: var(--muted); background: transparent; border: 1px solid transparent; }
+.tab.active { color: var(--text); background: var(--panel-2); border-color: var(--border); }
+.spacer { flex: 1; }
+
+.body { display: flex; flex: 1; overflow: hidden; }
+.sidebar { width: 240px; border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; padding: 12px; }
+.main { flex: 1; overflow-y: auto; padding: 20px 28px; }
+
+.section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 0 0 10px; }
+
+.entity-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; cursor: pointer;
+  border: 1px solid transparent;
+}
+.entity-item:hover { background: var(--panel-2); }
+.entity-item.active { background: var(--panel-2); border-color: var(--accent); }
+.entity-item .count { color: var(--muted); font-size: 12px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.card h3 { margin: 0 0 14px; font-size: 15px; }
+.row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.row .grow { flex: 1; }
+.row label { color: var(--muted); width: 130px; }
+
+.grid-head, .grid-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: center; }
+.grid-head { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.grid-row { margin-bottom: 6px; }
+
+.hint { color: var(--muted); font-size: 12px; }
+.empty { color: var(--muted); padding: 40px; text-align: center; }
+
+.footer-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px; background: var(--panel); border-top: 1px solid var(--border);
+}
+
+.result { margin-top: 12px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: #10131a; }
+.result.ok { border-color: #23533c; }
+.result.fail { border-color: #4a2a2e; }
+.badge { padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge.ok { background: #17392a; color: var(--green); }
+.badge.fail { background: #3a2023; color: var(--red); }
+.files { margin: 8px 0 0; padding: 0; list-style: none; font-family: "Cascadia Code", monospace; font-size: 12px; color: var(--muted); max-height: 180px; overflow-y: auto; }
+.files li { padding: 1px 0; }
+pre.build { margin: 10px 0 0; padding: 10px; background: #0b0d12; border-radius: 6px; font-size: 12px; overflow-x: auto; max-height: 220px; color: #c7cdd8; }
+
+.errors { list-style: none; margin: 0; padding: 0; }
+.errors li { color: var(--red); padding: 3px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--chip); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 12px; }
+.provider-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }

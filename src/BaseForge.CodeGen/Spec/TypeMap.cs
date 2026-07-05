@@ -21,6 +21,13 @@ internal static class TypeMap
             ["uuid"] = ("Guid", "uuid"),
         };
 
+    /// <summary>UI dropdown'ı için desteklenen spec tip adları (kanonik sıra).</summary>
+    public static IReadOnlyList<string> KnownTypes { get; } =
+    [
+        "string", "text", "int", "long", "short", "decimal",
+        "double", "float", "bool", "datetime", "date", "guid", "uuid",
+    ];
+
     public static bool IsKnown(string specType) => Map.ContainsKey(specType.Trim());
 
     public static string ToCSharp(string specType)

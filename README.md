@@ -37,6 +37,25 @@ builder.Services.AddBaseForge(options =>
 });
 ```
 
+## Designer — Görsel Arayüz (`baseforge new`)
+
+YAML elle yazmak yerine tarayıcı tabanlı bir tasarımcıyla servis üret. Tek komut:
+
+```bash
+baseforge new orders
+```
+
+`http://localhost:3500` adresinde açılan arayüzde:
+
+- **Entity tasarımı** — alanlar (tip dropdown'ları), aynı servis içi ilişkiler (one-to-many / many-to-one / one-to-one) ve başka servislere dış referanslar (grpc / event).
+- **JWT bağlantısı** — üretilen servisi merkez Identity'ye bağla (authority, audience, `[Authorize]`).
+- **Merkez Identity** — sosyal sağlayıcı credential'ları (Google, GitHub, Microsoft, Facebook), seed admin.
+- **Üret + Derle** — "Generate" ile hem `spec.yaml` hem kod üretilir, ardından otomatik `dotnet build` çalışır ve sonuç (dosya listesi + derleme durumu) arayüzde gösterilir.
+
+Üretilen spec `spec.yaml` olarak diske yazılır; servisi sonradan tekrar açıp düzenleyebilir, version control'e koyabilirsin (mevcut `new-service` / `er` komutlarıyla uyumlu).
+
+> Arayüz React (Vite + TS) ile yazılır ve `dotnet tool`'a gömülür — çalıştırmak için ek kurulum gerekmez. Kaynağı: `src/BaseForge.Designer.Web/`.
+
 ## Yapı
 
 ```
@@ -44,6 +63,8 @@ src/
   BaseForge.Core/            → Entity base'leri, interface'ler, CQRS sözleşmeleri, exception'lar
   BaseForge.Infrastructure/  → GenericRepository (EF Core), Dapper sorgu yardımcıları, DI extension'ları
   BaseForge.API/             → BaseController, middleware, AddBaseForge()
+  BaseForge.CodeGen/         → baseforge CLI: kod üretici + Designer web arayüzü (baseforge new)
+  BaseForge.Designer.Web/    → Designer React arayüzü (Vite + TypeScript)
 tests/
   BaseForge.UnitTests/
   BaseForge.IntegrationTests/

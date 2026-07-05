@@ -34,6 +34,11 @@ coverage*.info
 .DS_Store
 Thumbs.db
 
+# Designer web arayüzü (npm)
+src/BaseForge.Designer.Web/node_modules/
+src/BaseForge.Designer.Web/dist/
+src/BaseForge.Designer.Web/*.tsbuildinfo
+
 # Üretilmiş örnek servis çıktısı
 /out/
 
