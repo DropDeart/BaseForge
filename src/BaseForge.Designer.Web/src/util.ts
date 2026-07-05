@@ -24,3 +24,29 @@ export function uniqueKey(obj: Record<string, unknown>, base: string): string {
   while (`${base}${i}` in obj) i++;
   return `${base}${i}`;
 }
+
+/** Spec tipini renk sınıfına eşler (inspector'da tip etiketi renklendirme). */
+export function typeClass(type: string): string {
+  switch (type) {
+    case "string":
+    case "text":
+      return "type-string";
+    case "int":
+    case "long":
+    case "short":
+    case "decimal":
+    case "double":
+    case "float":
+      return "type-number";
+    case "datetime":
+    case "date":
+      return "type-date";
+    case "bool":
+      return "type-bool";
+    case "guid":
+    case "uuid":
+      return "type-id";
+    default:
+      return "";
+  }
+}

@@ -45,11 +45,12 @@ YAML elle yazmak yerine tarayıcı tabanlı bir tasarımcıyla servis üret. Tek
 baseforge new orders
 ```
 
-`http://localhost:3500` adresinde açılan arayüzde:
+`http://localhost:3500` adresinde açılan arayüz, sol ikon rayıyla üç bölüm sunar (**S**ervis · **I**dentity · **E**R):
 
-- **Entity tasarımı** — alanlar (tip dropdown'ları), aynı servis içi ilişkiler (one-to-many / many-to-one / one-to-one) ve başka servislere dış referanslar (grpc / event).
+- **Servis** — entity alanları (tip dropdown'ları), aynı servis içi ilişkiler (one-to-many / many-to-one / one-to-one) ve başka servislere dış referanslar (grpc / event).
 - **JWT bağlantısı** — üretilen servisi merkez Identity'ye bağla (authority, audience, `[Authorize]`).
-- **Merkez Identity** — sosyal sağlayıcı credential'ları (Google, GitHub, Microsoft, Facebook), seed admin.
+- **Identity** — sosyal sağlayıcı credential'ları (Google, GitHub, Microsoft, Facebook), seed admin.
+- **ER diyagramı** — spec'ten canlı çizilir (solid = servis içi FK, kesikli = dış referans); DBML olarak kopyalanır veya dbdiagram.io'da açılır.
 - **Üret + Derle** — "Generate" ile hem `spec.yaml` hem kod üretilir, ardından otomatik `dotnet build` çalışır ve sonuç (dosya listesi + derleme durumu) arayüzde gösterilir.
 
 Üretilen spec `spec.yaml` olarak diske yazılır; servisi sonradan tekrar açıp düzenleyebilir, version control'e koyabilirsin (mevcut `new-service` / `er` komutlarıyla uyumlu).
