@@ -46,8 +46,8 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
         <div className="hint" style={{ marginBottom: 8 }}>
           Id, CreatedAt, UpdatedAt gibi audit alanları BaseEntity'den gelir.
         </div>
-        {Object.entries(props).map(([pName, pType]) => (
-          <div className="prop-row" key={pName}>
+        {Object.entries(props).map(([pName, pType], index) => (
+          <div className="prop-row" key={index}>
             <input className="uinput mono" value={pName} onChange={(e) => onChange({ ...entity, props: renameKey(props, pName, e.target.value) })} />
             <select
               className={`uselect type-select ${typeClass(pType)}`}
@@ -83,8 +83,8 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
               </button>
             )}
           </div>
-          {Object.entries(relations).map(([rName, rel]) => (
-            <div className="rel-row" key={rName}>
+          {Object.entries(relations).map(([rName, rel], index) => (
+            <div className="rel-row" key={index}>
               <input className="uinput mono" style={{ width: 90 }} value={rName} onChange={(e) => onChange({ ...entity, relations: renameKey(relations, rName, e.target.value) })} />
               <select className="uselect" value={rel.kind} onChange={(e) => onChange({ ...entity, relations: setKey(relations, rName, { ...rel, kind: e.target.value }) })}>
                 {meta.relationKinds.map((k) => (
@@ -119,8 +119,8 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
             </button>
           </div>
           <div className="hint" style={{ marginBottom: 4 }}>FK üretilmez; sadece ID + grpc/event.</div>
-          {Object.entries(externalRefs).map(([xName, x]) => (
-            <div className="ext-row" key={xName}>
+          {Object.entries(externalRefs).map(([xName, x], index) => (
+            <div className="ext-row" key={index}>
               <input className="uinput mono" style={{ width: 80 }} value={xName} onChange={(e) => onChange({ ...entity, externalRefs: renameKey(externalRefs, xName, e.target.value) })} />
               <input className="uinput grow" placeholder="servis/Entity" value={x.target} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, target: e.target.value }) })} />
               <select className="uselect" value={x.via} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, via: e.target.value }) })}>

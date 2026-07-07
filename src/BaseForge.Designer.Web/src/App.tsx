@@ -4,7 +4,7 @@ import { EntityEditor } from "./components/EntityEditor";
 import { IdentityPanel } from "./components/IdentityPanel";
 import { ErDiagram } from "./components/ErDiagram";
 import type { AuthSpec, GenerateResponse, Meta, ServiceSpec } from "./types";
-import { removeKey, setKey, uniqueKey } from "./util";
+import { removeKey, renameKey, setKey, uniqueKey } from "./util";
 
 type View = "service" | "identity" | "er";
 
@@ -42,8 +42,24 @@ export function App() {
 
   const renameEntity = (oldName: string, newName: string) => {
     if (!newName || newName === oldName || newName in entities) return;
-    const out: Record<string, (typeof entities)[string]> = {};
-    for (const [k, v] of Object.entries(entities)) out[k === oldName ? newName : k] = v;
+
+    // Anahtarı yeniden adlandır, sonra tüm entity'lerdeki ilişkilerde bu
+    // entity'yi hedefleyenleri de güncelle — aksi halde hedef stringi eskide
+    // kalır (dangling reference: boş select, ErDiagram'da kopuk bağlantı,
+    // geçersiz DBML).
+    const renamed = renameKey(entities, oldName, newName);
+    const out = Object.fromEntries(
+      Object.entries(renamed).map(([k, v]) => {
+        if (!v.relations) return [k, v];
+        const relations = Object.fromEntries(
+          Object.entries(v.relations).map(([rName, rel]) =>
+            rel.target === oldName ? [rName, { ...rel, target: newName }] : [rName, rel],
+          ),
+        );
+        return [k, { ...v, relations }];
+      }),
+    );
+
     setSpec({ ...spec, entities: out });
     if (selected === oldName) setSelected(newName);
   };
