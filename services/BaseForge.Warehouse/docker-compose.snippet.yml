@@ -1,0 +1,9 @@
+# Bu bloğu kök docker-compose.yml'a ekleyin (postgres servisinin yanına).
+services:
+  warehouse-service:
+    build: .
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=warehouse_db;Username=baseforge;Password=change_me"
+    depends_on:
+      postgres:
+        condition: service_healthy

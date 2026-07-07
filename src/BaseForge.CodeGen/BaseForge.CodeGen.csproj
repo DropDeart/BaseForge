@@ -35,6 +35,11 @@
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\_ViewImports.cshtml" LogicalName="identity/Pages/_ViewImports.cshtml" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml" LogicalName="identity/Pages/Account/Login.cshtml" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml.cs" LogicalName="identity/Pages/Account/Login.cshtml.cs" />
+    <!-- Merkez kullanıcı (User) gRPC servisi: new-identity için kopyalanır. Aynı "identity/Protos/user.proto"
+         kaynağı, "identity/User" dış referansı çözümlenirken CodeGenerator tarafından da doğrudan okunur
+         (tek fiziksel kaynak, tek LogicalName — SDK aynı yolu iki LogicalName ile içermeyi reddediyor). -->
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Protos\user.proto" LogicalName="identity/Protos/user.proto" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Grpc\UserGrpcService.cs" LogicalName="identity/Grpc/UserGrpcService.cs" />
   </ItemGroup>
 
   <!-- Designer React arayüzü: npm build çıktısını (dist) 'web/...' logical name'leriyle gömer.

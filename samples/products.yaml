@@ -1,0 +1,19 @@
+# BaseForge örnek servis spec'i — Products (ürün kataloğu).
+# Üret:  baseforge new-service --spec samples/products.yaml --output services/BaseForge.Products
+service: products
+database: products_db
+
+entities:
+  Product:
+    props:
+      name: string
+      description: string
+      price: decimal
+      stock: int
+
+# JWT korumalı — merkez Identity'ye bağlı (yetkisiz kullanıcı işlem yapamaz).
+auth:
+  authority: http://localhost:5090
+  audience: baseforge-api
+  requireHttpsMetadata: false
+  protect: true

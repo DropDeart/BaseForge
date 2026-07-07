@@ -79,7 +79,18 @@ PostgreSQL sağlayıcısı: `Npgsql.EntityFrameworkCore.PostgreSQL`.
 
 - **Database per Service:** Her mikroservis kendi PostgreSQL veritabanına sahiptir; servisler birbirinin DB'sine doğrudan erişmez.
 - **Senkron:** gRPC.
-- **Asenkron:** RabbitMQ (fire-and-forget, event-driven).
+- **Asenkron:** RabbitMQ (fire-and-forget, event-driven) — henüz implemente edilmedi (bkz. Karar Günlüğü, backlog).
+
+### 5.1. gRPC — Otomatik Proto Üretimi
+
+Her `via: grpc` dış referans (`ExternalRefSpec`), `baseforge new-service` sırasında **gerçek** gRPC client+server kodu üretir (önceden yalnızca boş bir `Id`-only interface iskeleti üretiliyordu).
+
+- **Server-side (otomatik, opt-out yok):** Üretilen her servis, kendi TÜM entity'lerini bir gRPC servisi olarak expose eder (`Protos/{entity}.proto` + `Grpc/{Entity}GrpcService.cs`). Server implementasyonu mevcut CQRS `Get{Entity}ByIdQuery`'yi MediatR üzerinden çağırır — veri erişimi tekrar yazılmaz. Sıralama bağımlılığından kaçınmak için bu davranış koşulsuzdur (sağlayıcı servis, tüketicisi üretilmeden önce de tüm entity'lerini expose eder).
+- **Client-side çözümleme:** `ExternalRefSpec.Target` (`"servis/Entity"`) dışında CodeGen hedefin alan şeklini bilmez. Çözüm: hedefin servis segmentiyle, **spec dosyasının bulunduğu klasörde** kardeş `{servis}.yaml` aranır (`SpecLoader` ile). Bulunursa hedef entity'nin gerçek `Props`'u okunup zengin (gerçek alanlı) bir proto+client üretilir; bulunamazsa `Console.Error`'a uyarı yazılıp minimal (yalnızca Id) bir fallback stub'a sessizce düşülür — asla hata fırlatılmaz.
+- **`identity/User` özel durumu:** Identity kendi `ServiceSpec`'ini kullanmadığından (ayrı `AuthSpec`) kardeş-spec okuma çalışmaz. `services/BaseForge.Identity/Protos/user.proto` gerçek, statik bir dosyadır; hem `IdentityGenerator`'ın kopyalama döngüsü hem `CodeGenerator`'ın `target: identity/User` özel durumu **aynı** embedded kaynağı okur (tek fiziksel kaynak, drift riski yok). Sabit alanlar (`ApplicationUser`): Id, UserName, Email, FullName.
+- **Kestrel — iki port zorunlu:** ASP.NET Core Kestrel, TLS olmadan (h2c) aynı portta HTTP/1.1 ve HTTP/2'yi otomatik ayırt edemez (canlı testte doğrulandı: `EndpointDefaults: Http1AndHttp2` tek başına REST'i çalıştırır ama gRPC'yi sessizce HTTP/1.1'e düşürür). Bu yüzden her üretilen servis **iki ayrı endpoint** tanımlar: `Http` (8080, REST/Scalar) ve `Grpc` (8081, h2c). Client tarafında `AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true)` ile TLS'siz HTTP/2 istekleri etkinleştirilir.
+- **Kısıtlar:** İki farklı kaynak servisten aynı adlı entity'ye dış referans çakışır (ikincisi atlanır). gRPC çağrılarında JWT propagasyonu yok (güven, docker ağı sınırına dayanıyor). decimal/datetime/date/guid proto'da `string` taşınır (native karşılık yok).
+- **Referans senaryo:** `samples/products.yaml` + `samples/warehouse.yaml` + `samples/orders.yaml` → `services/BaseForge.Products`, `services/BaseForge.Warehouse`, `services/BaseForge.Orders` (committed, gerçek/derlenebilir). Orders, Products'a (kardeş spec) ve Identity'ye (`identity/User`) gRPC ile bağlanır; Warehouse da Products'a bağlanır.
 
 ## 6. Kimlik Doğrulama
 
@@ -106,3 +117,4 @@ PostgreSQL sağlayıcısı: `Npgsql.EntityFrameworkCore.PostgreSQL`.
 | 2026-06-24 | CQRS için MediatR **12.5.0** (son ücretsiz/Apache-2.0 sürüm; v13+ ticari) sabitlendi | ✅ |
 | 2026-06-24 | nuget.org **Trusted Publishing** (OIDC, `.github/workflows/publish.yml`) kuruldu; klasik API key yerine | ✅ |
 | 2026-06-24 | Backlog "ER Diagram": **BaseForge.Tools** paketi + `DbmlGenerator` (EF Core model → DBML) eklendi; kaynak=EF Core model, çıktı=DBML | ✅ |
+| 2026-07-07 | gRPC senkron iletişim gerçek hale getirildi: otomatik proto üretimi (server+client), kardeş-spec zengin çözümleme, `identity/User` özel durumu, Kestrel iki-port (h2c) düzeltmesi. RabbitMQ hâlâ backlog'da. | ✅ |

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+option csharp_namespace = "Products.Grpc";
+
+package products;
+
+// BaseForge.CodeGen tarafından üretildi — Product entity'sine diğer servislerin
+// salt-okunur gRPC erişimi. Servis adı (ProductService), C# implementasyon sınıfıyla
+// (ProductGrpcService) çakışmasın diye ayrı tutulur.
+service ProductService {
+  rpc GetById (ProductByIdRequest) returns (ProductMessage);
+}
+
+message ProductByIdRequest {
+  string id = 1;
+}
+
+message ProductMessage {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string price = 4;
+  int32 stock = 5;
+}

@@ -8,7 +8,10 @@ internal static class CodeGenerator
     /// <summary>Üretilen kodun referans verdiği BaseForge NuGet paket sürümü.</summary>
     private const string BaseForgeVersion = "0.2.1-alpha";
 
-    public static IReadOnlyList<string> Generate(ServiceSpec spec, string outputDir)
+    /// <summary>Identity'nin gömülü <c>user.proto</c> kaynağındaki referans namespace'i.</summary>
+    private const string IdentityReferenceNamespace = "BaseForge.Identity";
+
+    public static IReadOnlyList<string> Generate(ServiceSpec spec, string outputDir, string? specPath = null)
     {
         ArgumentNullException.ThrowIfNull(spec);
 
@@ -16,9 +19,20 @@ internal static class CodeGenerator
         var contextName = ns + "DbContext";
         var written = new List<string>();
 
+        // Dış referansları (via: grpc) önceden çözümle — Project/Program/AppSettings render'ları buna bağlı.
+        var externalRefResolutions = ResolveExternalRefs(spec, ns, specPath);
+        var richResolutions = externalRefResolutions.Where(r => r.IsRich).ToList();
+        var grpcServerEntities = new List<string>();
+
         var project = TemplateEngine.Render(
             Templates.Project,
-            new ProjectFileModel { Namespace = ns, BaseForgeVersion = BaseForgeVersion });
+            new ProjectFileModel
+            {
+                Namespace = ns,
+                BaseForgeVersion = BaseForgeVersion,
+                ServerProtoFiles = spec.Entities.Keys.Select(k => k.ToLowerInvariant()).ToList(),
+                ClientProtoFiles = richResolutions.Select(r => r.Entity.ToLowerInvariant()).ToList(),
+            });
         written.Add(WriteFile(Path.Combine(outputDir, ns + ".csproj"), project));
 
         foreach (var (name, entity) in spec.Entities)
@@ -35,6 +49,26 @@ internal static class CodeGenerator
             var controllerModel = new ControllerFileModel { Namespace = ns, Name = name, Protect = spec.Auth?.Protect == true };
             var controller = TemplateEngine.Render(Templates.Controller, controllerModel);
             written.Add(WriteFile(Path.Combine(outputDir, "Controllers", name + "sController.cs"), controller));
+
+            // gRPC server-side: bu entity'yi diğer servislerin okuyabilmesi için otomatik expose eder
+            // (opt-in/opt-out yok — sıralama bağımlılığından kaçınmak için her entity her zaman expose edilir).
+            var protoFields = BuildProtoFields(entity);
+            var protoModel = new EntityProtoFileModel
+            {
+                Namespace = ns,
+                Package = spec.Service.ToLowerInvariant(),
+                Entity = name,
+                Fields = protoFields,
+            };
+            written.Add(WriteFile(
+                Path.Combine(outputDir, "Protos", name.ToLowerInvariant() + ".proto"),
+                TemplateEngine.Render(Templates.ProtoServer, protoModel)));
+
+            var grpcServiceModel = new GrpcServerServiceFileModel { Namespace = ns, Entity = name, Fields = protoFields };
+            written.Add(WriteFile(
+                Path.Combine(outputDir, "Grpc", name + "GrpcService.cs"),
+                TemplateEngine.Render(Templates.GrpcServerService, grpcServiceModel)));
+            grpcServerEntities.Add(name);
         }
 
         // Program.cs + host dosyaları
@@ -48,10 +82,12 @@ internal static class CodeGenerator
             Authority = spec.Auth?.Authority ?? string.Empty,
             Audience = spec.Auth?.Audience ?? string.Empty,
             RequireHttpsMetadata = spec.Auth?.RequireHttpsMetadata ?? false,
+            GrpcServerEntities = grpcServerEntities,
+            GrpcClients = richResolutions,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "Program.cs"), TemplateEngine.Render(Templates.Program, programModel)));
 
-        var host = new HostFileModel { Namespace = ns, Service = spec.Service, Database = spec.Database };
+        var host = new HostFileModel { Namespace = ns, Service = spec.Service, Database = spec.Database, GrpcClients = richResolutions };
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), TemplateEngine.Render(Templates.LaunchSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Dockerfile"), TemplateEngine.Render(Templates.Dockerfile, host)));
@@ -59,12 +95,34 @@ internal static class CodeGenerator
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.yml"), TemplateEngine.Render(Templates.DockerCompose, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.snippet.yml"), TemplateEngine.Render(Templates.ComposeSnippet, host)));
 
-        // gRPC client stub'ları (via: grpc olan dış referanslar için)
-        foreach (var stub in CollectGrpcStubs(spec, ns))
+        // gRPC client'ları (via: grpc olan dış referanslar için). Rich (kardeş spec veya identity/User
+        // özel durumu bulunan) ise gerçek proto+client üretilir; aksi halde minimal (yalnızca Id) fallback.
+        foreach (var resolution in externalRefResolutions)
         {
-            written.Add(WriteFile(
-                Path.Combine(outputDir, "Integration", stub.Entity + "Client.cs"),
-                TemplateEngine.Render(Templates.GrpcStub, stub)));
+            if (resolution.IsRich)
+            {
+                var protoText = string.Equals(resolution.ProviderNamespace, "Identity", StringComparison.Ordinal)
+                    ? ReadIdentityUserProtoText()
+                    : TemplateEngine.Render(Templates.ProtoServer, new EntityProtoFileModel
+                    {
+                        Namespace = resolution.ProviderNamespace,
+                        Package = resolution.ProviderNamespace.ToLowerInvariant(),
+                        Entity = resolution.Entity,
+                        Fields = resolution.Fields,
+                    });
+
+                written.Add(WriteFile(Path.Combine(outputDir, "Protos", resolution.Entity.ToLowerInvariant() + ".proto"), protoText));
+                written.Add(WriteFile(
+                    Path.Combine(outputDir, "Integration", resolution.Entity + "Client.cs"),
+                    TemplateEngine.Render(Templates.GrpcClientRich, resolution)));
+            }
+            else
+            {
+                var stub = new GrpcStubFileModel { Namespace = ns, Target = resolution.Target, Entity = resolution.Entity };
+                written.Add(WriteFile(
+                    Path.Combine(outputDir, "Integration", resolution.Entity + "Client.cs"),
+                    TemplateEngine.Render(Templates.GrpcStub, stub)));
+            }
         }
 
         var contextModel = new ContextFileModel
@@ -145,9 +203,15 @@ internal static class CodeGenerator
         return sb.ToString();
     }
 
-    private static List<GrpcStubFileModel> CollectGrpcStubs(ServiceSpec spec, string ns)
+    /// <summary>
+    /// Servisin tüm <c>via: grpc</c> dış referanslarını çözümler. Kardeş <c>spec.yaml</c> veya
+    /// <c>identity/User</c> özel durumu bulunursa zengin (gerçek alanlı), bulunamazsa minimal
+    /// (yalnızca Id) bir sonuç döner — hiçbir durumda hata fırlatmaz.
+    /// </summary>
+    private static List<GrpcClientResolution> ResolveExternalRefs(ServiceSpec spec, string ns, string? specPath)
     {
-        var stubs = new Dictionary<string, GrpcStubFileModel>(StringComparer.Ordinal);
+        var resolutions = new Dictionary<string, GrpcClientResolution>(StringComparer.Ordinal);
+
         foreach (var entity in spec.Entities.Values)
         {
             foreach (var externalRef in entity.ExternalRefs.Values)
@@ -158,15 +222,172 @@ internal static class CodeGenerator
                 }
 
                 var target = externalRef.Target;
-                var entityName = target.Contains('/', StringComparison.Ordinal)
-                    ? target[(target.LastIndexOf('/') + 1)..]
-                    : target;
-                entityName = NameUtil.Pascal(entityName);
-                stubs[entityName] = new GrpcStubFileModel { Namespace = ns, Target = target, Entity = entityName };
+                var entityName = NameUtil.Pascal(
+                    target.Contains('/', StringComparison.Ordinal) ? target[(target.LastIndexOf('/') + 1)..] : target);
+
+                if (resolutions.ContainsKey(entityName))
+                {
+                    // Bilinen kısıt: iki farklı kaynaktan aynı adlı entity'ye dış referans çakışır; ilki kazanır.
+                    continue;
+                }
+
+                resolutions[entityName] = TryResolveIdentityUser(target, ns, entityName)
+                    ?? TryResolveSibling(target, ns, specPath, entityName)
+                    ?? new GrpcClientResolution { Namespace = ns, Entity = entityName, Target = target, IsRich = false };
             }
         }
 
-        return [.. stubs.Values];
+        return [.. resolutions.Values];
+    }
+
+    /// <summary><c>identity/User</c> özel durumu — Identity'nin sabit (ApplicationUser) alan şekliyle çözümler.</summary>
+    private static GrpcClientResolution? TryResolveIdentityUser(string target, string ns, string entityName)
+    {
+        if (!string.Equals(target, "identity/User", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var fields = new List<ProtoFieldModel>
+        {
+            MakeProtoField("UserName", "string", 2),
+            MakeProtoField("Email", "string", 3),
+            MakeProtoField("FullName", "string", 4),
+        };
+
+        return new GrpcClientResolution
+        {
+            Namespace = ns,
+            Entity = entityName,
+            Target = target,
+            IsRich = true,
+            ProviderNamespace = "Identity",
+            ConfigKey = "Identity",
+            ProviderHost = "identity",
+            Fields = fields,
+        };
+    }
+
+    /// <summary>Kardeş <c>{servis}.yaml</c> dosyasını (spec'in bulunduğu klasörde) arayıp hedef entity'yi çözümler.</summary>
+    private static GrpcClientResolution? TryResolveSibling(string target, string ns, string? specPath, string entityName)
+    {
+        if (string.IsNullOrWhiteSpace(specPath) || !target.Contains('/', StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var serviceSegment = target[..target.IndexOf('/', StringComparison.Ordinal)];
+        if (string.Equals(serviceSegment, "identity", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var specDir = Path.GetDirectoryName(Path.GetFullPath(specPath));
+        var siblingPath = specDir is null ? null : Path.Combine(specDir, serviceSegment + ".yaml");
+
+        if (siblingPath is null || !File.Exists(siblingPath))
+        {
+            Console.Error.WriteLine(
+                $"Uyarı: '{target}' için kardeş spec bulunamadı ({siblingPath ?? serviceSegment + ".yaml"}); minimal (yalnızca Id) client üretiliyor.");
+            return null;
+        }
+
+        ServiceSpec siblingSpec;
+        try
+        {
+            siblingSpec = SpecLoader.Load(siblingPath);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Uyarı: '{siblingPath}' okunamadı ({ex.Message}); minimal (yalnızca Id) client üretiliyor.");
+            return null;
+        }
+
+        var targetEntity = siblingSpec.Entities
+            .FirstOrDefault(e => string.Equals(e.Key, entityName, StringComparison.OrdinalIgnoreCase)).Value;
+
+        if (targetEntity is null)
+        {
+            Console.Error.WriteLine($"Uyarı: '{target}' kardeş spec'te bulunamadı; minimal (yalnızca Id) client üretiliyor.");
+            return null;
+        }
+
+        var providerNs = NameUtil.Pascal(siblingSpec.Service);
+        return new GrpcClientResolution
+        {
+            Namespace = ns,
+            Entity = entityName,
+            Target = target,
+            IsRich = true,
+            ProviderNamespace = providerNs,
+            ConfigKey = providerNs,
+            ProviderHost = siblingSpec.Service.ToLowerInvariant(),
+            Fields = BuildProtoFields(targetEntity),
+        };
+    }
+
+    /// <summary>Identity'nin gömülü <c>user.proto</c> kaynağını okuyup tüketen servisin adına uyarlar.</summary>
+    private static string ReadIdentityUserProtoText()
+    {
+        var assembly = typeof(CodeGenerator).Assembly;
+        using var stream = assembly.GetManifestResourceStream("identity/Protos/user.proto")
+            ?? throw new InvalidOperationException("identity/Protos/user.proto gömülü kaynağı bulunamadı.");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd().Replace(IdentityReferenceNamespace, "Identity", StringComparison.Ordinal);
+    }
+
+    /// <summary>Entity'nin props'undan proto mesaj alanlarını üretir (id=1, sonrakiler 2..n).</summary>
+    private static List<ProtoFieldModel> BuildProtoFields(EntitySpec entity)
+    {
+        var fields = new List<ProtoFieldModel>();
+        var number = 2;
+        foreach (var (propName, propType) in entity.Props)
+        {
+            fields.Add(MakeProtoField(NameUtil.Pascal(propName), propType, number++));
+        }
+
+        return fields;
+    }
+
+    private static ProtoFieldModel MakeProtoField(string name, string specType, int number)
+    {
+        var csharpType = TypeMap.ToCSharp(specType);
+        return new ProtoFieldModel
+        {
+            Name = name,
+            ProtoName = ToSnakeCase(name),
+            ProtoType = ProtoTypeMap.ToProto(specType),
+            Number = number,
+            CSharpType = csharpType,
+            Init = string.Equals(csharpType, "string", StringComparison.Ordinal) ? " = string.Empty;" : string.Empty,
+            ToProtoExpr = ProtoTypeMap.ToProtoExpr(specType, $"value.{name}"),
+            FromProtoExpr = ProtoTypeMap.FromProtoExpr(specType, $"response.{name}"),
+        };
+    }
+
+    /// <summary>PascalCase'i proto konvansiyonu snake_case'e çevirir (örn. <c>UnitPrice</c> → <c>unit_price</c>).</summary>
+    private static string ToSnakeCase(string pascal)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < pascal.Length; i++)
+        {
+            var c = pascal[i];
+            if (char.IsUpper(c))
+            {
+                if (i > 0)
+                {
+                    sb.Append('_');
+                }
+
+                sb.Append(char.ToLowerInvariant(c));
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>Entity'nin yazılabilir skaler alanları: props + (many/one-to-one) FK id + dış ref id.</summary>

@@ -20,6 +20,12 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="OpenIddict.AspNetCore" Version="7.5.0" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.5.0" />
+    <!-- Merkez kullanıcı (User) entity'sine diğer servislerin gRPC ile salt-okunur erişimi -->
+    <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos/user.proto" GrpcServices="Server" />
   </ItemGroup>
 
 </Project>

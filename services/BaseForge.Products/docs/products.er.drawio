@@ -1,0 +1,13 @@
+<mxfile host="BaseForge.CodeGen">
+  <diagram name="ER - products" id="er">
+    <mxGraphModel dx="1000" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="n_Product" value="&lt;b&gt;Product&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;Id : uuid (PK)&lt;br/&gt;name : text&lt;br/&gt;description : text&lt;br/&gt;price : numeric&lt;br/&gt;stock : integer&lt;br/&gt;CreatedAt : timestamptz&lt;br/&gt;IsDeleted : boolean" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=8;spacingRight=8;spacingTop=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="230" height="160" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

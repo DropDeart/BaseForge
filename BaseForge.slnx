@@ -12,5 +12,8 @@
   </Folder>
   <Folder Name="/services/">
     <Project Path="services/BaseForge.Identity/BaseForge.Identity.csproj" />
+    <Project Path="services/BaseForge.Products/Products.csproj" />
+    <Project Path="services/BaseForge.Warehouse/Warehouse.csproj" />
+    <Project Path="services/BaseForge.Orders/Orders.csproj" />
   </Folder>
 </Solution>

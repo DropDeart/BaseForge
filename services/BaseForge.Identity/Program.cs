@@ -109,6 +109,9 @@ builder.Services.AddOpenIddict()
 builder.Services.AddControllers();
 builder.Services.AddRazorPages();
 
+// Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin gRPC ile salt-okunur erişimi.
+builder.Services.AddGrpc();
+
 var app = builder.Build();
 
 // Şema oluştur + seed (dev kolaylığı; prod'da migration kullanılır).
@@ -124,5 +127,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapRazorPages();
+app.MapGrpcService<BaseForge.Identity.Grpc.UserGrpcService>();
 
 app.Run();

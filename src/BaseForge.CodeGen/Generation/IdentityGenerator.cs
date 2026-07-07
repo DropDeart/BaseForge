@@ -76,6 +76,12 @@ internal static class IdentityGenerator
             <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.9" />
             <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" Version="10.0.9" />
             <PackageReference Include="AspNet.Security.OAuth.GitHub" Version="10.0.0" />
+            <!-- Merkez kullanıcı (User) entity'sine diğer servislerin gRPC ile salt-okunur erişimi -->
+            <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+          </ItemGroup>
+
+          <ItemGroup>
+            <Protobuf Include="Protos/user.proto" GrpcServices="Server" />
           </ItemGroup>
 
         </Project>
@@ -89,6 +95,22 @@ internal static class IdentityGenerator
             ["ConnectionStrings"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["Default"] = $"Host=localhost;Port=5432;Database={spec.Database};Username=baseforge;Password=change_me",
+            },
+            ["Kestrel"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["Endpoints"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["Http"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        ["Url"] = "http://+:8080",
+                        ["Protocols"] = "Http1",
+                    },
+                    ["Grpc"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        ["Url"] = "http://+:8081",
+                        ["Protocols"] = "Http2",
+                    },
+                },
             },
             ["Auth"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
@@ -229,11 +251,11 @@ internal static class IdentityGenerator
             build: .
             environment:
               ASPNETCORE_ENVIRONMENT: Development
-              ASPNETCORE_URLS: http://+:8080
               Auth__Issuer: "http://{{spec.Service}}:8080/"
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{spec.Database}};Username=baseforge;Password=change_me"
             ports:
-              - "8081:8080"
+              - "8081:8080"   # REST/OpenIddict (HTTP/1.1)
+              - "8082:8081"   # gRPC (h2c) — merkez User entity'sine erişim
             depends_on:
               postgres:
                 condition: service_healthy

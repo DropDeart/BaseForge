@@ -121,7 +121,7 @@ internal static class CliRunner
             spec.Auth = AskAuth();
         }
 
-        var files = CodeGenerator.Generate(spec, output);
+        var files = CodeGenerator.Generate(spec, output, options.GetValueOrDefault("spec"));
         Console.WriteLine();
         Console.WriteLine($"{files.Count} dosya üretildi ({Path.GetFullPath(output)}):");
         foreach (var file in files)

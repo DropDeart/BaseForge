@@ -59,6 +59,12 @@ internal sealed class ProjectFileModel
     public string Namespace { get; set; } = string.Empty;
 
     public string BaseForgeVersion { get; set; } = string.Empty;
+
+    /// <summary>Kendi entity'leri için üretilen proto dosya adları (küçük harf, uzantısız) — <c>GrpcServices="Server"</c>.</summary>
+    public List<string> ServerProtoFiles { get; set; } = [];
+
+    /// <summary>Rich dış referanslar için kopyalanan proto dosya adları (küçük harf, uzantısız) — <c>GrpcServices="Client"</c>.</summary>
+    public List<string> ClientProtoFiles { get; set; } = [];
 }
 
 /// <summary>CQRS feature dosyaları (Dto/Commands/Queries) için model.</summary>
@@ -102,6 +108,12 @@ internal sealed class ProgramFileModel
     public string Audience { get; set; } = string.Empty;
 
     public bool RequireHttpsMetadata { get; set; }
+
+    /// <summary>Bu servisin kendi entity'leri — her biri için <c>MapGrpcService&lt;X&gt;()</c> üretilir.</summary>
+    public List<string> GrpcServerEntities { get; set; } = [];
+
+    /// <summary>Rich çözümlenen dış referanslar — her biri için <c>AddGrpcClient&lt;...&gt;()</c> üretilir.</summary>
+    public List<GrpcClientResolution> GrpcClients { get; set; } = [];
 }
 
 /// <summary>appsettings / Dockerfile / docker-compose şablonları için model.</summary>
@@ -112,9 +124,12 @@ internal sealed class HostFileModel
     public string Service { get; set; } = string.Empty;
 
     public string Database { get; set; } = string.Empty;
+
+    /// <summary>Rich çözümlenen dış referanslar — appsettings <c>Grpc:{Provider}</c> adresleri için.</summary>
+    public List<GrpcClientResolution> GrpcClients { get; set; } = [];
 }
 
-/// <summary>gRPC client stub şablonu için model.</summary>
+/// <summary>gRPC client stub şablonu için model (fallback — kardeş spec bulunamayan durum).</summary>
 internal sealed class GrpcStubFileModel
 {
     public string Namespace { get; set; } = string.Empty;
@@ -122,4 +137,86 @@ internal sealed class GrpcStubFileModel
     public string Target { get; set; } = string.Empty;
 
     public string Entity { get; set; } = string.Empty;
+}
+
+/// <summary>Bir proto mesaj alanı: C# tarafı + proto tarafı + aradaki dönüşüm ifadeleri.</summary>
+internal sealed class ProtoFieldModel
+{
+    /// <summary>C# prop adı (PascalCase) — <see cref="ScalarModel.Name"/> ile aynı.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Proto alan adı (snake_case).</summary>
+    public string ProtoName { get; set; } = string.Empty;
+
+    /// <summary>Proto3 skaler tipi (örn. <c>string</c>, <c>int32</c>).</summary>
+    public string ProtoType { get; set; } = string.Empty;
+
+    /// <summary>Proto alan numarası (id=1, sonrakiler 2..n).</summary>
+    public int Number { get; set; }
+
+    public string CSharpType { get; set; } = string.Empty;
+
+    /// <summary>Alan başlatıcısı (örn. <c>string</c> için <c> = string.Empty;</c>), yoksa boş.</summary>
+    public string Init { get; set; } = string.Empty;
+
+    /// <summary>Proto mesajından C# değerine dönüşüm ifadesi (örn. <c>Guid.Parse(response.Id)</c>).</summary>
+    public string FromProtoExpr { get; set; } = string.Empty;
+
+    /// <summary>C# değerinden proto mesaj alanına atama ifadesi (örn. <c>value.Price.ToString(...)</c>).</summary>
+    public string ToProtoExpr { get; set; } = string.Empty;
+}
+
+/// <summary>Server-side <c>.proto</c> dosyası şablonu için model (hem iş servisleri hem Identity/User için ortak).</summary>
+internal sealed class EntityProtoFileModel
+{
+    /// <summary><c>csharp_namespace</c> — <c>{{Namespace}}.Grpc</c>.</summary>
+    public string Namespace { get; set; } = string.Empty;
+
+    /// <summary>Proto <c>package</c> adı (lowercase servis adı).</summary>
+    public string Package { get; set; } = string.Empty;
+
+    public string Entity { get; set; } = string.Empty;
+
+    public List<ProtoFieldModel> Fields { get; set; } = [];
+}
+
+/// <summary>Server-side gRPC servis implementasyonu şablonu için model.</summary>
+internal sealed class GrpcServerServiceFileModel
+{
+    public string Namespace { get; set; } = string.Empty;
+
+    /// <summary>Entity adı (proto/servis sınıfı için).</summary>
+    public string Entity { get; set; } = string.Empty;
+
+    public List<ProtoFieldModel> Fields { get; set; } = [];
+}
+
+/// <summary>
+/// Bir dış referansın (<see cref="ExternalRefSpec"/>) çözümlenmiş hâli — eski <see cref="GrpcStubFileModel"/>'in
+/// yerini alır. Kardeş spec veya <c>identity/User</c> özel durumu bulunduysa <see cref="IsRich"/> true olur.
+/// </summary>
+internal sealed class GrpcClientResolution
+{
+    /// <summary>Tüketen (client'ı üretilen) servisin namespace'i.</summary>
+    public string Namespace { get; set; } = string.Empty;
+
+    public string Entity { get; set; } = string.Empty;
+
+    /// <summary>Ham hedef string'i (örn. <c>"products/Product"</c>).</summary>
+    public string Target { get; set; } = string.Empty;
+
+    /// <summary>Kardeş spec veya identity/User özel durumu bulunduysa true; aksi halde minimal fallback.</summary>
+    public bool IsRich { get; set; }
+
+    /// <summary>Sağlayıcı servisin namespace'i (örn. <c>"Products"</c>, <c>"Identity"</c>) — sadece rich ise dolu.</summary>
+    public string ProviderNamespace { get; set; } = string.Empty;
+
+    /// <summary>appsettings <c>Grpc:{ProviderNamespace}</c> anahtarı.</summary>
+    public string ConfigKey { get; set; } = string.Empty;
+
+    /// <summary>Docker/host adı olarak kullanılabilir küçük harfli sağlayıcı adı (örn. <c>"products"</c>).</summary>
+    public string ProviderHost { get; set; } = string.Empty;
+
+    /// <summary>Rich ise hedef entity'nin gerçek alanları; değilse boş (yalnızca Id).</summary>
+    public List<ProtoFieldModel> Fields { get; set; } = [];
 }

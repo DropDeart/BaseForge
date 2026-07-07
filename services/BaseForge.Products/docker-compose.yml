@@ -1,0 +1,33 @@
+# products — izole test ortamı: servis + kendi PostgreSQL'i (mevcut DB'ye dokunmaz).
+# Ayağa kaldır:  docker compose up --build -d
+# API arayüzü:   http://localhost:8080/scalar/v1
+# Durdur+temizle: docker compose down -v
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: baseforge
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: products_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U baseforge -d products_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - products-pgdata:/var/lib/postgresql/data
+
+  products:
+    build: .
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=products_db;Username=baseforge;Password=change_me"
+    ports:
+      - "8080:8080"   # REST (HTTP/1.1) — appsettings.json Kestrel:Endpoints:Http
+      - "8081:8081"   # gRPC (h2c, TLS'siz HTTP/2)  — Kestrel:Endpoints:Grpc
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  products-pgdata:

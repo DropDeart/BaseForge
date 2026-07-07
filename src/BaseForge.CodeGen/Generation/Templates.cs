@@ -309,9 +309,13 @@ internal static class Templates
         using Scalar.AspNetCore;
         using {{ Namespace }}.Data;
 
+        // h2c (TLS'siz HTTP/2) desteği — container/yerel ağda düz HTTP üzerinden gRPC istemci çağrıları için.
+        AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddControllers();
+        builder.Services.AddGrpc();
         builder.Services.AddOpenApi(openApi =>
         {
             // Scalar'daki "Introduction" bölümü bu bilgilerden gelir (Markdown desteklenir).
@@ -339,6 +343,14 @@ internal static class Templates
             });
         {{~ end ~}}
         });
+
+        {{~ for c in GrpcClients ~}}
+        // {{ c.Target }} servisine gRPC istemcisi (BaseForge.CodeGen tarafından üretildi).
+        builder.Services.AddGrpcClient<{{ c.ProviderNamespace }}.Grpc.{{ c.Entity }}Service.{{ c.Entity }}ServiceClient>(o =>
+            o.Address = new Uri(builder.Configuration["Grpc:{{ c.ConfigKey }}"]
+                ?? throw new InvalidOperationException("Grpc:{{ c.ConfigKey }} tanımlı değil.")));
+        builder.Services.AddScoped<{{ Namespace }}.Integration.I{{ c.Entity }}Client, {{ Namespace }}.Integration.{{ c.Entity }}Client>();
+        {{~ end ~}}
 
         var app = builder.Build();
 
@@ -372,6 +384,9 @@ internal static class Templates
 
         app.UseBaseForge();
         app.MapControllers();
+        {{~ for e in GrpcServerEntities ~}}
+        app.MapGrpcService<{{ Namespace }}.Grpc.{{ e }}GrpcService>();
+        {{~ end ~}}
         app.Run();
 
         """;
@@ -382,6 +397,25 @@ internal static class Templates
           "ConnectionStrings": {
             "Default": "Host=localhost;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
           },
+          "Kestrel": {
+            "Endpoints": {
+              "Http": {
+                "Url": "http://+:8080",
+                "Protocols": "Http1"
+              },
+              "Grpc": {
+                "Url": "http://+:8081",
+                "Protocols": "Http2"
+              }
+            }
+          },
+        {{~ if GrpcClients.size > 0 ~}}
+          "Grpc": {
+        {{~ for c in GrpcClients ~}}
+            "{{ c.ConfigKey }}": "http://{{ c.ProviderHost }}:8081"{{ if !for.last }},{{ end }}
+        {{~ end ~}}
+          },
+        {{~ end ~}}
           "Logging": {
             "LogLevel": {
               "Default": "Information",
@@ -431,10 +465,10 @@ internal static class Templates
             build: .
             environment:
               ASPNETCORE_ENVIRONMENT: Development
-              ASPNETCORE_URLS: http://+:8080
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
             ports:
-              - "8080:8080"
+              - "8080:8080"   # REST (HTTP/1.1) — appsettings.json Kestrel:Endpoints:Http
+              - "8081:8081"   # gRPC (h2c, TLS'siz HTTP/2)  — Kestrel:Endpoints:Grpc
             depends_on:
               postgres:
                 condition: service_healthy
@@ -495,6 +529,126 @@ internal static class Templates
 
         """;
 
+    public const string ProtoServer =
+        """
+        syntax = "proto3";
+
+        option csharp_namespace = "{{ Namespace }}.Grpc";
+
+        package {{ Package }};
+
+        // BaseForge.CodeGen tarafından üretildi — {{ Entity }} entity'sine diğer servislerin
+        // salt-okunur gRPC erişimi. Servis adı ({{ Entity }}Service), C# implementasyon sınıfıyla
+        // ({{ Entity }}GrpcService) çakışmasın diye ayrı tutulur.
+        service {{ Entity }}Service {
+          rpc GetById ({{ Entity }}ByIdRequest) returns ({{ Entity }}Message);
+        }
+
+        message {{ Entity }}ByIdRequest {
+          string id = 1;
+        }
+
+        message {{ Entity }}Message {
+          string id = 1;
+        {{~ for f in Fields ~}}
+          {{ f.ProtoType }} {{ f.ProtoName }} = {{ f.Number }};
+        {{~ end ~}}
+        }
+
+        """;
+
+    public const string GrpcServerService =
+        """
+        using System.Globalization;
+        using Grpc.Core;
+        using MediatR;
+        using {{ Namespace }}.Features.{{ Entity }}s;
+
+        namespace {{ Namespace }}.Grpc;
+
+        /// <summary>
+        /// {{ Entity }} entity'sine diğer servislerin salt-okunur gRPC erişimi
+        /// (BaseForge.CodeGen tarafından üretildi; mevcut CQRS sorgusu üzerinden veri okur).
+        /// </summary>
+        public sealed class {{ Entity }}GrpcService(ISender sender) : {{ Entity }}Service.{{ Entity }}ServiceBase
+        {
+            public override async Task<{{ Entity }}Message> GetById({{ Entity }}ByIdRequest request, ServerCallContext context)
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                if (!Guid.TryParse(request.Id, out var id))
+                {
+                    throw new RpcException(new Status(StatusCode.InvalidArgument, "Geçersiz id."));
+                }
+
+                var value = await sender.Send(new Get{{ Entity }}ByIdQuery { Id = id }, context.CancellationToken)
+                    ?? throw new RpcException(new Status(StatusCode.NotFound, $"{{ Entity }} bulunamadı: {id}"));
+
+                return new {{ Entity }}Message
+                {
+                    Id = value.Id.ToString(),
+        {{~ for f in Fields ~}}
+                    {{ f.Name }} = {{ f.ToProtoExpr }},
+        {{~ end ~}}
+                };
+            }
+        }
+
+        """;
+
+    public const string GrpcClientRich =
+        """
+        using System.Globalization;
+        using Grpc.Core;
+        using {{ ProviderNamespace }}.Grpc;
+
+        namespace {{ Namespace }}.Integration;
+
+        /// <summary>{{ Target }} servisine senkron (gRPC) erişim sözleşmesi. BaseForge.CodeGen tarafından üretildi.</summary>
+        public interface I{{ Entity }}Client
+        {
+            /// <summary>Uzak servisten {{ Entity }} kaydını getirir; bulunamazsa <see langword="null"/>.</summary>
+            Task<{{ Entity }}Reference?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        }
+
+        /// <summary>Uzak {{ Entity }} kaydının yerel (zengin) görünümü.</summary>
+        public sealed class {{ Entity }}Reference
+        {
+            /// <summary>Uzak kaydın kimliği.</summary>
+            public Guid Id { get; set; }
+        {{~ for f in Fields ~}}
+            /// <summary>{{ f.Name }}.</summary>
+            public {{ f.CSharpType }} {{ f.Name }} { get; set; }{{ f.Init }}
+        {{~ end ~}}
+        }
+
+        /// <summary><see cref="I{{ Entity }}Client"/>'in {{ ProviderNamespace }} servisine gRPC ile bağlanan gerçek implementasyonu.</summary>
+        public sealed class {{ Entity }}Client({{ Entity }}Service.{{ Entity }}ServiceClient client) : I{{ Entity }}Client
+        {
+            public async Task<{{ Entity }}Reference?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            {
+                try
+                {
+                    var response = await client.GetByIdAsync(
+                        new {{ Entity }}ByIdRequest { Id = id.ToString() },
+                        cancellationToken: cancellationToken);
+
+                    return new {{ Entity }}Reference
+                    {
+                        Id = Guid.Parse(response.Id),
+        {{~ for f in Fields ~}}
+                        {{ f.Name }} = {{ f.FromProtoExpr }},
+        {{~ end ~}}
+                    };
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+                {
+                    return null;
+                }
+            }
+        }
+
+        """;
+
     public const string Project =
         """
         <Project Sdk="Microsoft.NET.Sdk.Web">
@@ -513,7 +667,21 @@ internal static class Templates
             <PackageReference Include="BaseForge.API" Version="{{ BaseForgeVersion }}" />
             <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
             <PackageReference Include="Scalar.AspNetCore" Version="2.16.5" />
+            <!-- Servisler arası senkron iletişim (gRPC) — sunucu + istemci taraflarını birlikte getirir -->
+            <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+            <PackageReference Include="Grpc.Net.ClientFactory" Version="2.71.0" />
           </ItemGroup>
+        {{~ if ServerProtoFiles.size > 0 || ClientProtoFiles.size > 0 ~}}
+
+          <ItemGroup>
+        {{~ for p in ServerProtoFiles ~}}
+            <Protobuf Include="Protos/{{ p }}.proto" GrpcServices="Server" />
+        {{~ end ~}}
+        {{~ for p in ClientProtoFiles ~}}
+            <Protobuf Include="Protos/{{ p }}.proto" GrpcServices="Client" />
+        {{~ end ~}}
+          </ItemGroup>
+        {{~ end ~}}
 
         </Project>
 

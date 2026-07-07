@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option csharp_namespace = "BaseForge.Identity.Grpc";
+
+package identity;
+
+// Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin salt-okunur gRPC erişimi.
+// BaseForge.CodeGen bu dosyayı "identity/User" dış referansları için sabit/tek kaynak olarak kullanır
+// (bkz. src/BaseForge.CodeGen/Generation/CodeGenerator.cs TryResolveIdentityUser).
+service UserService {
+  rpc GetById (UserByIdRequest) returns (UserMessage);
+}
+
+message UserByIdRequest {
+  string id = 1;
+}
+
+message UserMessage {
+  string id = 1;
+  string user_name = 2;
+  string email = 3;
+  string full_name = 4;
+}

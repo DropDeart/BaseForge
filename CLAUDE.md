@@ -157,6 +157,7 @@ Bu proje Claude Code ile birlikte geliştirilmektedir.
 
 - [ ] Code Generator: Entity tanımından otomatik servis, repository ve SQL üretimi
 - [x] ER Diagram görselleştirme → `BaseForge.Tools.DbmlGenerator` (EF Core model → DBML / dbdiagram.io)
-- [ ] gRPC proto generator
+- [x] gRPC proto generator → otomatik server+client proto üretimi, kardeş-spec zengin çözümleme, `identity/User` özel durumu (bkz. docs/ARCH.md §5.1)
 - [ ] Identity Service referans implementasyonu
-- [ ] Örnek mikroservis projesi (BaseForge kullanan demo)
+- [x] Örnek mikroservis projesi (BaseForge kullanan demo) → `services/BaseForge.Products` + `BaseForge.Warehouse` + `BaseForge.Orders`, gRPC ile birbirine ve Identity'ye bağlı
+- [ ] RabbitMQ / asenkron event iletişimi (`via: event`) — spec modelinde yer var, codegen henüz yok
