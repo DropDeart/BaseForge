@@ -283,12 +283,26 @@ internal static class CodeGenerator
         }
 
         var specDir = Path.GetDirectoryName(Path.GetFullPath(specPath));
-        var siblingPath = specDir is null ? null : Path.Combine(specDir, serviceSegment + ".yaml");
+        if (specDir is null)
+        {
+            return null;
+        }
 
-        if (siblingPath is null || !File.Exists(siblingPath))
+        // İki spec yerleşim konvansiyonu da denenir:
+        //  1) Düz kardeş dosya:  {specDir}/{segment}.yaml            (örn. samples/*.yaml — CLI)
+        //  2) İç içe alt klasör: {specDir}/../{segment}/spec.yaml    (örn. Designer: her servis kendi
+        //     çalışma dizini altında ayrı bir alt klasöre üretiliyor, bkz. DesignerEndpoints.ResolveOutput)
+        var candidates = new[]
+        {
+            Path.Combine(specDir, serviceSegment + ".yaml"),
+            Path.GetFullPath(Path.Combine(specDir, "..", serviceSegment, "spec.yaml")),
+        };
+        var siblingPath = candidates.FirstOrDefault(File.Exists);
+
+        if (siblingPath is null)
         {
             Console.Error.WriteLine(
-                $"Uyarı: '{target}' için kardeş spec bulunamadı ({siblingPath ?? serviceSegment + ".yaml"}); minimal (yalnızca Id) client üretiliyor.");
+                $"Uyarı: '{target}' için kardeş spec bulunamadı (denenen: {string.Join(" veya ", candidates)}); minimal (yalnızca Id) client üretiliyor.");
             return null;
         }
 

@@ -45,8 +45,8 @@ internal static class DesignerEndpoints
             }
 
             var output = ResolveOutput(req.Output, ctx, spec.Service);
-            YamlSpecWriter.Write(spec, output);
-            var files = CodeGenerator.Generate(spec, output);
+            var specPath = YamlSpecWriter.Write(spec, output);
+            var files = CodeGenerator.Generate(spec, output, specPath);
             var build = await BuildRunner.BuildAsync(output, ct);
 
             return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output));

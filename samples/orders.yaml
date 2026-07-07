@@ -1,8 +1,5 @@
-# BaseForge örnek servis spec'i — Orders (sipariş).
-# Üret:  baseforge new-service --spec samples/orders.yaml --output services/BaseForge.Orders
-# NOT: samples/products.yaml ile aynı klasörde olduğundan Product dış referansı kardeş spec
-# üzerinden zengin çözümlenir; User dış referansı Identity'nin sabit (ApplicationUser) şekliyle
-# özel olarak çözümlenir (bkz. src/BaseForge.CodeGen/Generation/CodeGenerator.cs).
+# Örnek BaseForge servis spec'i — tek dosya = tek mikroservis = tek DB.
+# Üretmek için:  baseforge new-service --spec samples/orders.yaml
 service: orders
 database: orders_db
 
@@ -17,9 +14,9 @@ entities:
         kind: one-to-many
         target: OrderItem          # servis içi ilişki -> gerçek FK
     externalRefs:
-      user:
-        target: identity/User      # merkez entity — siparişi veren kullanıcı
-        store: UserId
+      customer:
+        target: customers/Customer  # başka servis -> sadece ID, FK yok
+        store: CustomerId
         via: grpc
 
   OrderItem:
@@ -32,13 +29,14 @@ entities:
         target: Order
     externalRefs:
       product:
-        target: products/Product
+        target: catalog/Product
         store: ProductId
         via: grpc
 
-# Merkez Identity'ye JWT ile bağlı — yetkisiz kullanıcı sipariş oluşturamaz.
-auth:
-  authority: http://localhost:5090
-  audience: baseforge-api
-  requireHttpsMetadata: false
-  protect: true
+# Merkez auth (opsiyonel). Bu blok varsa üretilen servis EnableJwt + [Authorize] ile gelir.
+# (Yoksa `new-service` etkileşimli olarak sorar.)
+# auth:
+#   authority: http://localhost:5090
+#   audience: baseforge-api
+#   requireHttpsMetadata: false
+#   protect: true
