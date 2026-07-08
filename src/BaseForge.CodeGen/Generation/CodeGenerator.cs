@@ -87,7 +87,16 @@ internal static class CodeGenerator
         };
         written.Add(WriteFile(Path.Combine(outputDir, "Program.cs"), TemplateEngine.Render(Templates.Program, programModel)));
 
-        var host = new HostFileModel { Namespace = ns, Service = spec.Service, Database = spec.Database, GrpcClients = richResolutions };
+        var host = new HostFileModel
+        {
+            Namespace = ns,
+            Service = spec.Service,
+            Database = spec.Database,
+            GrpcClients = richResolutions,
+            RestPort = spec.DockerPorts?.Rest ?? 8080,
+            GrpcPort = spec.DockerPorts?.Grpc ?? 8081,
+            PostgresPort = spec.DockerPorts?.Postgres ?? 5432,
+        };
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), TemplateEngine.Render(Templates.LaunchSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Dockerfile"), TemplateEngine.Render(Templates.Dockerfile, host)));
@@ -355,27 +364,28 @@ internal static class CodeGenerator
     {
         var fields = new List<ProtoFieldModel>();
         var number = 2;
-        foreach (var (propName, propType) in entity.Props)
+        foreach (var (propName, prop) in entity.Props)
         {
-            fields.Add(MakeProtoField(NameUtil.Pascal(propName), propType, number++));
+            fields.Add(MakeProtoField(NameUtil.Pascal(propName), prop.Type, number++, prop.Nullable));
         }
 
         return fields;
     }
 
-    private static ProtoFieldModel MakeProtoField(string name, string specType, int number)
+    private static ProtoFieldModel MakeProtoField(string name, string specType, int number, bool nullable = false)
     {
-        var csharpType = TypeMap.ToCSharp(specType);
+        var csharpBase = TypeMap.ToCSharp(specType);
+        var isNonNullableString = !nullable && string.Equals(csharpBase, "string", StringComparison.Ordinal);
         return new ProtoFieldModel
         {
             Name = name,
             ProtoName = ToSnakeCase(name),
             ProtoType = ProtoTypeMap.ToProto(specType),
             Number = number,
-            CSharpType = csharpType,
-            Init = string.Equals(csharpType, "string", StringComparison.Ordinal) ? " = string.Empty;" : string.Empty,
-            ToProtoExpr = ProtoTypeMap.ToProtoExpr(specType, $"value.{name}"),
-            FromProtoExpr = ProtoTypeMap.FromProtoExpr(specType, $"response.{name}"),
+            CSharpType = csharpBase + (nullable ? "?" : string.Empty),
+            Init = isNonNullableString ? " = string.Empty;" : string.Empty,
+            ToProtoExpr = ProtoTypeMap.ToProtoExpr(specType, $"value.{name}", nullable),
+            FromProtoExpr = ProtoTypeMap.FromProtoExpr(specType, $"response.{name}", nullable),
         };
     }
 
@@ -409,14 +419,15 @@ internal static class CodeGenerator
     {
         var scalars = new List<ScalarModel>();
 
-        foreach (var (propName, propType) in entity.Props)
+        foreach (var (propName, prop) in entity.Props)
         {
-            var csharp = TypeMap.ToCSharp(propType);
+            var csharpBase = TypeMap.ToCSharp(prop.Type);
             scalars.Add(new ScalarModel
             {
                 Name = NameUtil.Pascal(propName),
-                Type = csharp,
-                Init = string.Equals(csharp, "string", StringComparison.Ordinal) ? " = string.Empty;" : string.Empty,
+                Type = csharpBase + (prop.Nullable ? "?" : string.Empty),
+                Init = ComputeInit(prop, csharpBase),
+                MaxLength = prop.MaxLength,
             });
         }
 
@@ -436,6 +447,36 @@ internal static class CodeGenerator
 
         return scalars;
     }
+
+    /// <summary>
+    /// Bir alanın C# initializer'ını hesaplar: explicit 'default' varsa tip-uygun literal;
+    /// yoksa non-nullable string için mevcut <c>= string.Empty;</c> fallback'i; aksi halde boş.
+    /// </summary>
+    private static string ComputeInit(PropSpec prop, string csharpBaseType)
+    {
+        if (prop.Default is not null)
+        {
+            return $" = {FormatDefaultLiteral(prop.Default, csharpBaseType)};";
+        }
+
+        if (!prop.Nullable && string.Equals(csharpBaseType, "string", StringComparison.Ordinal))
+        {
+            return " = string.Empty;";
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>Ham (YAML string) default değerini tip-uygun bir C# literal ifadesine çevirir.</summary>
+    private static string FormatDefaultLiteral(string rawDefault, string csharpBaseType) => csharpBaseType switch
+    {
+        "string" => $"\"{rawDefault.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal)}\"",
+        "decimal" => $"{rawDefault}m",
+        "double" => $"{rawDefault}d",
+        "float" => $"{rawDefault}f",
+        "bool" => rawDefault.ToLowerInvariant(),
+        _ => rawDefault, // int/long/short — doğrudan sayısal literal
+    };
 
     private static string WriteFile(string path, string content)
     {

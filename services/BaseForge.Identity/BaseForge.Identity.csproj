@@ -22,6 +22,8 @@
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.5.0" />
     <!-- Merkez kullanıcı (User) entity'sine diğer servislerin gRPC ile salt-okunur erişimi -->
     <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+    <!-- Yerel 'dotnet run' için .env dosyasını okuyup process environment'a yükler -->
+    <PackageReference Include="DotNetEnv" Version="3.1.1" />
   </ItemGroup>
 
   <ItemGroup>

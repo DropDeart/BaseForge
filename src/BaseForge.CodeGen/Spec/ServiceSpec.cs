@@ -14,6 +14,26 @@ public sealed class ServiceSpec
 
     /// <summary>Merkez auth (JWT) entegrasyonu. Verilirse üretilen servis EnableJwt + [Authorize] ile gelir.</summary>
     public ServiceAuthSpec? Auth { get; set; }
+
+    /// <summary>Docker host portları (opsiyonel). Boş alanlar için varsayılanlar kullanılır.</summary>
+    public DockerPortsSpec? DockerPorts { get; set; }
+}
+
+/// <summary>
+/// Üretilen <c>docker-compose.yml</c>'da host tarafına açılan portlar. Tüm alanlar opsiyonel —
+/// boş bırakılırsa çağıran taraf (CodeGenerator/IdentityGenerator) kendi varsayılanını kullanır.
+/// Aynı makinede başka projelerle port çakışmasını önlemek için verilir.
+/// </summary>
+public sealed class DockerPortsSpec
+{
+    /// <summary>REST API'nin host portu (container-içi bind portu sabit kalır, sadece host mapping'i değişir).</summary>
+    public int? Rest { get; set; }
+
+    /// <summary>gRPC'nin host portu.</summary>
+    public int? Grpc { get; set; }
+
+    /// <summary>PostgreSQL'in host portu.</summary>
+    public int? Postgres { get; set; }
 }
 
 /// <summary>Üretilen servisin merkez Identity'ye JWT ile bağlanma ayarları.</summary>
@@ -35,8 +55,12 @@ public sealed class ServiceAuthSpec
 /// <summary>Servise ait bir entity tanımı.</summary>
 public sealed class EntitySpec
 {
-    /// <summary>Alanlar: ad -> tip (örn. <c>total: decimal</c>). Id/audit alanları BaseEntity'den gelir.</summary>
-    public Dictionary<string, string> Props { get; set; } = new(StringComparer.Ordinal);
+    /// <summary>
+    /// Alanlar: ad -> tip tanımı. YAML'da düz string (<c>total: decimal</c>) veya zengin obje
+    /// (<c>total: { type: decimal, nullable: true }</c>) olarak yazılabilir (bkz. <see cref="PropSpecYamlConverter"/>).
+    /// Id/audit alanları BaseEntity'den gelir.
+    /// </summary>
+    public Dictionary<string, PropSpec> Props { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>Aynı servis içindeki diğer entity'lerle ilişkiler (gerçek FK üretilir).</summary>
     public Dictionary<string, RelationSpec> Relations { get; set; } = new(StringComparer.Ordinal);
@@ -53,6 +77,32 @@ public sealed class RelationSpec
 
     /// <summary>İlişkinin hedef entity'si (aynı servis içinde tanımlı olmalı).</summary>
     public string Target { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Bir entity alanının tam tanımı: tip + (opsiyonel) nullable/maxLength/default.
+/// YAML'da düz string (<c>string</c>) olarak da, zengin obje olarak da yazılabilir —
+/// <see cref="PropSpecYamlConverter"/> ikisini de okur/yazar.
+/// </summary>
+public sealed class PropSpec
+{
+    /// <summary>Spec tipi (örn. <c>string</c>, <c>decimal</c>, <c>guid</c>).</summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>Alan NULL olabilir mi? Varsayılan <see langword="false"/> (NOT NULL).</summary>
+    public bool Nullable { get; set; }
+
+    /// <summary>
+    /// Yalnızca <c>string</c>/<c>text</c> tipinde anlamlıdır — EF Core <c>[MaxLength]</c> üretir
+    /// (Postgres <c>character varying(n)</c>, aksi halde sınırsız <c>text</c>).
+    /// </summary>
+    public int? MaxLength { get; set; }
+
+    /// <summary>
+    /// C# tarafında varsayılan değer (yalnızca in-memory initializer; DB-level default değildir).
+    /// string/int/long/short/decimal/double/float/bool için desteklenir; datetime/date/guid'de geçersizdir.
+    /// </summary>
+    public string? Default { get; set; }
 }
 
 /// <summary>Başka bir servise ait kayda yapılan dış referans. FK/navigation üretilmez; yalnızca ID tutulur.</summary>

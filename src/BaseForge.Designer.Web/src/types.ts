@@ -11,8 +11,15 @@ export interface ExternalRefSpec {
   via: string; // grpc | event
 }
 
+export interface PropSpec {
+  type: string;
+  nullable?: boolean;
+  maxLength?: number | null; // yalnızca string/text tipinde anlamlı
+  default?: string | null; // yalnızca C# tarafı (in-memory initializer); datetime/date/guid'de desteklenmez
+}
+
 export interface EntitySpec {
-  props: Record<string, string>; // ad -> tip
+  props: Record<string, PropSpec>; // ad -> tanım
   relations?: Record<string, RelationSpec>;
   externalRefs?: Record<string, ExternalRefSpec>;
 }
@@ -24,11 +31,18 @@ export interface ServiceAuthSpec {
   protect: boolean;
 }
 
+export interface DockerPortsSpec {
+  rest?: number | null;
+  grpc?: number | null;
+  postgres?: number | null;
+}
+
 export interface ServiceSpec {
   service: string;
   database: string;
   entities: Record<string, EntitySpec>;
   auth?: ServiceAuthSpec | null;
+  dockerPorts?: DockerPortsSpec | null;
 }
 
 export interface ProviderSpec {
@@ -71,6 +85,7 @@ export interface AuthSpec {
   clients: AuthClientSpec[];
   seedAdmin?: SeedAdminSpec | null;
   providers: ProvidersSpec;
+  dockerPorts?: DockerPortsSpec | null;
 }
 
 export interface Meta {
@@ -85,4 +100,14 @@ export interface GenerateResponse {
   files: string[];
   buildSuccess: boolean;
   buildOutput: string;
+}
+
+export interface RunResponse {
+  success: boolean;
+  url: string;
+  dockerOutput: string;
+}
+
+export interface StopResponse {
+  stopped: boolean;
 }

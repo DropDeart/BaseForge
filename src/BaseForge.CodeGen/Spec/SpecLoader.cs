@@ -18,6 +18,7 @@ internal static class SpecLoader
         var yaml = File.ReadAllText(path);
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .WithTypeConverter(new PropSpecYamlConverter())
             .IgnoreUnmatchedProperties()
             .Build();
 

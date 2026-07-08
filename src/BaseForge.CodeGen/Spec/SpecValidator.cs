@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace BaseForge.CodeGen.Spec;
 
 /// <summary>Bir <see cref="ServiceSpec"/>'i kod/diyagram üretiminden önce doğrular.</summary>
@@ -33,16 +35,39 @@ internal static class SpecValidator
                 errors.Add($"Geçersiz entity adı: '{entityName}' (geçerli bir C# tanımlayıcısı olmalı).");
             }
 
-            foreach (var (propName, propType) in entity.Props)
+            foreach (var (propName, prop) in entity.Props)
             {
                 if (!IsValidIdentifier(propName))
                 {
                     errors.Add($"'{entityName}.{propName}' geçersiz alan adı.");
+                    continue;
                 }
 
-                if (!TypeMap.IsKnown(propType))
+                if (!TypeMap.IsKnown(prop.Type))
                 {
-                    errors.Add($"'{entityName}.{propName}' bilinmeyen tip: '{propType}'.");
+                    errors.Add($"'{entityName}.{propName}' bilinmeyen tip: '{prop.Type}'.");
+                    continue;
+                }
+
+                var isStringLike = string.Equals(prop.Type, "string", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(prop.Type, "text", StringComparison.OrdinalIgnoreCase);
+
+                if (prop.MaxLength is not null)
+                {
+                    if (!isStringLike)
+                    {
+                        errors.Add($"'{entityName}.{propName}' — 'maxLength' yalnızca string/text tipinde kullanılabilir.");
+                    }
+                    else if (prop.MaxLength <= 0)
+                    {
+                        errors.Add($"'{entityName}.{propName}' — 'maxLength' pozitif bir sayı olmalı.");
+                    }
+                }
+
+                if (prop.Default is not null && !IsValidDefault(prop.Type, prop.Default))
+                {
+                    errors.Add($"'{entityName}.{propName}' — 'default' değeri ('{prop.Default}') '{prop.Type}' tipi için geçersiz " +
+                               "(datetime/date/guid tiplerinde default desteklenmez).");
                 }
             }
 
@@ -71,6 +96,20 @@ internal static class SpecValidator
 
         return errors;
     }
+
+    /// <summary>
+    /// Bir 'default' değerinin verilen spec tipi için geçerli olup olmadığını kontrol eder.
+    /// datetime/date/guid/uuid'de literal default desteklenmez (Parse ifadesi gerektirir, kapsam dışı).
+    /// </summary>
+    private static bool IsValidDefault(string specType, string defaultValue) => specType.Trim().ToLowerInvariant() switch
+    {
+        "string" or "text" => true,
+        "int" or "long" or "short" => long.TryParse(defaultValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out _),
+        "decimal" or "double" or "float" => double.TryParse(defaultValue, NumberStyles.Float, CultureInfo.InvariantCulture, out _),
+        "bool" => bool.TryParse(defaultValue, out _),
+        "datetime" or "date" or "guid" or "uuid" => false,
+        _ => false,
+    };
 
     private static bool IsValidIdentifier(string value)
     {

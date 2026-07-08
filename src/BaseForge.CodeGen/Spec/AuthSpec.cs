@@ -18,6 +18,9 @@ public sealed class AuthSpec
     public SeedAdminSpec? SeedAdmin { get; set; }
 
     public ProvidersSpec Providers { get; set; } = new();
+
+    /// <summary>Docker host portları (opsiyonel). Boş alanlar için varsayılanlar kullanılır.</summary>
+    public DockerPortsSpec? DockerPorts { get; set; }
 }
 
 public sealed class SigningSpec

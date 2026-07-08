@@ -68,8 +68,12 @@ export function ErDiagram({ spec }: Props) {
                   <div className="er-head">{name}</div>
                   <div className="er-fields">
                     <div className="pk">id · uuid</div>
-                    {Object.entries(entities[name].props ?? {}).map(([p, t]) => (
-                      <div key={p}>{p} · {t}</div>
+                    {Object.entries(entities[name].props ?? {}).map(([p, prop]) => (
+                      <div key={p}>
+                        {p} · {prop.type}
+                        {prop.maxLength ? `(${prop.maxLength})` : ""}
+                        {prop.nullable ? "?" : ""}
+                      </div>
                     ))}
                     {(fkCols[name] ?? []).map((c) => (
                       <div className="fk" key={c}>{c} · uuid (FK)</div>

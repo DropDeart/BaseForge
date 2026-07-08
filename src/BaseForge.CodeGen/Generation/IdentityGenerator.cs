@@ -46,9 +46,11 @@ internal static class IdentityGenerator
         written.Add(WriteFile(Path.Combine(outputDir, ns + ".csproj"), BuildProject(ns)));
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), BuildAppSettings(spec)));
         written.Add(WriteFile(Path.Combine(outputDir, ".env.example"), BuildEnvExample(spec)));
+        written.Add(WriteFile(Path.Combine(outputDir, ".env"), BuildEnvReal(spec)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), BuildLaunchSettings(ns)));
         written.Add(WriteFile(Path.Combine(outputDir, "Dockerfile"), BuildDockerfile(ns)));
         written.Add(WriteFile(Path.Combine(outputDir, ".dockerignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n.git/\n*.user\n"));
+        written.Add(WriteFile(Path.Combine(outputDir, ".gitignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n*.user\n\n# Gerçek secret'lar — commit edilmez (bkz. .env.example)\n.env\n"));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.yml"), BuildCompose(spec)));
 
         return written;
@@ -78,6 +80,8 @@ internal static class IdentityGenerator
             <PackageReference Include="AspNet.Security.OAuth.GitHub" Version="10.0.0" />
             <!-- Merkez kullanıcı (User) entity'sine diğer servislerin gRPC ile salt-okunur erişimi -->
             <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+            <!-- Yerel 'dotnet run' için .env dosyasını okuyup process environment'a yükler -->
+            <PackageReference Include="DotNetEnv" Version="3.1.1" />
           </ItemGroup>
 
           <ItemGroup>
@@ -90,11 +94,12 @@ internal static class IdentityGenerator
 
     private static string BuildAppSettings(AuthSpec spec)
     {
+        var postgresPort = spec.DockerPorts?.Postgres ?? 5432;
         var settings = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["ConnectionStrings"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                ["Default"] = $"Host=localhost;Port=5432;Database={spec.Database};Username=baseforge;Password=change_me",
+                ["Default"] = $"Host=localhost;Port={postgresPort};Database={spec.Database};Username=baseforge;Password=change_me",
             },
             ["Kestrel"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
@@ -122,10 +127,13 @@ internal static class IdentityGenerator
                     ["Name"] = s.Name,
                     ["Resource"] = s.Resource,
                 }).ToList(),
+                // NOT: Secret/Password alanları burada bilerek boş bırakılır — gerçek değerler
+                // sadece '.env' dosyasında tutulur (Auth__Clients__{i}__Secret / Auth__SeedAdmin__Password),
+                // appsettings.json git'e commit edilebilir kalsın diye.
                 ["Clients"] = spec.Clients.Select(c => new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["ClientId"] = c.ClientId,
-                    ["Secret"] = c.Secret,
+                    ["Secret"] = c.Public ? null : string.Empty,
                     ["Public"] = c.Public,
                     ["Grants"] = c.Grants,
                     ["Scopes"] = c.Scopes,
@@ -134,7 +142,7 @@ internal static class IdentityGenerator
                 ["SeedAdmin"] = spec.SeedAdmin is null ? null : new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["Email"] = spec.SeedAdmin.Email,
-                    ["Password"] = spec.SeedAdmin.Password,
+                    ["Password"] = string.Empty,
                 },
                 ["Providers"] = new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
@@ -162,14 +170,15 @@ internal static class IdentityGenerator
         new(StringComparer.Ordinal)
         {
             ["ClientId"] = provider?.ClientId ?? string.Empty,
-            ["ClientSecret"] = provider?.ClientSecret ?? string.Empty,
+            // ClientSecret bilerek boş — gerçek değer '.env'de (Auth__Providers__{Name}__ClientSecret).
+            ["ClientSecret"] = string.Empty,
         };
 
     private static string BuildEnvExample(AuthSpec spec)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# Üretimde secret'ları appsettings yerine buradan (env override) verin.");
-        sb.AppendLine("# Bu dosyayı .env olarak kopyalayın; docker-compose env_file ile okur.");
+        sb.AppendLine("# Format referansı — gerçek değerler otomatik '.env'e yazıldı (bu dosya git'e commit edilebilir).");
+        sb.AppendLine("# docker-compose 'env_file' ile, yerel 'dotnet run' DotNetEnv ile bu formatı okur.");
         sb.AppendLine();
         if (spec.SeedAdmin is not null)
         {
@@ -189,8 +198,50 @@ internal static class IdentityGenerator
         sb.AppendLine("# Dış sağlayıcı secret'ları (kullanılacaksa):");
         foreach (var name in new[] { "Google", "GitHub", "Microsoft", "Facebook" })
         {
-            sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Providers__{name}__ClientId=");
             sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Providers__{name}__ClientSecret=");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// <see cref="BuildEnvExample"/> ile aynı anahtarlar, ama boş olanlar atlanır ve doluysa gerçek
+    /// değer yazılır. Bu dosya (<c>.env</c>) commit edilmez — bkz. üretilen <c>.gitignore</c>.
+    /// </summary>
+    private static string BuildEnvReal(AuthSpec spec)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# GERÇEK secret'lar — commit ETMEYİN. Format referansı için .env.example'a bakın.");
+        sb.AppendLine();
+
+        if (spec.SeedAdmin is not null && !string.IsNullOrWhiteSpace(spec.SeedAdmin.Password))
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__SeedAdmin__Password={spec.SeedAdmin.Password}");
+        }
+
+        for (var i = 0; i < spec.Clients.Count; i++)
+        {
+            if (!spec.Clients[i].Public && !string.IsNullOrWhiteSpace(spec.Clients[i].Secret))
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"# {spec.Clients[i].ClientId}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Clients__{i}__Secret={spec.Clients[i].Secret}");
+            }
+        }
+
+        var providers = new (string Name, ProviderSpec? Spec)[]
+        {
+            ("Google", spec.Providers.Google),
+            ("GitHub", spec.Providers.GitHub),
+            ("Microsoft", spec.Providers.Microsoft),
+            ("Facebook", spec.Providers.Facebook),
+        };
+
+        foreach (var (name, provider) in providers)
+        {
+            if (provider is not null && !string.IsNullOrWhiteSpace(provider.ClientSecret))
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Providers__{name}__ClientSecret={provider.ClientSecret}");
+            }
         }
 
         return sb.ToString();
@@ -228,10 +279,15 @@ internal static class IdentityGenerator
 
         """;
 
-    private static string BuildCompose(AuthSpec spec) =>
-        $$"""
+    private static string BuildCompose(AuthSpec spec)
+    {
+        var restPort = spec.DockerPorts?.Rest ?? 8081;
+        var grpcPort = spec.DockerPorts?.Grpc ?? 8082;
+        var postgresPort = spec.DockerPorts?.Postgres ?? 5432;
+
+        return $$"""
         # {{spec.Service}} merkez auth — izole test (servis + kendi PostgreSQL'i).
-        #   docker compose up --build -d   ·   discovery: http://localhost:8081/.well-known/openid-configuration
+        #   docker compose up --build -d   ·   discovery: http://localhost:{{restPort}}/.well-known/openid-configuration
         services:
           postgres:
             image: postgres:17-alpine
@@ -244,18 +300,22 @@ internal static class IdentityGenerator
               interval: 10s
               timeout: 5s
               retries: 5
+            ports:
+              - "{{postgresPort}}:5432"   # yerelde 'dotnet run' + sadece bu postgres'i container'da çalıştırmak için (appsettings.json ile eşleşir)
             volumes:
               - {{spec.Service}}-pgdata:/var/lib/postgresql/data
 
           {{spec.Service}}:
             build: .
+            env_file:
+              - .env   # gerçek secret'lar (Auth__Providers__*__ClientSecret, Auth__SeedAdmin__Password, ...)
             environment:
               ASPNETCORE_ENVIRONMENT: Development
               Auth__Issuer: "http://{{spec.Service}}:8080/"
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{spec.Database}};Username=baseforge;Password=change_me"
             ports:
-              - "8081:8080"   # REST/OpenIddict (HTTP/1.1)
-              - "8082:8081"   # gRPC (h2c) — merkez User entity'sine erişim
+              - "{{restPort}}:8080"   # REST/OpenIddict (HTTP/1.1)
+              - "{{grpcPort}}:8081"   # gRPC (h2c) — merkez User entity'sine erişim
             depends_on:
               postgres:
                 condition: service_healthy
@@ -264,6 +324,7 @@ internal static class IdentityGenerator
           {{spec.Service}}-pgdata:
 
         """;
+    }
 
     private static string WriteFile(string path, string content)
     {

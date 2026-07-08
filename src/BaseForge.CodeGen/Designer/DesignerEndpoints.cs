@@ -68,9 +68,21 @@ internal static class DesignerEndpoints
             return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output));
         });
 
-        // UI "Kapat" butonu.
-        api.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
+        // Üretilen servisi çalıştır: docker compose up --build -d --wait (tam stack).
+        api.MapPost("/run", async (RunRequest req, CancellationToken ct) =>
         {
+            var result = await RunRunner.StartAsync(req.Output, ct);
+            return Results.Ok(new RunResponse(result.Success, $"http://localhost:{req.RestPort}", result.DockerOutput));
+        });
+
+        // Çalışan servisi durdur.
+        api.MapPost("/stop", async (StopRequest req, CancellationToken ct) =>
+            Results.Ok(new StopResponse(await RunRunner.StopAsync(req.Output, ct))));
+
+        // UI "Kapat" butonu.
+        api.MapPost("/shutdown", async (IHostApplicationLifetime lifetime) =>
+        {
+            await RunRunner.StopAllAsync();
             lifetime.StopApplication();
             return Results.Ok();
         });
@@ -98,4 +110,12 @@ internal static class DesignerEndpoints
         IReadOnlyList<string> Files,
         bool BuildSuccess,
         string BuildOutput);
+
+    private sealed record RunRequest(string Output, int RestPort);
+
+    private sealed record RunResponse(bool Success, string Url, string DockerOutput);
+
+    private sealed record StopRequest(string Output);
+
+    private sealed record StopResponse(bool Stopped);
 }

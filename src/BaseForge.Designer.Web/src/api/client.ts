@@ -1,4 +1,4 @@
-import type { AuthSpec, GenerateResponse, Meta, ServiceSpec } from "../types";
+import type { AuthSpec, GenerateResponse, Meta, RunResponse, ServiceSpec, StopResponse } from "../types";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok && res.status !== 400) {
@@ -32,6 +32,20 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(spec),
     }).then((r) => json<GenerateResponse | { errors: string[] }>(r)),
+
+  run: (output: string, restPort: number) =>
+    fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ output, restPort }),
+    }).then((r) => json<RunResponse>(r)),
+
+  stop: (output: string) =>
+    fetch("/api/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ output }),
+    }).then((r) => json<StopResponse>(r)),
 
   shutdown: () => fetch("/api/shutdown", { method: "POST" }),
 };

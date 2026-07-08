@@ -1,4 +1,5 @@
-import type { EntitySpec, Meta } from "../types";
+import { useState } from "react";
+import type { EntitySpec, Meta, PropSpec } from "../types";
 import { removeKey, renameKey, setKey, typeClass, uniqueKey } from "../util";
 
 interface Props {
@@ -16,6 +17,10 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
   const relations = entity.relations ?? {};
   const externalRefs = entity.externalRefs ?? {};
   const others = allEntities.filter((e) => e !== name);
+  const [expandedProp, setExpandedProp] = useState<string | null>(null);
+
+  const updateProp = (pName: string, patch: Partial<PropSpec>) =>
+    onChange({ ...entity, props: setKey(props, pName, { ...props[pName], ...patch }) });
 
   return (
     <>
@@ -38,7 +43,7 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
           <span className="group-label">Alanlar — {name}</span>
           <button
             className="btn-link"
-            onClick={() => onChange({ ...entity, props: setKey(props, uniqueKey(props, "field"), meta.types[0]) })}
+            onClick={() => onChange({ ...entity, props: setKey(props, uniqueKey(props, "field"), { type: meta.types[0] }) })}
           >
             + alan
           </button>
@@ -46,21 +51,66 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
         <div className="hint" style={{ marginBottom: 8 }}>
           Id, CreatedAt, UpdatedAt gibi audit alanları BaseEntity'den gelir.
         </div>
-        {Object.entries(props).map(([pName, pType], index) => (
-          <div className="prop-row" key={index}>
-            <input className="uinput mono" value={pName} onChange={(e) => onChange({ ...entity, props: renameKey(props, pName, e.target.value) })} />
-            <select
-              className={`uselect type-select ${typeClass(pType)}`}
-              value={pType}
-              onChange={(e) => onChange({ ...entity, props: setKey(props, pName, e.target.value) })}
-            >
-              {meta.types.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <button className="icon-btn" onClick={() => onChange({ ...entity, props: removeKey(props, pName) })}>Sil</button>
-          </div>
-        ))}
+        {Object.entries(props).map(([pName, pSpec], index) => {
+          const isOpen = expandedProp === pName;
+          const isStringLike = pSpec.type === "string" || pSpec.type === "text";
+          return (
+            <div className="prop-row-wrap" key={index}>
+              <div className="prop-row">
+                <input className="uinput mono" value={pName} onChange={(e) => onChange({ ...entity, props: renameKey(props, pName, e.target.value) })} />
+                <select
+                  className={`uselect type-select ${typeClass(pSpec.type)}`}
+                  value={pSpec.type}
+                  onChange={(e) => updateProp(pName, { type: e.target.value })}
+                >
+                  {meta.types.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <div className="prop-row-actions">
+                  <button
+                    className="icon-btn"
+                    title="Gelişmiş ayarlar (nullable / maxLength / default)"
+                    onClick={() => setExpandedProp(isOpen ? null : pName)}
+                  >
+                    ⚙
+                  </button>
+                  <button className="icon-btn" onClick={() => onChange({ ...entity, props: removeKey(props, pName) })}>Sil</button>
+                </div>
+              </div>
+              {isOpen && (
+                <div className="prop-adv">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!pSpec.nullable}
+                      onChange={(e) => updateProp(pName, { nullable: e.target.checked })}
+                    />
+                    nullable
+                  </label>
+                  {isStringLike ? (
+                    <input
+                      className="uinput"
+                      type="number"
+                      min={1}
+                      placeholder="maxLength"
+                      value={pSpec.maxLength ?? ""}
+                      onChange={(e) => updateProp(pName, { maxLength: e.target.value === "" ? null : Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span />
+                  )}
+                  <input
+                    className="uinput"
+                    placeholder="default değer"
+                    value={pSpec.default ?? ""}
+                    onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
         {Object.keys(props).length === 0 && <div className="hint">Henüz alan yok.</div>}
       </div>
 

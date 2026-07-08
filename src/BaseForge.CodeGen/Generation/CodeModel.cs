@@ -5,10 +5,14 @@ internal sealed class ScalarModel
 {
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Nullable ise sonunda <c>?</c> içerir (örn. <c>decimal?</c>).</summary>
     public string Type { get; set; } = string.Empty;
 
     /// <summary>Alan başlatıcısı (örn. string için <c> = string.Empty;</c>), yoksa boş.</summary>
     public string Init { get; set; } = string.Empty;
+
+    /// <summary>Yalnızca string/text tipinde dolu — <c>[MaxLength(n)]</c> attribute'u için.</summary>
+    public int? MaxLength { get; set; }
 }
 
 /// <summary>Servis içi bir ilişki için navigation property.</summary>
@@ -127,6 +131,15 @@ internal sealed class HostFileModel
 
     /// <summary>Rich çözümlenen dış referanslar — appsettings <c>Grpc:{Provider}</c> adresleri için.</summary>
     public List<GrpcClientResolution> GrpcClients { get; set; } = [];
+
+    /// <summary>REST host portu (docker-compose ports mapping'i; container-içi bind portu sabit 8080).</summary>
+    public int RestPort { get; set; } = 8080;
+
+    /// <summary>gRPC host portu (container-içi bind portu sabit 8081).</summary>
+    public int GrpcPort { get; set; } = 8081;
+
+    /// <summary>PostgreSQL host portu.</summary>
+    public int PostgresPort { get; set; } = 5432;
 }
 
 /// <summary>gRPC client stub şablonu için model (fallback — kardeş spec bulunamayan durum).</summary>

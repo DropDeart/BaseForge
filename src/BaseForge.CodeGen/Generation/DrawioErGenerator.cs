@@ -88,9 +88,20 @@ internal static class DrawioErGenerator
     {
         var lines = new List<string> { "Id : uuid (PK)" };
 
-        foreach (var (propName, propType) in entity.Props)
+        foreach (var (propName, prop) in entity.Props)
         {
-            lines.Add($"{propName} : {TypeMap.ToDisplay(propType)}");
+            var display = TypeMap.ToDisplay(prop.Type);
+            if (prop.MaxLength is not null)
+            {
+                display += $"({prop.MaxLength})";
+            }
+
+            if (prop.Nullable)
+            {
+                display += "?";
+            }
+
+            lines.Add($"{propName} : {display}");
         }
 
         if (foreignKeys is not null)

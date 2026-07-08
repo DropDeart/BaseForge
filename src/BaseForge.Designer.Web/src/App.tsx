@@ -197,6 +197,39 @@ export function App() {
                     </div>
                   </div>
                 )}
+                <div className="field-row" style={{ marginTop: 14 }}>
+                  <div className="field">
+                    <span className="field-label">REST portu</span>
+                    <input
+                      className="uinput mono"
+                      type="number"
+                      placeholder="8080"
+                      value={spec.dockerPorts?.rest ?? ""}
+                      onChange={(e) => setSpec({ ...spec, dockerPorts: { ...spec.dockerPorts, rest: e.target.value === "" ? null : Number(e.target.value) } })}
+                    />
+                  </div>
+                  <div className="field">
+                    <span className="field-label">gRPC portu</span>
+                    <input
+                      className="uinput mono"
+                      type="number"
+                      placeholder="8081"
+                      value={spec.dockerPorts?.grpc ?? ""}
+                      onChange={(e) => setSpec({ ...spec, dockerPorts: { ...spec.dockerPorts, grpc: e.target.value === "" ? null : Number(e.target.value) } })}
+                    />
+                  </div>
+                  <div className="field">
+                    <span className="field-label">Postgres portu</span>
+                    <input
+                      className="uinput mono"
+                      type="number"
+                      placeholder="5432"
+                      value={spec.dockerPorts?.postgres ?? ""}
+                      onChange={(e) => setSpec({ ...spec, dockerPorts: { ...spec.dockerPorts, postgres: e.target.value === "" ? null : Number(e.target.value) } })}
+                    />
+                  </div>
+                </div>
+                <div className="hint" style={{ marginTop: 4 }}>Boş = varsayılan. Başka bir projeyle port çakışıyorsa değiştirin.</div>
               </div>
 
               {selected && entities[selected] ? (
@@ -213,14 +246,14 @@ export function App() {
                 <div className="empty">Soldan bir entity seçin ya da yeni ekleyin.</div>
               )}
 
-              <GenerateResult errors={errors} result={result} />
+              <GenerateResult key={result?.output} errors={errors} result={result} restPort={spec.dockerPorts?.rest ?? 8080} />
             </div>
           </div>
         )}
 
         {view === "identity" && (
           <IdentityPanel meta={meta} auth={auth} onChange={setAuth}>
-            <GenerateResult errors={errors} result={result} />
+            <GenerateResult key={result?.output} errors={errors} result={result} restPort={auth.dockerPorts?.rest ?? 8081} />
           </IdentityPanel>
         )}
 
@@ -230,8 +263,48 @@ export function App() {
   );
 }
 
-function GenerateResult({ errors, result }: { errors: string[]; result: GenerateResponse | null }) {
+function GenerateResult({
+  errors,
+  result,
+  restPort,
+}: {
+  errors: string[];
+  result: GenerateResponse | null;
+  restPort: number;
+}) {
+  const [running, setRunning] = useState<"idle" | "starting" | "running" | "stopping">("idle");
+  const [runUrl, setRunUrl] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+
   if (errors.length === 0 && !result) return null;
+
+  const start = async () => {
+    if (!result) return;
+    setRunning("starting");
+    setRunError(null);
+    try {
+      const res = await api.run(result.output, restPort);
+      if (res.success) {
+        setRunUrl(res.url);
+        setRunning("running");
+      } else {
+        setRunError(res.dockerOutput || "Postgres başlatılamadı.");
+        setRunning("idle");
+      }
+    } catch (e) {
+      setRunError(String(e));
+      setRunning("idle");
+    }
+  };
+
+  const stop = async () => {
+    if (!result) return;
+    setRunning("stopping");
+    await api.stop(result.output);
+    setRunning("idle");
+    setRunUrl(null);
+  };
+
   return (
     <div className="result">
       {errors.length > 0 && (
@@ -252,6 +325,21 @@ function GenerateResult({ errors, result }: { errors: string[]; result: Generate
           <span className="result-meta">{result.files.length} dosya → {result.output}</span>
           <div className="files">{result.files.map((f) => f.split(/[\\/]/).slice(-2).join("/")).join(" · ")}</div>
           {!result.buildSuccess && <pre className="build">{result.buildOutput}</pre>}
+          {result.buildSuccess && (
+            <div className="run-row">
+              {running === "running" && runUrl ? (
+                <>
+                  <a className="btn" href={runUrl} target="_blank" rel="noopener noreferrer">{runUrl} ↗</a>
+                  <button className="btn" onClick={stop} disabled={running !== "running"}>Durdur</button>
+                </>
+              ) : (
+                <button className="btn btn-primary" onClick={start} disabled={running === "starting" || running === "stopping"}>
+                  {running === "starting" ? "Başlatılıyor…" : "Çalıştır"}
+                </button>
+              )}
+              {runError && <div className="hint" style={{ color: "var(--red)" }}>{runError}</div>}
+            </div>
+          )}
         </>
       )}
     </div>

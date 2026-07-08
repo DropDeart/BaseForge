@@ -5,6 +5,7 @@ internal static class Templates
 {
     public const string Entity =
         """
+        using System.ComponentModel.DataAnnotations;
         using BaseForge.Core.Entities;
 
         namespace {{ Namespace }}.Entities;
@@ -14,6 +15,9 @@ internal static class Templates
         {
         {{~ for p in Scalars ~}}
             /// <summary>{{ p.Name }}.</summary>
+        {{~ if p.MaxLength ~}}
+            [MaxLength({{ p.MaxLength }})]
+        {{~ end ~}}
             public {{ p.Type }} {{ p.Name }} { get; set; }{{ p.Init }}
         {{~ end ~}}
         {{~ for n in Navigations ~}}
@@ -88,6 +92,7 @@ internal static class Templates
 
     public const string Commands =
         """
+        using System.ComponentModel.DataAnnotations;
         using BaseForge.Core.CQRS;
         using BaseForge.Core.Exceptions;
         using BaseForge.Core.Interfaces;
@@ -100,6 +105,9 @@ internal static class Templates
         {
         {{~ for f in Fields ~}}
             /// <summary>{{ f.Name }}.</summary>
+        {{~ if f.MaxLength ~}}
+            [MaxLength({{ f.MaxLength }})]
+        {{~ end ~}}
             public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
         {{~ end ~}}
         }
@@ -137,6 +145,9 @@ internal static class Templates
             public Guid Id { get; set; }
         {{~ for f in Fields ~}}
             /// <summary>{{ f.Name }}.</summary>
+        {{~ if f.MaxLength ~}}
+            [MaxLength({{ f.MaxLength }})]
+        {{~ end ~}}
             public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
         {{~ end ~}}
         }
@@ -395,7 +406,7 @@ internal static class Templates
         """
         {
           "ConnectionStrings": {
-            "Default": "Host=localhost;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+            "Default": "Host=localhost;Port={{ PostgresPort }};Database={{ Database }};Username=baseforge;Password=change_me"
           },
           "Kestrel": {
             "Endpoints": {
@@ -444,7 +455,7 @@ internal static class Templates
         """
         # {{ Service }} — izole test ortamı: servis + kendi PostgreSQL'i (mevcut DB'ye dokunmaz).
         # Ayağa kaldır:  docker compose up --build -d
-        # API arayüzü:   http://localhost:8080/scalar/v1
+        # API arayüzü:   http://localhost:{{ RestPort }}/scalar/v1
         # Durdur+temizle: docker compose down -v
         services:
           postgres:
@@ -458,6 +469,8 @@ internal static class Templates
               interval: 10s
               timeout: 5s
               retries: 5
+            ports:
+              - "{{ PostgresPort }}:5432"   # yerelde 'dotnet run' + sadece bu postgres'i container'da çalıştırmak için (appsettings.json ile eşleşir)
             volumes:
               - {{ Service }}-pgdata:/var/lib/postgresql/data
 
@@ -467,8 +480,8 @@ internal static class Templates
               ASPNETCORE_ENVIRONMENT: Development
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
             ports:
-              - "8080:8080"   # REST (HTTP/1.1) — appsettings.json Kestrel:Endpoints:Http
-              - "8081:8081"   # gRPC (h2c, TLS'siz HTTP/2)  — Kestrel:Endpoints:Grpc
+              - "{{ RestPort }}:8080"   # REST (HTTP/1.1) — appsettings.json Kestrel:Endpoints:Http
+              - "{{ GrpcPort }}:8081"   # gRPC (h2c, TLS'siz HTTP/2)  — Kestrel:Endpoints:Grpc
             depends_on:
               postgres:
                 condition: service_healthy
@@ -695,7 +708,7 @@ internal static class Templates
             "{{ Namespace }}": {
               "commandName": "Project",
               "launchBrowser": false,
-              "applicationUrl": "http://localhost:5080",
+              "applicationUrl": "http://localhost:{{ RestPort }}",
               "environmentVariables": {
                 "ASPNETCORE_ENVIRONMENT": "Development"
               }

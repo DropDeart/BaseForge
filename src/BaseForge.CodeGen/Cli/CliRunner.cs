@@ -75,7 +75,7 @@ internal static class CliRunner
 
         Console.WriteLine();
         Console.WriteLine("Çalıştırma:  cd \"" + output + "\" && docker compose up --build -d");
-        Console.WriteLine("Secret'ları .env.example -> .env'e taşıyabilirsiniz.");
+        Console.WriteLine("Gerçek secret'lar '.env'e yazıldı (commit edilmez) — appsettings.json'da boş kalır.");
         return 0;
     }
 

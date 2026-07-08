@@ -7,6 +7,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
+// CreateBuilder'dan ÖNCE yüklenmeli — aksi halde environment-variable configuration
+// provider'ı (WebApplication.CreateBuilder içinde eklenir) .env'deki değerleri göremez.
+// .env yoksa (örn. üretimde secret'lar zaten gerçek ortam değişkenleriyle veriliyorsa) sessizce atlanır.
+DotNetEnv.Env.Load();
+
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("Default")

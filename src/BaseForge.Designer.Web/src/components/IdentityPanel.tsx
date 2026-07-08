@@ -62,6 +62,39 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
             <span className="field-label">Issuer</span>
             <input className="uinput mono" placeholder="http://localhost:5090/" value={auth.issuer} onChange={(e) => onChange({ ...auth, issuer: e.target.value })} />
           </div>
+          <div className="field-row" style={{ marginTop: 12 }}>
+            <div className="field">
+              <span className="field-label">REST portu</span>
+              <input
+                className="uinput mono"
+                type="number"
+                placeholder="8081"
+                value={auth.dockerPorts?.rest ?? ""}
+                onChange={(e) => onChange({ ...auth, dockerPorts: { ...auth.dockerPorts, rest: e.target.value === "" ? null : Number(e.target.value) } })}
+              />
+            </div>
+            <div className="field">
+              <span className="field-label">gRPC portu</span>
+              <input
+                className="uinput mono"
+                type="number"
+                placeholder="8082"
+                value={auth.dockerPorts?.grpc ?? ""}
+                onChange={(e) => onChange({ ...auth, dockerPorts: { ...auth.dockerPorts, grpc: e.target.value === "" ? null : Number(e.target.value) } })}
+              />
+            </div>
+            <div className="field">
+              <span className="field-label">Postgres portu</span>
+              <input
+                className="uinput mono"
+                type="number"
+                placeholder="5432"
+                value={auth.dockerPorts?.postgres ?? ""}
+                onChange={(e) => onChange({ ...auth, dockerPorts: { ...auth.dockerPorts, postgres: e.target.value === "" ? null : Number(e.target.value) } })}
+              />
+            </div>
+          </div>
+          <div className="hint" style={{ marginTop: 4 }}>Boş = varsayılan. Başka bir projeyle port çakışıyorsa değiştirin.</div>
         </div>
 
         {/* Selected provider */}
