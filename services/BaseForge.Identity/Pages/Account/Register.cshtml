@@ -1,0 +1,39 @@
+@page
+@model BaseForge.Identity.Pages.Account.RegisterModel
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kayıt ol — BaseForge Identity</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 360px; margin: 60px auto; padding: 0 16px; }
+        h2 { margin-bottom: 4px; }
+        input, button { width: 100%; padding: 10px; margin: 6px 0; box-sizing: border-box; border-radius: 6px; border: 1px solid #ccc; }
+        button { background: #2563eb; color: #fff; border: 0; cursor: pointer; }
+        .err { color: #c00; }
+        .hint { color: #666; margin-top: 0; }
+        a { color: #2563eb; }
+    </style>
+</head>
+<body>
+    <h2>Kayıt ol</h2>
+    <p class="hint">BaseForge Identity</p>
+
+    @if (Model.Error is not null)
+    {
+        <p class="err">@Model.Error</p>
+    }
+
+    <form method="post">
+        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+        <input asp-for="FullName" type="text" placeholder="Ad Soyad" />
+        <input asp-for="Email" type="email" placeholder="E-posta" required />
+        <input asp-for="Password" type="password" placeholder="Parola" required />
+        <input asp-for="ConfirmPassword" type="password" placeholder="Parola (tekrar)" required />
+        <button type="submit">Hesap oluştur</button>
+    </form>
+
+    <p class="hint">Zaten hesabın var mı? <a asp-page="/Account/Login" asp-route-returnUrl="@Model.ReturnUrl">Giriş yap</a></p>
+</body>
+</html>

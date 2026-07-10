@@ -100,24 +100,43 @@ public static class SeedData
 
     private static async Task SeedAdminAsync(IServiceProvider services, AuthOptions auth)
     {
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        foreach (var role in new[] { AdminRole, UserRole })
+        {
+            if (await roleManager.FindByNameAsync(role) is null)
+            {
+                await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+            }
+        }
+
         if (auth.SeedAdmin is null || string.IsNullOrWhiteSpace(auth.SeedAdmin.Email))
         {
             return;
         }
 
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        if (await userManager.FindByNameAsync(auth.SeedAdmin.Email) is not null)
+        var admin = await userManager.FindByNameAsync(auth.SeedAdmin.Email);
+        if (admin is null)
         {
-            return;
+            admin = new ApplicationUser
+            {
+                UserName = auth.SeedAdmin.Email,
+                Email = auth.SeedAdmin.Email,
+                EmailConfirmed = true,
+                FullName = "Administrator",
+            };
+            await userManager.CreateAsync(admin, auth.SeedAdmin.Password);
         }
 
-        var admin = new ApplicationUser
+        if (!await userManager.IsInRoleAsync(admin, AdminRole))
         {
-            UserName = auth.SeedAdmin.Email,
-            Email = auth.SeedAdmin.Email,
-            EmailConfirmed = true,
-            FullName = "Administrator",
-        };
-        await userManager.CreateAsync(admin, auth.SeedAdmin.Password);
+            await userManager.AddToRoleAsync(admin, AdminRole);
+        }
     }
+
+    /// <summary>Kullanıcı listesi gibi yönetim sayfalarına erişim için rol adı.</summary>
+    public const string AdminRole = "Admin";
+
+    /// <summary>Kayıt olan/eklenen her kullanıcıya varsayılan olarak atanan rol.</summary>
+    public const string UserRole = "User";
 }

@@ -7,4 +7,7 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 {
     /// <summary>Kullanıcının görünen adı.</summary>
     public string? FullName { get; set; }
+
+    /// <summary>Profil resmi — yüklenen dosyanın yolu (/uploads/avatars/...) ya da dış sağlayıcıdan (Google vb.) gelen URL.</summary>
+    public string? AvatarUrl { get; set; }
 }

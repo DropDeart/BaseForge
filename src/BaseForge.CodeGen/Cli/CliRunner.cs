@@ -25,6 +25,7 @@ internal static class CliRunner
             {
                 "er" => RunEr(options),
                 "new" => RunNew(positional, options),
+                "update" => RunUpdate(positional, options),
                 "new-service" => RunNewService(options),
                 "new-identity" => RunNewIdentity(options),
                 _ => Unknown(command),
@@ -40,14 +41,28 @@ internal static class CliRunner
     private static int RunNew(List<string> positional, Dictionary<string, string> options)
     {
         var service = positional.FirstOrDefault() ?? options.GetValueOrDefault("service", "service");
-        var port = 3500;
-        if (options.TryGetValue("port", out var portText) && int.TryParse(portText, out var parsed))
+        return DesignerServer.Run(service, ParsePort(options));
+    }
+
+    /// <summary>
+    /// <c>new</c> ile aynı arayüzü açar, ama diskte <c>&lt;servis&gt;/spec.yaml</c> (ve varsa
+    /// <c>identity/auth.yaml</c>) bulunuyorsa boş başlamak yerine onları yükler — mevcut bir
+    /// servise entity eklemek/düzenlemek için yeniden yazmaya gerek kalmaz.
+    /// </summary>
+    private static int RunUpdate(List<string> positional, Dictionary<string, string> options)
+    {
+        var service = positional.FirstOrDefault() ?? options.GetValueOrDefault("service", "service");
+        var specPath = Path.Combine(Directory.GetCurrentDirectory(), service, "spec.yaml");
+        if (!File.Exists(specPath))
         {
-            port = parsed;
+            Console.WriteLine($"Uyarı: '{specPath}' bulunamadı — boş bir spec ile açılıyor (yeni servis gibi).");
         }
 
-        return DesignerServer.Run(service, port);
+        return DesignerServer.Run(service, ParsePort(options), loadExisting: true);
     }
+
+    private static int ParsePort(Dictionary<string, string> options)
+        => options.TryGetValue("port", out var portText) && int.TryParse(portText, out var parsed) ? parsed : 3500;
 
     private static int RunNewIdentity(Dictionary<string, string> options)
     {
@@ -258,12 +273,15 @@ internal static class CliRunner
         Console.WriteLine();
         Console.WriteLine("Kullanım:");
         Console.WriteLine("  baseforge new          <servis> [--port 3500]");
+        Console.WriteLine("  baseforge update       <servis> [--port 3500]");
         Console.WriteLine("  baseforge er           --spec <dosya.yaml> [--output <klasör>]");
         Console.WriteLine("  baseforge new-service  --spec <dosya.yaml> [--output <klasör>] [--yes]");
         Console.WriteLine("  baseforge new-identity --spec <auth.yaml>  [--output <klasör>]");
         Console.WriteLine();
         Console.WriteLine("Komutlar:");
-        Console.WriteLine("  new           Web arayüzünü (localhost:3500) açar; entity/ilişki/Identity tasarlanır.");
+        Console.WriteLine("  new           Web arayüzünü boş bir spec ile açar; entity/ilişki/Identity tasarlanır.");
+        Console.WriteLine("  update        Aynı arayüzü, <servis>/spec.yaml (ve varsa identity/auth.yaml) diskten");
+        Console.WriteLine("                yüklenmiş olarak açar — mevcut servise entity eklemek/düzenlemek için.");
         Console.WriteLine("  er            Spec'ten yalnızca draw.io ER diyagramı üretir.");
         Console.WriteLine("  new-service   ER üretir, onay alır ve servis iskelesini üretir.");
         Console.WriteLine("  new-identity  auth.yaml'dan config-driven merkez auth (Identity) servisi üretir.");

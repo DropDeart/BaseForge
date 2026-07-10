@@ -14,6 +14,7 @@ namespace BaseForge.CodeGen.Generation;
 internal static class IdentityGenerator
 {
     private const string ResourcePrefix = "identity/";
+    private const string WebResourcePrefix = "identity-web/";
     private const string ReferenceNamespace = "BaseForge.Identity";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -42,6 +43,20 @@ internal static class IdentityGenerator
             written.Add(WriteFile(Path.Combine(outputDir, relative), code));
         }
 
+        // 1b) Ortak Giriş SPA'sı (Login/Register/Admin): önceden derlenmiş dist çıktısı, wwwroot altına
+        // ham bayt olarak kopyalanır (font/JS gibi binary dosyalar için metin okuma/değiştirme uygulanmaz).
+        foreach (var resource in assembly.GetManifestResourceNames()
+                     .Where(n => n.StartsWith(WebResourcePrefix, StringComparison.Ordinal)))
+        {
+            using var stream = assembly.GetManifestResourceStream(resource)!;
+            var relative = resource[WebResourcePrefix.Length..].Replace('/', Path.DirectorySeparatorChar);
+            var path = Path.Combine(outputDir, "wwwroot", relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using var file = File.Create(path);
+            stream.CopyTo(file);
+            written.Add(path);
+        }
+
         // 2) Yapılandırma ve altyapı dosyaları.
         written.Add(WriteFile(Path.Combine(outputDir, ns + ".csproj"), BuildProject(ns)));
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), BuildAppSettings(spec)));
@@ -52,6 +67,11 @@ internal static class IdentityGenerator
         written.Add(WriteFile(Path.Combine(outputDir, ".dockerignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n.git/\n*.user\n"));
         written.Add(WriteFile(Path.Combine(outputDir, ".gitignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n*.user\n\n# Gerçek secret'lar — commit edilmez (bkz. .env.example)\n.env\n"));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.yml"), BuildCompose(spec)));
+
+        // Workspace kökündeki paylaşılan servis kaydına kendini ekle, sonra güncel halini kendi
+        // wwwroot'una kopyala — dashboard'un "Servisler" bölümü bunu statik dosya olarak okuyacak.
+        ServiceRegistry.UpsertIdentity(outputDir, spec);
+        ServiceRegistry.SnapshotForIdentity(outputDir);
 
         return written;
     }
@@ -284,6 +304,8 @@ internal static class IdentityGenerator
         var restPort = spec.DockerPorts?.Rest ?? 8081;
         var grpcPort = spec.DockerPorts?.Grpc ?? 8082;
         var postgresPort = spec.DockerPorts?.Postgres ?? 5432;
+        // Docker registry kuralı: imaj adları (dolayısıyla compose servis anahtarı) büyük harf içeremez.
+        var serviceKey = spec.Service.ToLowerInvariant();
 
         return $$"""
         # {{spec.Service}} merkez auth — izole test (servis + kendi PostgreSQL'i).
@@ -305,23 +327,26 @@ internal static class IdentityGenerator
             volumes:
               - {{spec.Service}}-pgdata:/var/lib/postgresql/data
 
-          {{spec.Service}}:
+          {{serviceKey}}:
             build: .
             env_file:
               - .env   # gerçek secret'lar (Auth__Providers__*__ClientSecret, Auth__SeedAdmin__Password, ...)
             environment:
               ASPNETCORE_ENVIRONMENT: Development
-              Auth__Issuer: "http://{{spec.Service}}:8080/"
+              Auth__Issuer: "http://{{serviceKey}}:8080/"
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{spec.Database}};Username=baseforge;Password=change_me"
             ports:
               - "{{restPort}}:8080"   # REST/OpenIddict (HTTP/1.1)
               - "{{grpcPort}}:8081"   # gRPC (h2c) — merkez User entity'sine erişim
+            volumes:
+              - {{spec.Service}}-avatars:/app/wwwroot/uploads   # profil fotoğrafları — container recreate'te kaybolmasın
             depends_on:
               postgres:
                 condition: service_healthy
 
         volumes:
           {{spec.Service}}-pgdata:
+          {{spec.Service}}-avatars:
 
         """;
     }

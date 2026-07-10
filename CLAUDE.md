@@ -155,9 +155,15 @@ Bu proje Claude Code ile birlikte geliştirilmektedir.
 
 ## Gelecek Planlar (Backlog)
 
-- [ ] Code Generator: Entity tanımından otomatik servis, repository ve SQL üretimi
+- [x] Code Generator: Entity tanımından otomatik servis, repository ve SQL üretimi → `BaseForge.CodeGen` (CLI + Designer web arayüzü, `baseforge new/update/new-service`)
 - [x] ER Diagram görselleştirme → `BaseForge.Tools.DbmlGenerator` (EF Core model → DBML / dbdiagram.io)
 - [x] gRPC proto generator → otomatik server+client proto üretimi, kardeş-spec zengin çözümleme, `identity/User` özel durumu (bkz. docs/ARCH.md §5.1)
-- [ ] Identity Service referans implementasyonu
-- [x] Örnek mikroservis projesi (BaseForge kullanan demo) → `services/BaseForge.Products` + `BaseForge.Warehouse` + `BaseForge.Orders`, gRPC ile birbirine ve Identity'ye bağlı
+- [x] Identity Service referans implementasyonu → `services/BaseForge.Identity` (OpenIddict + ASP.NET Identity, config-driven, sosyal sağlayıcılar, gRPC User erişimi)
+- [x] Entity alan seviyesi kısıtlar: `nullable` / `maxLength` / `default` (PropSpec) — YAML'da hem düz string hem zengin obje formu, EF Core `[MaxLength]`, Command validasyonu, gRPC null-safe proto dönüşümü
+- [x] Docker host portları seçilebilir (`DockerPortsSpec`: REST/gRPC/Postgres) — Designer'da üç opsiyonel alan, aynı makinede başka projelerle port çakışmasını önlemek için (varsayılan boşsa eski sabit portlar korunur)
+- [x] Designer'da "Çalıştır"/"Durdur" — üretilen servisi `docker compose up --build -d --wait` ile tam stack olarak ayağa kaldırır, `docker compose down` ile durdurur (process-tree yönetimi yerine Docker'ın kendi lifecycle'ı kullanılır — orphan process riski yok)
+- [x] Identity secret'ları (OAuth Client Secret, seed admin şifresi) artık `.env`'de (gitignore'lu, `DotNetEnv` ile yerel `dotnet run`'da okunur, Docker'da `env_file`) — `appsettings.json`'da boş kalır
+- [x] `baseforge update <servis>` CLI komutu — `new`'in aksine, diskteki `<servis>/spec.yaml` (ve varsa `identity/auth.yaml`) yüklenmiş olarak Designer'ı açar; var olan servise entity eklemek/düzenlemek için YAML'a elle dokunmaya gerek kalmaz.
+  **Bilinen kısıt:** identity servisinin adı `auth.yaml`'da "identity" dışında bir şeye değiştirilmişse `update` onu bulamıyor (klasör adı hardcoded) — düzeltilmedi.
 - [ ] RabbitMQ / asenkron event iletişimi (`via: event`) — spec modelinde yer var, codegen henüz yok
+- [ ] docs/ARCH.md — `update` komutu ve Docker port/Çalıştır-Durdur/.env özellikleri henüz orada belgelenmedi (CLAUDE.md kuralı: yeni özellik öncesi ARCH.md güncellenir)

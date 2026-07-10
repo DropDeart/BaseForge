@@ -116,7 +116,7 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
               </div>
               <div className="field">
                 <span className="field-label">ClientSecret</span>
-                <input className="uinput mono" type="password" value={selected.clientSecret} onChange={(e) => setProvider(selectedKey, { ...selected, clientSecret: e.target.value })} />
+                <input className="uinput mono" type="password" placeholder="kayıtlı — değiştirmek için gir" value={selected.clientSecret} onChange={(e) => setProvider(selectedKey, { ...selected, clientSecret: e.target.value })} />
               </div>
             </div>
           ) : (
@@ -143,7 +143,7 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
               </div>
               <div className="field">
                 <span className="field-label">Parola</span>
-                <input className="uinput" type="password" value={auth.seedAdmin.password} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, password: e.target.value } })} />
+                <input className="uinput" type="password" placeholder="kayıtlı — değiştirmek için gir" value={auth.seedAdmin.password} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, password: e.target.value } })} />
               </div>
             </div>
           )}

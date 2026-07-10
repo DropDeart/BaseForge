@@ -31,10 +31,9 @@
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\IdentityServiceDbContext.cs" LogicalName="identity/Data/IdentityServiceDbContext.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\SeedData.cs" LogicalName="identity/Data/SeedData.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AuthorizationController.cs" LogicalName="identity/Controllers/AuthorizationController.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AccountApiController.cs" LogicalName="identity/Controllers/AccountApiController.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AdminUsersApiController.cs" LogicalName="identity/Controllers/AdminUsersApiController.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Authentication\ExternalProviders.cs" LogicalName="identity/Authentication/ExternalProviders.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\_ViewImports.cshtml" LogicalName="identity/Pages/_ViewImports.cshtml" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml" LogicalName="identity/Pages/Account/Login.cshtml" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Pages\Account\Login.cshtml.cs" LogicalName="identity/Pages/Account/Login.cshtml.cs" />
     <!-- Merkez kullanıcı (User) gRPC servisi: new-identity için kopyalanır. Aynı "identity/Protos/user.proto"
          kaynağı, "identity/User" dış referansı çözümlenirken CodeGenerator tarafından da doğrudan okunur
          (tek fiziksel kaynak, tek LogicalName — SDK aynı yolu iki LogicalName ile içermeyi reddediyor). -->
@@ -62,6 +61,31 @@
       <_DesignerWebDist Include="$(DesignerWebDir)\dist\**\*" />
       <EmbeddedResource Include="@(_DesignerWebDist)">
         <LogicalName>web/$([System.String]::Copy('%(RecursiveDir)%(Filename)%(Extension)').Replace('\','/'))</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+  </Target>
+
+  <!-- Ortak Giriş SPA'sı (Login/Register/Admin, identity servisi için): npm build çıktısını
+       'identity-web/...' logical name'leriyle gömer. IdentityGenerator üretim sırasında bunları
+       <output>/wwwroot altına kopyalar. -->
+  <PropertyGroup>
+    <IdentityWebDir>$(MSBuildThisFileDirectory)..\..\services\BaseForge.Identity.Web</IdentityWebDir>
+  </PropertyGroup>
+
+  <!-- 'dotnet pack' Build/Publish/Pack adımları için bu csproj'u birden çok kez (bazen üst üste
+       binen zamanlamalarla) derler. npm build burada tetiklenseydi, bir geçişin 'dist'i silip yeniden
+       yazması başka bir geçişin o an okuduğu dosyayı yok edebiliyordu (CS1566, tekrarlayan yarış durumu).
+       Bu yüzden npm build BURADA çalıştırılmaz — 'dist' önceden (örn. 'npm run build' ile elle, ya da
+       ayrı bir CI adımıyla) üretilmiş olmalı; bu hedef sadece var olan çıktıyı gömer. -->
+  <Target Name="BuildIdentityWeb"
+          BeforeTargets="PrepareForBuild;CoreCompile"
+          Condition="'$(SkipWebBuild)' != 'true'">
+    <Error Condition="!Exists('$(IdentityWebDir)\dist\index.html')"
+           Text="'$(IdentityWebDir)\dist' bulunamadı. Önce: cd &quot;$(IdentityWebDir)&quot; &amp;&amp; npm run build" />
+    <ItemGroup>
+      <_IdentityWebDist Include="$(IdentityWebDir)\dist\**\*" />
+      <EmbeddedResource Include="@(_IdentityWebDist)">
+        <LogicalName>identity-web/$([System.String]::Copy('%(RecursiveDir)%(Filename)%(Extension)').Replace('\','/'))</LogicalName>
       </EmbeddedResource>
     </ItemGroup>
   </Target>

@@ -44,10 +44,34 @@ builder.Services.Configure<IdentityOptions>(options =>
 });
 
 // İnteraktif (authorization_code) akış: giriş yoksa login sayfasına yönlendir.
+// '/api/*' istekleri SPA'nın fetch() çağrıları — 302 yerine düz 401/403 dönmeli, aksi halde
+// fetch index.html'e yönlendirilip 200 gibi görünür ve JSON parse hatası verir.
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Account/Login";
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
 });
 
 // Dış kimlik sağlayıcıları (config'te ClientId dolu olanlar).
@@ -112,7 +136,6 @@ builder.Services.AddOpenIddict()
     });
 
 builder.Services.AddControllers();
-builder.Services.AddRazorPages();
 
 // Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin gRPC ile salt-okunur erişimi.
 builder.Services.AddGrpc();
@@ -131,7 +154,10 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapRazorPages();
 app.MapGrpcService<BaseForge.Identity.Grpc.UserGrpcService>();
+
+// Ortak Giriş SPA'sı (Login/Register/Admin) wwwroot'a gömülü — client-side route'lar (örn. /Account/Login)
+// için index.html fallback'i. /api, /connect ve gRPC uçları yukarıda zaten eşlendiği için önceliklidir.
+app.MapFallbackToFile("index.html");
 
 app.Run();

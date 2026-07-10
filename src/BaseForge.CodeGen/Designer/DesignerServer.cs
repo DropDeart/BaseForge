@@ -17,14 +17,14 @@ namespace BaseForge.CodeGen.Designer;
 /// </summary>
 internal static class DesignerServer
 {
-    public static int Run(string serviceName, int port)
+    public static int Run(string serviceName, int port, bool loadExisting = false)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls($"http://localhost:{port}");
 
         // Tek oturumluk çalışma dizinini (çıktı kökü) ve seed servis adını paylaş.
-        builder.Services.AddSingleton(new DesignerContext(serviceName, Directory.GetCurrentDirectory()));
+        builder.Services.AddSingleton(new DesignerContext(serviceName, Directory.GetCurrentDirectory(), loadExisting));
 
         // Spec sınıfları PascalCase property'li; React tarafıyla camelCase üzerinden konuşulur.
         builder.Services.ConfigureHttpJsonOptions(o =>
@@ -94,8 +94,12 @@ internal static class DesignerServer
     }
 }
 
-/// <summary>Designer oturumu boyunca paylaşılan bağlam: seed servis adı ve çıktı kök dizini.</summary>
-internal sealed record DesignerContext(string ServiceName, string WorkingDirectory);
+/// <summary>
+/// Designer oturumu boyunca paylaşılan bağlam: seed servis adı, çıktı kök dizini ve
+/// <c>baseforge update</c> ile açıldıysa (aksine <c>new</c>) diskteki mevcut spec/auth'un
+/// yüklenip yüklenmeyeceği.
+/// </summary>
+internal sealed record DesignerContext(string ServiceName, string WorkingDirectory, bool LoadExisting = false);
 
 /// <summary>
 /// <c>web/</c> önekli gömülü resource'ları statik dosya olarak sunar. MSBuild target'ı dist

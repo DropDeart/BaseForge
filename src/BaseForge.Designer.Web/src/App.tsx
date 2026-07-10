@@ -246,14 +246,14 @@ export function App() {
                 <div className="empty">Soldan bir entity seçin ya da yeni ekleyin.</div>
               )}
 
-              <GenerateResult key={result?.output} errors={errors} result={result} restPort={spec.dockerPorts?.rest ?? 8080} />
+              <GenerateResult key={result?.output} errors={errors} result={result} restPort={spec.dockerPorts?.rest ?? 8080} linkPath="/scalar/v1" />
             </div>
           </div>
         )}
 
         {view === "identity" && (
           <IdentityPanel meta={meta} auth={auth} onChange={setAuth}>
-            <GenerateResult key={result?.output} errors={errors} result={result} restPort={auth.dockerPorts?.rest ?? 8081} />
+            <GenerateResult key={result?.output} errors={errors} result={result} restPort={auth.dockerPorts?.rest ?? 8081} linkPath="/Account/Login" />
           </IdentityPanel>
         )}
 
@@ -267,10 +267,12 @@ function GenerateResult({
   errors,
   result,
   restPort,
+  linkPath,
 }: {
   errors: string[];
   result: GenerateResponse | null;
   restPort: number;
+  linkPath: string;
 }) {
   const [running, setRunning] = useState<"idle" | "starting" | "running" | "stopping">("idle");
   const [runUrl, setRunUrl] = useState<string | null>(null);
@@ -329,7 +331,7 @@ function GenerateResult({
             <div className="run-row">
               {running === "running" && runUrl ? (
                 <>
-                  <a className="btn" href={runUrl} target="_blank" rel="noopener noreferrer">{runUrl} ↗</a>
+                  <a className="btn" href={`${runUrl}${linkPath}`} target="_blank" rel="noopener noreferrer">{runUrl}{linkPath} ↗</a>
                   <button className="btn" onClick={stop} disabled={running !== "running"}>Durdur</button>
                 </>
               ) : (

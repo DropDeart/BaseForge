@@ -474,7 +474,7 @@ internal static class Templates
             volumes:
               - {{ Service }}-pgdata:/var/lib/postgresql/data
 
-          {{ Service }}:
+          {{ ServiceKey }}:
             build: .
             environment:
               ASPNETCORE_ENVIRONMENT: Development
@@ -508,7 +508,7 @@ internal static class Templates
         """
         # Bu bloğu kök docker-compose.yml'a ekleyin (postgres servisinin yanına).
         services:
-          {{ Service }}-service:
+          {{ ServiceKey }}-service:
             build: .
             environment:
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"

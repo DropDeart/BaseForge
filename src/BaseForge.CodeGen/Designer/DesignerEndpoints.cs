@@ -21,10 +21,10 @@ internal static class DesignerEndpoints
             Via: ["grpc", "event"],
             Providers: ["Google", "GitHub", "Microsoft", "Facebook"])));
 
-        // CLI arg'ından seed edilmiş boş spec.
+        // 'new' -> CLI arg'ından seed edilmiş boş spec. 'update' -> diskteki spec.yaml/auth.yaml (varsa) yüklenir.
         api.MapGet("/spec", (DesignerContext ctx) => Results.Ok(new SpecResponse(
-            Service: new ServiceSpec { Service = ctx.ServiceName, Database = $"{ctx.ServiceName}_db" },
-            Auth: new AuthSpec { Service = "identity", Database = "identity_db" })));
+            Service: LoadServiceOrSeed(ctx),
+            Auth: LoadAuthOrSeed(ctx))));
 
         // Servis spec doğrulama.
         api.MapPost("/validate", (ServiceSpec spec) =>
@@ -61,6 +61,7 @@ internal static class DesignerEndpoints
             }
 
             var output = ResolveOutput(null, ctx, spec.Service);
+            RestoreUnchangedSecrets(spec, Path.Combine(output, "auth.yaml"));
             YamlSpecWriter.Write(spec, output, "auth.yaml");
             var files = IdentityGenerator.Generate(spec, output);
             var build = await BuildRunner.BuildAsync(output, ct);
@@ -92,6 +93,136 @@ internal static class DesignerEndpoints
         => !string.IsNullOrWhiteSpace(requested)
             ? Path.GetFullPath(requested)
             : Path.GetFullPath(Path.Combine(ctx.WorkingDirectory, service));
+
+    /// <summary>'update' ile açıldıysa ve <c>&lt;servis&gt;/spec.yaml</c> varsa onu yükler; aksi halde boş seed.</summary>
+    private static ServiceSpec LoadServiceOrSeed(DesignerContext ctx)
+    {
+        if (ctx.LoadExisting)
+        {
+            var path = Path.Combine(ResolveOutput(null, ctx, ctx.ServiceName), "spec.yaml");
+            if (File.Exists(path))
+            {
+                try
+                {
+                    return SpecLoader.Load(path);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Uyarı: '{path}' okunamadı ({ex.Message}) — boş spec ile açılıyor.");
+                }
+            }
+        }
+
+        return new ServiceSpec { Service = ctx.ServiceName, Database = $"{ctx.ServiceName}_db" };
+    }
+
+    /// <summary>'update' ile açıldıysa ve <c>identity/auth.yaml</c> varsa onu yükler; aksi halde boş seed.
+    /// Gerçek secret'lar (ClientSecret, SeedAdmin.Password) tarayıcıya ASLA gönderilmez — Network sekmesinden
+    /// bile okunabilir olmasınlar diye burada boşaltılır. Formda "..." placeholder'ı gösterilir; kullanıcı
+    /// dokunmazsa <see cref="RestoreUnchangedSecrets"/> kaydederken diskteki gerçek değeri geri kor.</summary>
+    private static AuthSpec LoadAuthOrSeed(DesignerContext ctx)
+    {
+        if (ctx.LoadExisting)
+        {
+            var path = Path.Combine(ResolveOutput(null, ctx, "identity"), "auth.yaml");
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var loaded = SpecLoader.Load<AuthSpec>(path);
+                    MaskSecrets(loaded);
+                    return loaded;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Uyarı: '{path}' okunamadı ({ex.Message}) — boş auth spec ile açılıyor.");
+                }
+            }
+        }
+
+        return new AuthSpec { Service = "identity", Database = "identity_db" };
+    }
+
+    private static void MaskSecrets(AuthSpec spec)
+    {
+        if (spec.SeedAdmin is not null)
+        {
+            spec.SeedAdmin.Password = string.Empty;
+        }
+
+        foreach (var client in spec.Clients)
+        {
+            if (!string.IsNullOrEmpty(client.Secret))
+            {
+                client.Secret = string.Empty;
+            }
+        }
+
+        foreach (var provider in new[] { spec.Providers.Google, spec.Providers.GitHub, spec.Providers.Microsoft, spec.Providers.Facebook })
+        {
+            if (provider is not null)
+            {
+                provider.ClientSecret = string.Empty;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Designer formu secret alanlarını her zaman boş gösterir (bkz. <see cref="MaskSecrets"/>). Kullanıcı
+    /// bir secret'ı değiştirmeden kaydederse, buradaki boş değer diskteki gerçek değerin üzerine yazılmasın
+    /// diye — eşleşen kayıt (SeedAdmin e-postası / provider adı / ClientId) diskte varsa ve gelen alan boşsa,
+    /// eski değer geri konur.
+    /// </summary>
+    private static void RestoreUnchangedSecrets(AuthSpec incoming, string existingAuthYamlPath)
+    {
+        if (!File.Exists(existingAuthYamlPath))
+        {
+            return;
+        }
+
+        AuthSpec existing;
+        try
+        {
+            existing = SpecLoader.Load<AuthSpec>(existingAuthYamlPath);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (incoming.SeedAdmin is not null && string.IsNullOrEmpty(incoming.SeedAdmin.Password)
+            && existing.SeedAdmin is not null
+            && string.Equals(existing.SeedAdmin.Email, incoming.SeedAdmin.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            incoming.SeedAdmin.Password = existing.SeedAdmin.Password;
+        }
+
+        RestoreProviderSecret(incoming.Providers.Google, existing.Providers.Google);
+        RestoreProviderSecret(incoming.Providers.GitHub, existing.Providers.GitHub);
+        RestoreProviderSecret(incoming.Providers.Microsoft, existing.Providers.Microsoft);
+        RestoreProviderSecret(incoming.Providers.Facebook, existing.Providers.Facebook);
+
+        foreach (var client in incoming.Clients)
+        {
+            if (string.IsNullOrEmpty(client.Secret))
+            {
+                var match = existing.Clients.Find(c => string.Equals(c.ClientId, client.ClientId, StringComparison.Ordinal));
+                if (match is not null)
+                {
+                    client.Secret = match.Secret;
+                }
+            }
+        }
+    }
+
+    private static void RestoreProviderSecret(ProviderSpec? incoming, ProviderSpec? existing)
+    {
+        if (incoming is not null && string.IsNullOrEmpty(incoming.ClientSecret)
+            && existing is not null && string.Equals(existing.ClientId, incoming.ClientId, StringComparison.Ordinal))
+        {
+            incoming.ClientSecret = existing.ClientSecret;
+        }
+    }
 
     private sealed record MetaResponse(
         IReadOnlyList<string> Types,

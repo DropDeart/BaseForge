@@ -1,0 +1,52 @@
+@page
+@model BaseForge.Identity.Pages.Admin.UsersModel
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kullanıcılar — BaseForge Identity</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+        h2 { margin-bottom: 4px; }
+        .hint { color: #666; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+        th { color: #666; font-weight: 600; font-size: 13px; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #2563eb; font-size: 12px; margin-right: 4px; }
+        .ok { color: #16a34a; }
+        .no { color: #c00; }
+    </style>
+</head>
+<body>
+    <h2>Kullanıcılar</h2>
+    <p class="hint">@Model.Users.Count kullanıcı</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>E-posta</th>
+                <th>Ad Soyad</th>
+                <th>Onaylı</th>
+                <th>Roller</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td>@user.Email</td>
+                    <td>@(user.FullName ?? "-")</td>
+                    <td class="@(user.EmailConfirmed ? "ok" : "no")">@(user.EmailConfirmed ? "Evet" : "Hayır")</td>
+                    <td>
+                        @foreach (var role in user.Roles)
+                        {
+                            <span class="badge">@role</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</body>
+</html>

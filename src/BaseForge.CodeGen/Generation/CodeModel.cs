@@ -127,6 +127,12 @@ internal sealed class HostFileModel
 
     public string Service { get; set; } = string.Empty;
 
+    /// <summary>
+    /// <see cref="Service"/>'in küçük harfli hâli — docker-compose servis anahtarı (ve buna bağlı örtük
+    /// imaj adı) olarak kullanılır. Docker registry kuralı gereği imaj adları büyük harf içeremez.
+    /// </summary>
+    public string ServiceKey { get; set; } = string.Empty;
+
     public string Database { get; set; } = string.Empty;
 
     /// <summary>Rich çözümlenen dış referanslar — appsettings <c>Grpc:{Provider}</c> adresleri için.</summary>

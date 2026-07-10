@@ -16,6 +16,8 @@ internal static class ExternalProviders
                 options.ClientId = providers.Google!.ClientId;
                 options.ClientSecret = providers.Google.ClientSecret;
                 options.SignInScheme = IdentityConstants.ExternalScheme;
+                // Profil fotoğrafı: ilk girişte ApplicationUser.AvatarUrl'e kopyalanır (bkz. AccountApiController).
+                options.ClaimActions.MapJsonKey("picture", "picture");
             });
         }
 

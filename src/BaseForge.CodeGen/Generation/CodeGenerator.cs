@@ -91,6 +91,7 @@ internal static class CodeGenerator
         {
             Namespace = ns,
             Service = spec.Service,
+            ServiceKey = spec.Service.ToLowerInvariant(),
             Database = spec.Database,
             GrpcClients = richResolutions,
             RestPort = spec.DockerPorts?.Rest ?? 8080,
@@ -146,6 +147,9 @@ internal static class CodeGenerator
         written.Add(WriteFile(
             Path.Combine(outputDir, "Data", contextName + ".cs"),
             TemplateEngine.Render(Templates.DbContext, contextModel)));
+
+        // Workspace kökündeki paylaşılan kayda ekle — identity dashboard'unun "Servisler" bölümü bunu okur.
+        ServiceRegistry.UpsertService(outputDir, spec);
 
         return written;
     }
