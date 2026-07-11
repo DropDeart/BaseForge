@@ -14,6 +14,14 @@ namespace BaseForge.Identity.Controllers;
 [Route("api/account")]
 public sealed class AccountApiController : ControllerBase
 {
+    /// <summary>
+    /// Profil uçları hem Ortak Giriş SPA'sının çerezini (cookie) hem de bağımsız SPA'ların
+    /// ROPC ile aldığı Bearer access token'ını kabul eder — ikisi de aynı kullanıcıyı temsil eder.
+    /// Değerler literal yazılır çünkü öznitelik argümanı derleme-zamanı sabiti olmalı
+    /// (OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme const değil).
+    /// </summary>
+    private const string ProfileAuthSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore";
+
     private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg", "image/png", "image/webp", "image/gif",
@@ -33,7 +41,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpGet("me")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
     public async Task<IActionResult> Me()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -48,7 +56,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpPut("profile")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
     public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -63,7 +71,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpPost("change-password")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -91,7 +99,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpPost("avatar")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
     [RequestSizeLimit(MaxAvatarBytes + 4096)]
     public async Task<IActionResult> UploadAvatar(IFormFile? file)
     {

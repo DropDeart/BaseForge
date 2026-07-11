@@ -1,6 +1,8 @@
 using System.Text;
 using BaseForge.API.Authentication;
 using BaseForge.Core.Interfaces;
+using BaseForge.Core.Messaging;
+using BaseForge.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -56,6 +58,12 @@ public static class ServiceCollectionExtensions
             AddJwtAuthentication(services, options.Jwt);
         }
 
+        // 5) RabbitMQ olay yayınlama/tüketme
+        if (options.RabbitMq is not null)
+        {
+            AddRabbitMq(services, options.RabbitMq);
+        }
+
         // UseBaseForge'ın auth middleware'i ekleyip eklemeyeceğini bilmesi için işaret.
         services.AddSingleton(new BaseForgeFeatures { JwtEnabled = options.Jwt is not null });
 
@@ -98,6 +106,18 @@ public static class ServiceCollectionExtensions
             });
 
         services.AddAuthorization();
+    }
+
+    private static void AddRabbitMq(IServiceCollection services, RabbitMqOptions rabbitMq)
+    {
+        services.AddSingleton(rabbitMq);
+        services.AddSingleton<RabbitMqConnectionManager>();
+        services.AddSingleton<IEventBus, RabbitMqEventBus>();
+
+        if (rabbitMq.Subscriptions.Count > 0)
+        {
+            services.AddHostedService<RabbitMqConsumerHostedService>();
+        }
     }
 }
 

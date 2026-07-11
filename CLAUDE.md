@@ -98,7 +98,7 @@ BaseForge/
 
 ```
 BaseForge.Core            → Sadece interface ve entity base'leri (bağımlılık yok)
-BaseForge.Infrastructure  → Repository implementasyonları (EF Core), Dapper sorgu yardımcıları, DbContext base
+BaseForge.Infrastructure  → Repository implementasyonları (EF Core), Dapper sorgu yardımcıları, DbContext base, RabbitMQ event bus
 BaseForge.API             → Controller base, middleware, DI extensions
 BaseForge.Tools           → Geliştirme araçları (EF Core model'inden DBML ER diyagramı)
 ```
@@ -165,5 +165,6 @@ Bu proje Claude Code ile birlikte geliştirilmektedir.
 - [x] Identity secret'ları (OAuth Client Secret, seed admin şifresi) artık `.env`'de (gitignore'lu, `DotNetEnv` ile yerel `dotnet run`'da okunur, Docker'da `env_file`) — `appsettings.json`'da boş kalır
 - [x] `baseforge update <servis>` CLI komutu — `new`'in aksine, diskteki `<servis>/spec.yaml` (ve varsa `identity/auth.yaml`) yüklenmiş olarak Designer'ı açar; var olan servise entity eklemek/düzenlemek için YAML'a elle dokunmaya gerek kalmaz.
   **Bilinen kısıt:** identity servisinin adı `auth.yaml`'da "identity" dışında bir şeye değiştirilmişse `update` onu bulamıyor (klasör adı hardcoded) — düzeltilmedi.
-- [ ] RabbitMQ / asenkron event iletişimi (`via: event`) — spec modelinde yer var, codegen henüz yok
+- [x] RabbitMQ / asenkron event iletişimi — `IIntegrationEvent`/`IEventBus` (Core/Infrastructure, MediatR ile yerel dağıtım), `EnableRabbitMq` (API), CodeGen `publishes`/`subscribes` (entity/servis bazlı, kardeş-spec zengin çözümleme). Detay: docs/ARCH.md §5.2. `via: event` kalıcı olarak no-op — read-model senkronizasyonu için ayrı bir gelecek özellik olarak rezerve.
+  **Bilinen kısıtlar:** CLI-only v1 (Designer'da form karşılığı yok), DLQ/retry politikası yok (nack + requeue:false), kanal havuzu yok.
 - [ ] docs/ARCH.md — `update` komutu ve Docker port/Çalıştır-Durdur/.env özellikleri henüz orada belgelenmedi (CLAUDE.md kuralı: yeni özellik öncesi ARCH.md güncellenir)

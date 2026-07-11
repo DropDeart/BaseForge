@@ -121,6 +121,10 @@ internal static class IdentityGenerator
             {
                 ["Default"] = $"Host=localhost;Port={postgresPort};Database={spec.Database};Username=baseforge;Password=change_me",
             },
+            ["Cors"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["AllowedOrigins"] = spec.CorsOrigins,
+            },
             ["Kestrel"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["Endpoints"] = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -306,6 +310,11 @@ internal static class IdentityGenerator
         var postgresPort = spec.DockerPorts?.Postgres ?? 5432;
         // Docker registry kuralı: imaj adları (dolayısıyla compose servis anahtarı) büyük harf içeremez.
         var serviceKey = spec.Service.ToLowerInvariant();
+        // Aynı docker network'ündeki servisler container adıyla erişebildiği için varsayılan budur;
+        // ama validator servis(ler) ayrı bir ağda/sunucuda (örn. gerçek bir domain arkasında, ayrı
+        // docker-compose projeleri) çalışıyorsa discovery döken issuer da o public URL olmalıdır —
+        // aksi halde OIDC discovery'nin 'issuer' alanı ile bu URL eşleşmediği için doğrulama başarısız olur.
+        var issuer = string.IsNullOrWhiteSpace(spec.Issuer) ? $"http://{serviceKey}:8080/" : spec.Issuer;
 
         return $$"""
         # {{spec.Service}} merkez auth — izole test (servis + kendi PostgreSQL'i).
@@ -333,7 +342,7 @@ internal static class IdentityGenerator
               - .env   # gerçek secret'lar (Auth__Providers__*__ClientSecret, Auth__SeedAdmin__Password, ...)
             environment:
               ASPNETCORE_ENVIRONMENT: Development
-              Auth__Issuer: "http://{{serviceKey}}:8080/"
+              Auth__Issuer: "{{issuer}}"
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{spec.Database}};Username=baseforge;Password=change_me"
             ports:
               - "{{restPort}}:8080"   # REST/OpenIddict (HTTP/1.1)

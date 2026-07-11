@@ -71,7 +71,7 @@ internal sealed class ProjectFileModel
     public List<string> ClientProtoFiles { get; set; } = [];
 }
 
-/// <summary>CQRS feature dosyaları (Dto/Commands/Queries) için model.</summary>
+/// <summary>CQRS feature dosyaları (Dto/Commands/Queries/Events) için model.</summary>
 internal sealed class FeatureFileModel
 {
     public string Namespace { get; set; } = string.Empty;
@@ -80,6 +80,27 @@ internal sealed class FeatureFileModel
 
     /// <summary>Yazılabilir alanlar (props + FK id + dış ref id). Id ve audit hariç.</summary>
     public List<ScalarModel> Fields { get; set; } = [];
+
+    /// <summary>
+    /// Servis adı (küçük harf, örn. <c>blog</c>) — olay tipi string'i (<c>{Service}/{Name}{Kind}</c>)
+    /// ve <c>Events.cs</c> üretimi için. Publish bayrakları false ise kullanılmaz.
+    /// </summary>
+    public string Service { get; set; } = string.Empty;
+
+    /// <summary>Create komutu başarılı olduğunda <c>{Name}CreatedEvent</c> yayınlansın mı?</summary>
+    public bool PublishCreated { get; set; }
+
+    /// <summary>Update komutu başarılı olduğunda <c>{Name}UpdatedEvent</c> yayınlansın mı?</summary>
+    public bool PublishUpdated { get; set; }
+
+    /// <summary>Delete komutu başarılı olduğunda <c>{Name}DeletedEvent</c> yayınlansın mı?</summary>
+    public bool PublishDeleted { get; set; }
+
+    /// <summary>Herhangi bir Publish* bayrağı true mu — <c>IEventBus</c> enjeksiyonu/using için.</summary>
+    public bool HasAnyPublish => PublishCreated || PublishUpdated || PublishDeleted;
+
+    /// <summary>Sayaç olarak işaretlenmiş <c>int</c> alanların adları (PascalCase) — her biri için ayrı bir Increment komutu/handler'ı üretilir.</summary>
+    public List<string> Counters { get; set; } = [];
 }
 
 /// <summary>Controller şablonu için model.</summary>
@@ -91,6 +112,24 @@ internal sealed class ControllerFileModel
 
     /// <summary>Controller [Authorize] ile korunsun mu?</summary>
     public bool Protect { get; set; }
+
+    /// <summary>Protect=true iken bile List action'ı [AllowAnonymous] olsun mu?</summary>
+    public bool AnonymousList { get; set; }
+
+    /// <summary>Protect=true iken bile GetById action'ı [AllowAnonymous] olsun mu?</summary>
+    public bool AnonymousGetById { get; set; }
+
+    /// <summary>Protect=true iken bile Create action'ı [AllowAnonymous] olsun mu?</summary>
+    public bool AnonymousCreate { get; set; }
+
+    /// <summary>Protect=true iken bile Update action'ı [AllowAnonymous] olsun mu?</summary>
+    public bool AnonymousUpdate { get; set; }
+
+    /// <summary>Protect=true iken bile Delete action'ı [AllowAnonymous] olsun mu?</summary>
+    public bool AnonymousDelete { get; set; }
+
+    /// <summary>Sayaç olarak işaretlenmiş alanların adları (PascalCase) — her biri için her zaman herkese açık bir increment ucu üretilir.</summary>
+    public List<string> Counters { get; set; } = [];
 }
 
 /// <summary>Program.cs şablonu için model.</summary>
@@ -118,6 +157,12 @@ internal sealed class ProgramFileModel
 
     /// <summary>Rich çözümlenen dış referanslar — her biri için <c>AddGrpcClient&lt;...&gt;()</c> üretilir.</summary>
     public List<GrpcClientResolution> GrpcClients { get; set; } = [];
+
+    /// <summary>En az bir entity <c>publishes</c> tanımlıyorsa veya <c>subscribes</c> doluysa true — <c>EnableRabbitMq</c> bloğu için.</summary>
+    public bool HasRabbitMq { get; set; }
+
+    /// <summary>Çözümlenmiş abonelikler — her biri için <c>mq.Subscribe&lt;...&gt;()</c> üretilir.</summary>
+    public List<SubscriptionResolution> Subscriptions { get; set; } = [];
 }
 
 /// <summary>appsettings / Dockerfile / docker-compose şablonları için model.</summary>
@@ -146,6 +191,12 @@ internal sealed class HostFileModel
 
     /// <summary>PostgreSQL host portu.</summary>
     public int PostgresPort { get; set; } = 5432;
+
+    /// <summary>En az bir entity <c>publishes</c> tanımlıyorsa veya <c>subscribes</c> doluysa true — appsettings <c>RabbitMq</c> bloğu için.</summary>
+    public bool HasRabbitMq { get; set; }
+
+    /// <summary>SPA'lardan çağrılabilmesi için izinli origin'ler — appsettings <c>Cors:AllowedOrigins</c>.</summary>
+    public List<string> CorsOrigins { get; set; } = [];
 }
 
 /// <summary>gRPC client stub şablonu için model (fallback — kardeş spec bulunamayan durum).</summary>
@@ -238,4 +289,35 @@ internal sealed class GrpcClientResolution
 
     /// <summary>Rich ise hedef entity'nin gerçek alanları; değilse boş (yalnızca Id).</summary>
     public List<ProtoFieldModel> Fields { get; set; } = [];
+}
+
+/// <summary>
+/// Bir <see cref="Spec.SubscribeSpec"/>'in çözümlenmiş hâli — hem Program.cs'teki
+/// <c>mq.Subscribe&lt;...&gt;()</c> çağrısı hem de <c>Integration/{Handler}.cs</c> üretimi için kullanılır.
+/// </summary>
+internal sealed class SubscriptionResolution
+{
+    /// <summary>Bu servisin (tüketicinin) namespace'i.</summary>
+    public string Namespace { get; set; } = string.Empty;
+
+    /// <summary>Üretilecek <c>INotificationHandler</c> stub sınıfının adı.</summary>
+    public string Handler { get; set; } = string.Empty;
+
+    /// <summary>Olayı yayınlayan servisin adı (küçük harf, örn. <c>blog</c>).</summary>
+    public string SourceService { get; set; } = string.Empty;
+
+    /// <summary>Olayı yayınlayan entity'nin adı (örn. <c>Comment</c>).</summary>
+    public string SourceEntity { get; set; } = string.Empty;
+
+    /// <summary>Olay türü: <c>Created</c>, <c>Updated</c> veya <c>Deleted</c> (PascalCase).</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Ham olay tipi string'i (<c>servis/EntityKind</c>) — <c>mq.Subscribe</c> çağrısına geçilir.</summary>
+    public string EventType { get; set; } = string.Empty;
+
+    /// <summary>Kardeş spec bulunup hedef entity'nin gerçek alanları çözümlenebildiyse true; aksi halde minimal (yalnızca Id) fallback.</summary>
+    public bool IsRich { get; set; }
+
+    /// <summary>Rich ise yayıncı entity'nin gerçek alanları; değilse boş (yalnızca Id).</summary>
+    public List<ScalarModel> Fields { get; set; } = [];
 }

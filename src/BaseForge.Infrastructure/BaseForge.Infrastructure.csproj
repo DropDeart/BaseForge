@@ -3,7 +3,10 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>BaseForge.Infrastructure</PackageId>
-    <Description>BaseForge altyapı katmanı: EF Core DbContext base (audit + soft delete), GenericRepository ve Dapper tabanlı ham SQL sorgu yardımcıları. Core'a bağımlıdır.</Description>
+    <Description>BaseForge altyapı katmanı: EF Core DbContext base (audit + soft delete), GenericRepository, Dapper tabanlı ham SQL sorgu yardımcıları ve RabbitMQ event bus. Core'a bağımlıdır.</Description>
+    <!-- Tüketici hosted service'i mesaj işlerken bilinçli olarak genel Exception yakalar (CA1031);
+         basit hata logging'i için LoggerMessage delege zorunluluğu (CA1848) gevşetildi -->
+    <NoWarn>$(NoWarn);CA1031;CA1848</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +16,9 @@
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <PackageReference Include="RabbitMQ.Client" Version="7.2.1" />
   </ItemGroup>
 
 </Project>

@@ -3,6 +3,7 @@ using BaseForge.Identity.Authentication;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -19,6 +20,20 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
 
 var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
 builder.Services.AddSingleton(authOptions);
+
+// SPA'lardan (farklı origin) /connect/token ve /api/* çağrılabilmesi için — izinli origin'ler
+// appsettings/env'den gelir, kod değişikliği/regen gerekmez (bkz. appsettings.json "Cors:AllowedOrigins").
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(cors =>
+{
+    cors.AddPolicy("ConfiguredOrigins", policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
+        }
+    });
+});
 
 builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
 {
@@ -142,6 +157,19 @@ builder.Services.AddGrpc();
 
 var app = builder.Build();
 
+// Reverse proxy (nginx vb.) arkasında çalışırken gerçek şema/host'u (https, gerçek domain) Kestrel'e
+// bildirir — aksi halde OpenIddict discovery/authorization/token URL'leri yanlış (http, proxy'nin iç
+// adresi) görünür. Docker port publish NAT'i yüzünden istek değişken bir gateway IP'sinden geldiği için
+// KnownNetworks/KnownProxies temizlenir; güvenlik, container portunun yalnızca 127.0.0.1'e publish
+// edilmesinden gelir (dışarıdan doğrudan erişilemez, yalnızca aynı host'taki nginx erişebilir).
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 // Şema oluştur + seed (dev kolaylığı; prod'da migration kullanılır).
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -151,6 +179,7 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 app.UseStaticFiles();
+app.UseCors("ConfiguredOrigins");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

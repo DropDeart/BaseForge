@@ -79,7 +79,7 @@ PostgreSQL sağlayıcısı: `Npgsql.EntityFrameworkCore.PostgreSQL`.
 
 - **Database per Service:** Her mikroservis kendi PostgreSQL veritabanına sahiptir; servisler birbirinin DB'sine doğrudan erişmez.
 - **Senkron:** gRPC.
-- **Asenkron:** RabbitMQ (fire-and-forget, event-driven) — henüz implemente edilmedi (bkz. Karar Günlüğü, backlog).
+- **Asenkron:** RabbitMQ (fire-and-forget, event-driven) — bkz. §5.2.
 
 ### 5.1. gRPC — Otomatik Proto Üretimi
 
@@ -90,7 +90,32 @@ Her `via: grpc` dış referans (`ExternalRefSpec`), `baseforge new-service` sır
 - **`identity/User` özel durumu:** Identity kendi `ServiceSpec`'ini kullanmadığından (ayrı `AuthSpec`) kardeş-spec okuma çalışmaz. `services/BaseForge.Identity/Protos/user.proto` gerçek, statik bir dosyadır; hem `IdentityGenerator`'ın kopyalama döngüsü hem `CodeGenerator`'ın `target: identity/User` özel durumu **aynı** embedded kaynağı okur (tek fiziksel kaynak, drift riski yok). Sabit alanlar (`ApplicationUser`): Id, UserName, Email, FullName.
 - **Kestrel — iki port zorunlu:** ASP.NET Core Kestrel, TLS olmadan (h2c) aynı portta HTTP/1.1 ve HTTP/2'yi otomatik ayırt edemez (canlı testte doğrulandı: `EndpointDefaults: Http1AndHttp2` tek başına REST'i çalıştırır ama gRPC'yi sessizce HTTP/1.1'e düşürür). Bu yüzden her üretilen servis **iki ayrı endpoint** tanımlar: `Http` (8080, REST/Scalar) ve `Grpc` (8081, h2c). Client tarafında `AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true)` ile TLS'siz HTTP/2 istekleri etkinleştirilir.
 - **Kısıtlar:** İki farklı kaynak servisten aynı adlı entity'ye dış referans çakışır (ikincisi atlanır). gRPC çağrılarında JWT propagasyonu yok (güven, docker ağı sınırına dayanıyor). decimal/datetime/date/guid proto'da `string` taşınır (native karşılık yok).
+- **Cross-service host adresi:** Her üretilen servis kendi izole `docker-compose.yml`'unda (kendi Docker network'ünde) çalışır; sağlayıcı servisin bare adı (örn. `"identity"`) bu yüzden network DNS ile çözülemez. Rich gRPC client'ların `ProviderHost`'u (ve RabbitMq broker adresi, bkz. §5.2) bu yüzden sabit olarak `host.docker.internal` üretilir — Docker Desktop'ın container'dan host'a yönlendiren adresi.
 - **Referans senaryo:** `samples/products.yaml` + `samples/warehouse.yaml` + `samples/orders.yaml` → `services/BaseForge.Products`, `services/BaseForge.Warehouse`, `services/BaseForge.Orders` (committed, gerçek/derlenebilir). Orders, Products'a (kardeş spec) ve Identity'ye (`identity/User`) gRPC ile bağlanır; Warehouse da Products'a bağlanır.
+
+### 5.2. RabbitMQ — Otomatik Event Pub/Sub
+
+`ExternalRefSpec.Via = "event"` **implemente edilmedi** ve gelecekte planlanan farklı bir özellik (read-model senkronizasyonu — üretici servis CRUD olaylarını yayınlar, tüketici yerel bir gölge tabloyla günceller) için rezerve edilmiştir; bugün no-op'tur. Asenkron pub/sub, ayrı ve daha basit iki YAML alanıyla çalışır: entity bazlı `publishes` ve servis bazlı `subscribes`.
+
+**Kütüphane tarafı (`BaseForge.Core`/`Infrastructure`/`API`):**
+
+- `IIntegrationEvent : INotification` (Core) — MediatR'ın bildirim sözleşmesini genişletir. Yayıncı `IEventBus.PublishAsync<TEvent>()` (Core sözleşmesi, Infrastructure'da `RabbitMqEventBus` implementasyonu) ile RabbitMQ'ya yazar; tüketici tarafında `RabbitMqConsumerHostedService` (Infrastructure, `BackgroundService`) kuyruktan gelen mesajı ilgili CLR tipine deserialize edip yerel olarak `IPublisher.Publish()` (MediatR) ile dağıtır. Geliştirici sıradan bir `INotificationHandler<TEvent>` yazar, RabbitMQ'yu hiç görmez — **yeni bir CQRS kütüphanesi eklenmemiş olur** (§3 kararıyla tutarlı).
+- `builder.Services.AddBaseForge(options => options.EnableRabbitMq(mq => { ... }))` — `EnableJwt` ile birebir aynı fluent desen. Abonelik varsa (`mq.Subscribe<TEvent>(eventType, queueName)`) tüketici hosted service'i otomatik eklenir; yoksa yalnızca `IEventBus` (yayıncı) register edilir.
+- Broker: tek bir topic exchange (`baseforge.events`). Routing key, olayın `EventType`'ından türetilir (`servis/EntityKind` → `servis.EntityKind`).
+- Paket: `RabbitMQ.Client` (tam async API) + `Microsoft.Extensions.Hosting.Abstractions` — `BaseForge.Infrastructure`'a eklendi (ASP.NET Core'a bağımlılık getirmez, host-framework-agnostic kuralı korunur).
+
+**CodeGen tarafı:**
+
+- `EntitySpec.Publishes: List<string>` (`created`/`updated`/`deleted`) — ilgili Create/Update/Delete komutu `SaveChangesAsync` sonrası `{Entity}{Kind}Event`'i yayınlar (`Features/{Entity}s/{Entity}Events.cs`).
+- `ServiceSpec.Subscribes: List<SubscribeSpec>` (`event: "servis/EntityKind"`, `handler: ClassName`) — hedef entity kardeş spec'te (veya **kendi spec'inde**, kendi kendine abonelik için özel durum gerekmez) bulunup `publishes` listesinde ilgili Kind varsa gerçek alanlarla ("rich"), bulunamazsa yalnızca `Id` ile ("minimal") bir gölge event/data class'ı + `INotificationHandler<T>` stub'ı üretilir (`Integration/{Handler}.cs`). Kardeş-spec bulma mantığı, gRPC dış referans çözümlemesiyle (§5.1) aynı `LoadSiblingSpec` helper'ını paylaşır.
+- CLI/YAML-only v1: Designer web UI'da form karşılığı yok (`auth:` bloğunun bugünkü durumuyla aynı — CLI soru sormuyor, YAML elle yazılır). `via: event`'in aksine bu iki alan `/meta` endpoint'inde veya `EntityEditor.tsx`'te temsil edilmez; fast-follow olarak planlanabilir.
+- Docker topolojisi: kökteki `docker-compose.yml`'daki (kullanılmadan duran, `.env.example`'da `RABBITMQ_*` değişkenleriyle zaten scaffold edilmiş) `rabbitmq` servisi tek paylaşılan broker olur. Üretilen servisler kendi izole compose'larında RabbitMQ container'ı açmaz; `appsettings.json`'daki `RabbitMq:Host` varsayılanı `host.docker.internal`'dır (bkz. §5.1 cross-service host notu).
+
+**v1 sınırlamaları (bilinçli, dokümante edilen basitlik):**
+
+- DLQ/retry politikası yok — tüketici hata alırsa mesaj `nack(requeue: false)` ile atılır, loglanır. "Fire and forget" felsefesiyle tutarlı (§5), ileride ayrı bir iyileştirme konusu.
+- Kanal havuzu yok — `RabbitMqConnectionManager` tek bağlantıyı paylaşır ama her yayın/tüketim çağrısında yeni kanal açar.
+- gRPC çağrılarında olduğu gibi, mesajlarda JWT/kimlik propagasyonu yok.
 
 ## 6. Kimlik Doğrulama
 
@@ -100,7 +125,7 @@ Her `via: grpc` dış referans (`ExternalRefSpec`), `baseforge new-service` sır
 ## 7. Containerization
 
 - Her servis için ayrı `Dockerfile`.
-- Tüm servisler tek bir `docker-compose.yml` ile ayağa kalkar.
+- Tüm servisler tek bir `docker-compose.yml` ile ayağa kalkar. **Not:** CodeGen bugün her servis için ayrı, izole bir `docker-compose.yml` üretir (kendi Postgres'i ile); kökteki paylaşılan `docker-compose.yml` yalnızca tek-örnek altyapı için kullanılır (Postgres + RabbitMQ, bkz. §5.2) — üretilen servisler bu paylaşılan broker'a `host.docker.internal` üzerinden bağlanır.
 - Konfigürasyon `.env` dosyasından okunur; production'da `.env.production` kullanılır.
 
 ## 8. Dağıtım
@@ -118,3 +143,4 @@ Her `via: grpc` dış referans (`ExternalRefSpec`), `baseforge new-service` sır
 | 2026-06-24 | nuget.org **Trusted Publishing** (OIDC, `.github/workflows/publish.yml`) kuruldu; klasik API key yerine | ✅ |
 | 2026-06-24 | Backlog "ER Diagram": **BaseForge.Tools** paketi + `DbmlGenerator` (EF Core model → DBML) eklendi; kaynak=EF Core model, çıktı=DBML | ✅ |
 | 2026-07-07 | gRPC senkron iletişim gerçek hale getirildi: otomatik proto üretimi (server+client), kardeş-spec zengin çözümleme, `identity/User` özel durumu, Kestrel iki-port (h2c) düzeltmesi. RabbitMQ hâlâ backlog'da. | ✅ |
+| 2026-07-10 | RabbitMQ asenkron event pub/sub eklendi: `IIntegrationEvent`/`IEventBus` (Core/Infrastructure, MediatR'ı yerel dağıtım için yeniden kullanır), `EnableRabbitMq` (API, `EnableJwt` deseniyle), CodeGen `publishes`/`subscribes` (bkz. §5.2). `via: event` kalıcı olarak no-op — ayrı bir gelecek özellik için rezerve. Aynı geçişte rich gRPC client'ların `ProviderHost`'u `host.docker.internal`'a düzeltildi (izole compose ağları arasında hiç çalışmıyordu). | ✅ |

@@ -11,6 +11,14 @@ internal static class CodeGenerator
     /// <summary>Identity'nin gömülü <c>user.proto</c> kaynağındaki referans namespace'i.</summary>
     private const string IdentityReferenceNamespace = "BaseForge.Identity";
 
+    /// <summary>
+    /// Rich gRPC client'ların ve RabbitMq'nun varsayılan cross-service host adresi. Her üretilen servis
+    /// kendi izole docker-compose ağında çalıştığından (bkz. <c>Templates.DockerCompose</c>), sağlayıcı
+    /// servisin bare adı (örn. <c>"identity"</c>) network DNS ile çözülemez — Docker Desktop'ın host'a
+    /// yönlendiren <c>host.docker.internal</c> adresi kullanılır (JWT <c>Authority</c> ile aynı düzeltme).
+    /// </summary>
+    private const string CrossServiceHost = "host.docker.internal";
+
     public static IReadOnlyList<string> Generate(ServiceSpec spec, string outputDir, string? specPath = null)
     {
         ArgumentNullException.ThrowIfNull(spec);
@@ -23,6 +31,10 @@ internal static class CodeGenerator
         var externalRefResolutions = ResolveExternalRefs(spec, ns, specPath);
         var richResolutions = externalRefResolutions.Where(r => r.IsRich).ToList();
         var grpcServerEntities = new List<string>();
+
+        // Olay abonelikleri (subscribes) önceden çözümle — Program.cs render'ı buna bağlı.
+        var subscriptionResolutions = ResolveSubscriptions(spec, ns, specPath);
+        var hasRabbitMq = spec.Entities.Values.Any(e => e.Publishes.Count > 0) || subscriptionResolutions.Count > 0;
 
         var project = TemplateEngine.Render(
             Templates.Project,
@@ -40,13 +52,40 @@ internal static class CodeGenerator
             var code = TemplateEngine.Render(Templates.Entity, BuildEntityModel(ns, name, entity));
             written.Add(WriteFile(Path.Combine(outputDir, "Entities", name + ".cs"), code));
 
-            var feature = new FeatureFileModel { Namespace = ns, Name = name, Fields = BuildScalars(entity) };
+            var counters = BuildCounterNames(entity);
+            var feature = new FeatureFileModel
+            {
+                Namespace = ns,
+                Name = name,
+                Fields = BuildScalars(entity),
+                Service = spec.Service.ToLowerInvariant(),
+                PublishCreated = entity.Publishes.Any(p => string.Equals(p, "created", StringComparison.OrdinalIgnoreCase)),
+                PublishUpdated = entity.Publishes.Any(p => string.Equals(p, "updated", StringComparison.OrdinalIgnoreCase)),
+                PublishDeleted = entity.Publishes.Any(p => string.Equals(p, "deleted", StringComparison.OrdinalIgnoreCase)),
+                Counters = counters,
+            };
             var featureDir = Path.Combine(outputDir, "Features", name + "s");
             written.Add(WriteFile(Path.Combine(featureDir, name + "Dto.cs"), TemplateEngine.Render(Templates.Dto, feature)));
             written.Add(WriteFile(Path.Combine(featureDir, name + "Commands.cs"), TemplateEngine.Render(Templates.Commands, feature)));
             written.Add(WriteFile(Path.Combine(featureDir, name + "Queries.cs"), TemplateEngine.Render(Templates.Queries, feature)));
+            if (feature.HasAnyPublish)
+            {
+                written.Add(WriteFile(Path.Combine(featureDir, name + "Events.cs"), TemplateEngine.Render(Templates.Events, feature)));
+            }
 
-            var controllerModel = new ControllerFileModel { Namespace = ns, Name = name, Protect = spec.Auth?.Protect == true };
+            var isProtected = spec.Auth?.Protect == true;
+            var controllerModel = new ControllerFileModel
+            {
+                Namespace = ns,
+                Name = name,
+                Protect = isProtected,
+                AnonymousList = isProtected && HasAnonymousAction(entity, "list"),
+                AnonymousGetById = isProtected && HasAnonymousAction(entity, "getById"),
+                AnonymousCreate = isProtected && HasAnonymousAction(entity, "create"),
+                AnonymousUpdate = isProtected && HasAnonymousAction(entity, "update"),
+                AnonymousDelete = isProtected && HasAnonymousAction(entity, "delete"),
+                Counters = counters,
+            };
             var controller = TemplateEngine.Render(Templates.Controller, controllerModel);
             written.Add(WriteFile(Path.Combine(outputDir, "Controllers", name + "sController.cs"), controller));
 
@@ -71,6 +110,12 @@ internal static class CodeGenerator
             grpcServerEntities.Add(name);
         }
 
+        // Genel görsel yükleme ucu (entity'den bağımsız) — her servis için bir kere üretilir.
+        var mediaController = TemplateEngine.Render(
+            Templates.MediaController,
+            new ControllerFileModel { Namespace = ns, Protect = spec.Auth?.Protect == true });
+        written.Add(WriteFile(Path.Combine(outputDir, "Controllers", "MediaController.cs"), mediaController));
+
         // Program.cs + host dosyaları
         var programModel = new ProgramFileModel
         {
@@ -84,6 +129,8 @@ internal static class CodeGenerator
             RequireHttpsMetadata = spec.Auth?.RequireHttpsMetadata ?? false,
             GrpcServerEntities = grpcServerEntities,
             GrpcClients = richResolutions,
+            HasRabbitMq = hasRabbitMq,
+            Subscriptions = subscriptionResolutions,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "Program.cs"), TemplateEngine.Render(Templates.Program, programModel)));
 
@@ -97,6 +144,8 @@ internal static class CodeGenerator
             RestPort = spec.DockerPorts?.Rest ?? 8080,
             GrpcPort = spec.DockerPorts?.Grpc ?? 8081,
             PostgresPort = spec.DockerPorts?.Postgres ?? 5432,
+            HasRabbitMq = hasRabbitMq,
+            CorsOrigins = spec.CorsOrigins,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), TemplateEngine.Render(Templates.LaunchSettings, host)));
@@ -135,6 +184,14 @@ internal static class CodeGenerator
             }
         }
 
+        // Olay abonelikleri (subscribes) — her biri için gölge event/data class'ı + INotificationHandler stub'ı.
+        foreach (var subscription in subscriptionResolutions)
+        {
+            written.Add(WriteFile(
+                Path.Combine(outputDir, "Integration", subscription.Handler + ".cs"),
+                TemplateEngine.Render(Templates.SubscriptionHandler, subscription)));
+        }
+
         var contextModel = new ContextFileModel
         {
             Namespace = ns,
@@ -153,6 +210,17 @@ internal static class CodeGenerator
 
         return written;
     }
+
+    /// <summary>Entity'nin 'anonymousActions' listesinde verilen action adı geçiyor mu (büyük/küçük harf duyarsız)?</summary>
+    private static bool HasAnonymousAction(EntitySpec entity, string action)
+        => entity.AnonymousActions.Contains(action, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Entity'nin 'counters' listesindeki alan adlarını, prop'taki gerçek yazımıyla (PascalCase) çözümler.</summary>
+    private static List<string> BuildCounterNames(EntitySpec entity)
+        => entity.Counters
+            .Select(counter => entity.Props.Keys.First(p => string.Equals(p, counter, StringComparison.OrdinalIgnoreCase)))
+            .Select(NameUtil.Pascal)
+            .ToList();
 
     private static EntityFileModel BuildEntityModel(string ns, string name, EntitySpec entity)
     {
@@ -276,7 +344,7 @@ internal static class CodeGenerator
             IsRich = true,
             ProviderNamespace = "Identity",
             ConfigKey = "Identity",
-            ProviderHost = "identity",
+            ProviderHost = CrossServiceHost,
             Fields = fields,
         };
     }
@@ -284,13 +352,55 @@ internal static class CodeGenerator
     /// <summary>Kardeş <c>{servis}.yaml</c> dosyasını (spec'in bulunduğu klasörde) arayıp hedef entity'yi çözümler.</summary>
     private static GrpcClientResolution? TryResolveSibling(string target, string ns, string? specPath, string entityName)
     {
-        if (string.IsNullOrWhiteSpace(specPath) || !target.Contains('/', StringComparison.Ordinal))
+        if (!target.Contains('/', StringComparison.Ordinal))
         {
             return null;
         }
 
         var serviceSegment = target[..target.IndexOf('/', StringComparison.Ordinal)];
         if (string.Equals(serviceSegment, "identity", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var siblingSpec = LoadSiblingSpec(serviceSegment, specPath, target);
+        if (siblingSpec is null)
+        {
+            return null;
+        }
+
+        var targetEntity = siblingSpec.Entities
+            .FirstOrDefault(e => string.Equals(e.Key, entityName, StringComparison.OrdinalIgnoreCase)).Value;
+
+        if (targetEntity is null)
+        {
+            Console.Error.WriteLine($"Uyarı: '{target}' kardeş spec'te bulunamadı; minimal (yalnızca Id) client üretiliyor.");
+            return null;
+        }
+
+        var providerNs = NameUtil.Pascal(siblingSpec.Service);
+        return new GrpcClientResolution
+        {
+            Namespace = ns,
+            Entity = entityName,
+            Target = target,
+            IsRich = true,
+            ProviderNamespace = providerNs,
+            ConfigKey = providerNs,
+            ProviderHost = CrossServiceHost,
+            Fields = BuildProtoFields(targetEntity),
+        };
+    }
+
+    /// <summary>
+    /// Kardeş <c>{servis}.yaml</c>/<c>spec.yaml</c> dosyasını (spec'in bulunduğu klasöre göre, iki yerleşim
+    /// konvansiyonuyla) bulup yükler. gRPC dış referans çözümlemesi (<see cref="TryResolveSibling"/>) ve
+    /// olay aboneliği çözümlemesi (<see cref="ResolveSubscriptions"/>) tarafından ortak kullanılır.
+    /// Bulunamaz/okunamazsa uyarı yazıp <see langword="null"/> döner — hiçbir çağıran taraf exception görmez.
+    /// </summary>
+    private static ServiceSpec? LoadSiblingSpec(string serviceSegment, string? specPath, string referenceForWarning)
+    {
+        if (string.IsNullOrWhiteSpace(specPath))
         {
             return null;
         }
@@ -315,42 +425,101 @@ internal static class CodeGenerator
         if (siblingPath is null)
         {
             Console.Error.WriteLine(
-                $"Uyarı: '{target}' için kardeş spec bulunamadı (denenen: {string.Join(" veya ", candidates)}); minimal (yalnızca Id) client üretiliyor.");
+                $"Uyarı: '{referenceForWarning}' için kardeş spec bulunamadı (denenen: {string.Join(" veya ", candidates)}); minimal çözümleme kullanılıyor.");
             return null;
         }
 
-        ServiceSpec siblingSpec;
         try
         {
-            siblingSpec = SpecLoader.Load(siblingPath);
+            return SpecLoader.Load(siblingPath);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Uyarı: '{siblingPath}' okunamadı ({ex.Message}); minimal (yalnızca Id) client üretiliyor.");
+            Console.Error.WriteLine($"Uyarı: '{siblingPath}' okunamadı ({ex.Message}); minimal çözümleme kullanılıyor.");
             return null;
         }
+    }
 
-        var targetEntity = siblingSpec.Entities
-            .FirstOrDefault(e => string.Equals(e.Key, entityName, StringComparison.OrdinalIgnoreCase)).Value;
-
-        if (targetEntity is null)
+    /// <summary>
+    /// <c>spec.Subscribes</c>'taki her aboneliği çözümler. Hedef (kardeş veya kendi) spec'te entity
+    /// bulunur ve o entity'nin <c>publishes</c> listesinde ilgili Kind varsa zengin (gerçek alanlı),
+    /// aksi halde minimal (yalnızca Id) bir sonuç döner — hiçbir durumda hata fırlatmaz.
+    /// </summary>
+    private static List<SubscriptionResolution> ResolveSubscriptions(ServiceSpec spec, string ns, string? specPath)
+    {
+        var resolutions = new List<SubscriptionResolution>();
+        if (spec.Subscribes is null)
         {
-            Console.Error.WriteLine($"Uyarı: '{target}' kardeş spec'te bulunamadı; minimal (yalnızca Id) client üretiliyor.");
-            return null;
+            return resolutions;
         }
 
-        var providerNs = NameUtil.Pascal(siblingSpec.Service);
-        return new GrpcClientResolution
+        foreach (var subscribe in spec.Subscribes)
         {
-            Namespace = ns,
-            Entity = entityName,
-            Target = target,
-            IsRich = true,
-            ProviderNamespace = providerNs,
-            ConfigKey = providerNs,
-            ProviderHost = siblingSpec.Service.ToLowerInvariant(),
-            Fields = BuildProtoFields(targetEntity),
-        };
+            var (serviceSegment, sourceEntityName, kind) = ParseEventReference(subscribe.Event);
+            if (serviceSegment is null)
+            {
+                Console.Error.WriteLine($"Uyarı: '{subscribe.Event}' geçersiz olay referansı (beklenen: 'servis/EntityCreated|Updated|Deleted'); atlanıyor.");
+                continue;
+            }
+
+            // Kendi kendine abonelik: kardeş spec dosyası aramak yerine doğrudan bu servisin spec'i kullanılır.
+            var sourceSpec = string.Equals(serviceSegment, spec.Service, StringComparison.OrdinalIgnoreCase)
+                ? spec
+                : LoadSiblingSpec(serviceSegment, specPath, subscribe.Event);
+
+            var sourceEntity = sourceSpec?.Entities
+                .FirstOrDefault(e => string.Equals(e.Key, sourceEntityName, StringComparison.OrdinalIgnoreCase)).Value;
+
+            var isRich = sourceEntity is not null
+                && sourceEntity.Publishes.Any(p => string.Equals(p, kind, StringComparison.OrdinalIgnoreCase));
+
+            if (sourceEntity is not null && !isRich)
+            {
+                Console.Error.WriteLine(
+                    $"Uyarı: '{subscribe.Event}' — '{sourceEntityName}' entity'si bu olayı ('{kind}') 'publishes' listesinde tanımlamıyor; minimal (yalnızca Id) çözümleme kullanılıyor.");
+            }
+
+            resolutions.Add(new SubscriptionResolution
+            {
+                Namespace = ns,
+                Handler = NameUtil.Pascal(subscribe.Handler),
+                SourceService = serviceSegment,
+                SourceEntity = NameUtil.Pascal(sourceEntityName),
+                Kind = kind,
+                EventType = subscribe.Event,
+                IsRich = isRich,
+                Fields = isRich ? BuildScalars(sourceEntity!) : [],
+            });
+        }
+
+        return resolutions;
+    }
+
+    /// <summary>
+    /// <c>servis/EntityKind</c> biçimindeki bir olay referansını ayrıştırır
+    /// (örn. <c>blog/CommentCreated</c> → <c>("blog", "Comment", "Created")</c>).
+    /// Ayrıştırılamazsa (<c>/</c> yok veya bilinen bir Kind son eki bulunamıyorsa) <c>ServiceSegment</c> null döner.
+    /// </summary>
+    private static (string? ServiceSegment, string EntityName, string Kind) ParseEventReference(string eventRef)
+    {
+        var slashIndex = eventRef.IndexOf('/', StringComparison.Ordinal);
+        if (slashIndex < 0)
+        {
+            return (null, string.Empty, string.Empty);
+        }
+
+        var serviceSegment = eventRef[..slashIndex];
+        var rest = eventRef[(slashIndex + 1)..];
+
+        foreach (var kind in new[] { "Created", "Updated", "Deleted" })
+        {
+            if (rest.EndsWith(kind, StringComparison.Ordinal) && rest.Length > kind.Length)
+            {
+                return (serviceSegment, rest[..^kind.Length], kind);
+            }
+        }
+
+        return (null, string.Empty, string.Empty);
     }
 
     /// <summary>Identity'nin gömülü <c>user.proto</c> kaynağını okuyup tüketen servisin adına uyarlar.</summary>

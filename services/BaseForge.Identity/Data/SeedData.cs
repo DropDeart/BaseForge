@@ -125,7 +125,15 @@ public static class SeedData
                 EmailConfirmed = true,
                 FullName = "Administrator",
             };
-            await userManager.CreateAsync(admin, auth.SeedAdmin.Password);
+            var createResult = await userManager.CreateAsync(admin, auth.SeedAdmin.Password);
+            if (!createResult.Succeeded)
+            {
+                var reasons = string.Join("; ", createResult.Errors.Select(e => e.Description));
+                throw new InvalidOperationException(
+                    $"Seed admin kullanıcısı ('{auth.SeedAdmin.Email}') oluşturulamadı: {reasons} " +
+                    "— appsettings 'Auth:SeedAdmin:Password' (veya .env 'Auth__SeedAdmin__Password') parola " +
+                    "politikasına uygun olmalı (en az 8 karakter, büyük/küçük harf, rakam, özel karakter).");
+            }
         }
 
         if (!await userManager.IsInRoleAsync(admin, AdminRole))

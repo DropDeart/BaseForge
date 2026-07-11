@@ -17,6 +17,31 @@ public sealed class ServiceSpec
 
     /// <summary>Docker host portları (opsiyonel). Boş alanlar için varsayılanlar kullanılır.</summary>
     public DockerPortsSpec? DockerPorts { get; set; }
+
+    /// <summary>
+    /// Bu servisin dinlediği (RabbitMQ üzerinden asenkron) olaylar. Her girdi başka bir servisin
+    /// (veya kendi servisin) <c>publishes</c> ile yayınladığı bir olayı, bir <c>INotificationHandler</c>
+    /// stub'ına bağlar. Boşsa servis RabbitMQ'ya hiç bağlanmaz.
+    /// </summary>
+    public List<SubscribeSpec>? Subscribes { get; set; }
+
+    /// <summary>
+    /// SPA'lardan (farklı origin) çağrılabilmesi için izinli origin'ler (örn. <c>http://localhost:5173</c>).
+    /// appsettings.json'da <c>Cors:AllowedOrigins</c> olarak üretilir; boşsa CORS devre dışı kalır.
+    /// </summary>
+    public List<string> CorsOrigins { get; set; } = [];
+}
+
+/// <summary>
+/// Başka bir servisin (veya kendi servisin) yayınladığı bir olaya abonelik tanımı.
+/// </summary>
+public sealed class SubscribeSpec
+{
+    /// <summary>Abone olunan olay, <c>servis/EntityKind</c> biçiminde (örn. <c>blog/CommentCreated</c>).</summary>
+    public string Event { get; set; } = string.Empty;
+
+    /// <summary>Üretilecek <c>INotificationHandler</c> stub sınıfının adı (örn. <c>NotifyPostAuthorOnComment</c>).</summary>
+    public string Handler { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -67,6 +92,31 @@ public sealed class EntitySpec
 
     /// <summary>Başka servislere yapılan, yalnızca ID ile referanslar (FK/navigation üretilmez).</summary>
     public Dictionary<string, ExternalRefSpec> ExternalRefs { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Bu entity için Create/Update/Delete komutları başarıyla tamamlandığında RabbitMQ'ya
+    /// yayınlanacak olaylar: <c>created</c>, <c>updated</c>, <c>deleted</c> (büyük/küçük harf duyarsız).
+    /// Boşsa hiçbir olay üretilmez/yayınlanmaz.
+    /// </summary>
+    public List<string> Publishes { get; set; } = [];
+
+    /// <summary>
+    /// Servis <c>auth.protect: true</c> olsa bile, burada listelenen action'lar bu entity'nin
+    /// controller'ında <c>[AllowAnonymous]</c> ile açık bırakılır: <c>list</c>, <c>getById</c>,
+    /// <c>create</c>, <c>update</c>, <c>delete</c> (büyük/küçük harf duyarsız). Örn. herkese açık
+    /// okunan ama sadece adminin yazabildiği bir kaynak için <c>[list, getById]</c> yeterlidir;
+    /// girişsiz gönderilen bir iletişim formu için sadece <c>[create]</c> yeterlidir. Servis
+    /// <c>auth.protect: false</c> ise bu liste no-op'tur (zaten hepsi açık).
+    /// </summary>
+    public List<string> AnonymousActions { get; set; } = [];
+
+    /// <summary>
+    /// Bu entity'deki <c>int</c> tipli alanlardan hangileri bir sayaç (görüntülenme, beğeni vb.) olarak
+    /// davranır. Her biri için, servisin genel <c>auth.protect</c>/<c>anonymousActions</c> ayarından
+    /// bağımsız olarak her zaman herkese açık bir <c>POST .../{id}/increment-{alan}</c> ucu üretilir
+    /// (yalnızca ilgili alanı bir artırır; başka hiçbir alanı değiştirmez/döndürmez).
+    /// </summary>
+    public List<string> Counters { get; set; } = [];
 }
 
 /// <summary>Servis içi iki entity arasındaki ilişki.</summary>
@@ -114,6 +164,13 @@ public sealed class ExternalRefSpec
     /// <summary>Bu serviste tutulacak ID alanının adı (örn. <c>CustomerId</c>).</summary>
     public string Store { get; set; } = string.Empty;
 
-    /// <summary>Veriye erişim biçimi: <c>grpc</c> (senkron) veya <c>event</c> (asenkron).</summary>
+    /// <summary>
+    /// Veriye erişim biçimi. Şu an yalnızca <c>grpc</c> (senkron) implemente edilmiştir.
+    /// <c>event</c> değeri gelecekte planlanan bir read-model senkronizasyonu (üretici servis
+    /// CRUD olaylarını yayınlar, bu servis yerel bir gölge tabloyla günceller) için rezerve
+    /// edilmiştir — bugün no-op'tur (yalnızca ID alanı üretilir, client üretilmez). Asenkron
+    /// yan etkiler (bildirim vb.) için <see cref="EntitySpec.Publishes"/> / <see cref="ServiceSpec.Subscribes"/>
+    /// kullanın.
+    /// </summary>
     public string Via { get; set; } = "grpc";
 }

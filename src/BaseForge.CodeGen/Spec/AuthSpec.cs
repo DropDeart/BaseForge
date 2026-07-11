@@ -21,6 +21,12 @@ public sealed class AuthSpec
 
     /// <summary>Docker host portları (opsiyonel). Boş alanlar için varsayılanlar kullanılır.</summary>
     public DockerPortsSpec? DockerPorts { get; set; }
+
+    /// <summary>
+    /// SPA'lardan (farklı origin) çağrılabilmesi için izinli origin'ler (örn. <c>http://localhost:5173</c>).
+    /// appsettings.json'da <c>Cors:AllowedOrigins</c> olarak üretilir; boşsa CORS devre dışı kalır.
+    /// </summary>
+    public List<string> CorsOrigins { get; set; } = [];
 }
 
 public sealed class SigningSpec

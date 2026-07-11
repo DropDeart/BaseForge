@@ -1,0 +1,53 @@
+# Örnek BaseForge servis spec'i — blog + yorum/beğeni + RabbitMQ event pub/sub.
+# Üretmek için:  baseforge new-service --spec samples/blog.yaml
+#
+# Comment/Like oluşturulunca RabbitMQ'ya olay yayınlanır (publishes); aynı servis kendi
+# olaylarına abone olur (subscribes) — "yorum/beğeni yapıldığında yazara bildir" senaryosu.
+# Önkoşul: kökteki docker-compose.yml'daki paylaşılan broker ayakta olmalı
+#          (docker compose up -d rabbitmq).
+service: blog
+database: blog_db
+
+entities:
+  Post:
+    props:
+      title: string
+      body: text
+    externalRefs:
+      author:
+        target: identity/User
+        store: AuthorId
+        via: grpc
+
+  Comment:
+    props:
+      body: text
+    relations:
+      post:
+        kind: many-to-one
+        target: Post
+    externalRefs:
+      author:
+        target: identity/User
+        store: AuthorId
+        via: grpc
+    publishes: [created]
+
+  Like:
+    props: {}
+    relations:
+      post:
+        kind: many-to-one
+        target: Post
+    externalRefs:
+      author:
+        target: identity/User
+        store: AuthorId
+        via: grpc
+    publishes: [created]
+
+subscribes:
+  - event: blog/CommentCreated
+    handler: NotifyPostAuthorOnComment
+  - event: blog/LikeCreated
+    handler: NotifyPostAuthorOnLike

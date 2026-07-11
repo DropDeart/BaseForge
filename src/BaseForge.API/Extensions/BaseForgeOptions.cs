@@ -1,6 +1,7 @@
 using System.Reflection;
 using BaseForge.Infrastructure.Data;
 using BaseForge.Infrastructure.Extensions;
+using BaseForge.Infrastructure.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BaseForge.API.Extensions;
@@ -8,7 +9,7 @@ namespace BaseForge.API.Extensions;
 /// <summary>
 /// <see cref="ServiceCollectionExtensions.AddBaseForge"/> için yapılandırma seçenekleri.
 /// Akıcı (fluent) metotlarla doldurulur:
-/// <c>UsePostgreSQL</c>, <c>EnableCQRS</c>, <c>EnableAuditLog</c>, <c>EnableJwt</c>.
+/// <c>UsePostgreSQL</c>, <c>EnableCQRS</c>, <c>EnableAuditLog</c>, <c>EnableJwt</c>, <c>EnableRabbitMq</c>.
 /// </summary>
 public sealed class BaseForgeOptions
 {
@@ -21,6 +22,8 @@ public sealed class BaseForgeOptions
     internal bool AuditLogEnabled { get; private set; }
 
     internal JwtOptions? Jwt { get; private set; }
+
+    internal RabbitMqOptions? RabbitMq { get; private set; }
 
     /// <summary>
     /// PostgreSQL veri erişimini etkinleştirir ve uygulamanın <typeparamref name="TContext"/>'ini,
@@ -74,6 +77,22 @@ public sealed class BaseForgeOptions
         var jwt = new JwtOptions();
         configure(jwt);
         Jwt = jwt;
+        return this;
+    }
+
+    /// <summary>
+    /// RabbitMQ tabanlı asenkron olay yayınlama/tüketmeyi (<see cref="Core.Messaging.IEventBus"/>)
+    /// etkinleştirir. Abonelik varsa (<see cref="RabbitMqOptions.Subscribe{TEvent}"/>) bir tüketici
+    /// hosted service'i de otomatik eklenir.
+    /// </summary>
+    /// <param name="configure">Broker bağlantı ve abonelik ayarlarını dolduran delege.</param>
+    /// <returns>Zincirleme için aynı seçenek nesnesi.</returns>
+    public BaseForgeOptions EnableRabbitMq(Action<RabbitMqOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var rabbitMq = new RabbitMqOptions();
+        configure(rabbitMq);
+        RabbitMq = rabbitMq;
         return this;
     }
 }
