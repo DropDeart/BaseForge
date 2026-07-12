@@ -15,11 +15,17 @@ internal static class DesignerEndpoints
         var api = app.MapGroup("/api");
 
         // Dropdown'lar için sabit meta bilgisi.
-        api.MapGet("/meta", () => Results.Ok(new MetaResponse(
-            Types: TypeMap.KnownTypes,
-            RelationKinds: ["one-to-many", "many-to-one", "one-to-one"],
-            Via: ["grpc", "event"],
-            Providers: ["Google", "GitHub", "Microsoft", "Facebook"])));
+        api.MapGet("/meta", (DesignerContext ctx) =>
+        {
+            var solutionPath = SolutionRunner.FindNearestSolution(ctx.WorkingDirectory);
+            return Results.Ok(new MetaResponse(
+                Types: TypeMap.KnownTypes,
+                RelationKinds: ["one-to-many", "many-to-one", "one-to-one"],
+                Via: ["grpc", "event"],
+                Providers: ["Google", "GitHub", "Microsoft", "Facebook"],
+                SolutionFound: solutionPath is not null,
+                SolutionName: solutionPath is not null ? Path.GetFileName(solutionPath) : null));
+        });
 
         // 'new' -> CLI arg'ından seed edilmiş boş spec. 'update' -> diskteki spec.yaml/auth.yaml (varsa) yüklenir.
         api.MapGet("/spec", (DesignerContext ctx) => Results.Ok(new SpecResponse(
@@ -48,13 +54,15 @@ internal static class DesignerEndpoints
             var specPath = YamlSpecWriter.Write(spec, output);
             var files = CodeGenerator.Generate(spec, output, specPath);
             var build = await BuildRunner.BuildAsync(output, ct);
+            var solutionMessage = await TryAddToSolutionAsync(req.IncludeInSolution, ctx, files, ct);
 
-            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output));
+            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output, solutionMessage));
         });
 
         // Merkez Identity üret: auth.yaml yaz + kod üret + dotnet build.
-        api.MapPost("/generate/identity", async (AuthSpec spec, DesignerContext ctx, CancellationToken ct) =>
+        api.MapPost("/generate/identity", async (GenerateIdentityRequest req, DesignerContext ctx, CancellationToken ct) =>
         {
+            var spec = req.Spec;
             if (string.IsNullOrWhiteSpace(spec.Service) || string.IsNullOrWhiteSpace(spec.Database))
             {
                 return Results.BadRequest(new ValidateResponse(["'service' ve 'database' zorunludur."]));
@@ -65,8 +73,9 @@ internal static class DesignerEndpoints
             YamlSpecWriter.Write(spec, output, "auth.yaml");
             var files = IdentityGenerator.Generate(spec, output);
             var build = await BuildRunner.BuildAsync(output, ct);
+            var solutionMessage = await TryAddToSolutionAsync(req.IncludeInSolution, ctx, files, ct);
 
-            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output));
+            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output, solutionMessage));
         });
 
         // Üretilen servisi çalıştır: docker compose up --build -d --wait (tam stack).
@@ -93,6 +102,37 @@ internal static class DesignerEndpoints
         => !string.IsNullOrWhiteSpace(requested)
             ? Path.GetFullPath(requested)
             : Path.GetFullPath(Path.Combine(ctx.WorkingDirectory, service));
+
+    /// <summary>
+    /// Kullanıcı Designer'da "Solution'a ekle" seçtiyse, üretilen projeyi en yakın <c>.slnx</c>/<c>.sln</c>'e
+    /// <c>/services/</c> çözüm klasörü altında ekler. Seçmediyse hiçbir şeye dokunulmaz — servis diskte
+    /// bağımsız bir klasör olarak kalır (örn. ayrı bir repo/pipeline'dan yayınlanacaksa).
+    /// </summary>
+    private static async Task<string?> TryAddToSolutionAsync(
+        bool includeInSolution, DesignerContext ctx, IReadOnlyList<string> files, CancellationToken ct)
+    {
+        if (!includeInSolution)
+        {
+            return null;
+        }
+
+        var solutionPath = SolutionRunner.FindNearestSolution(ctx.WorkingDirectory);
+        if (solutionPath is null)
+        {
+            return "Yakında bir .slnx/.sln bulunamadı — servis solution'a eklenmedi.";
+        }
+
+        var csproj = files.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
+        if (csproj is null)
+        {
+            return "Üretilen dosyalar arasında .csproj bulunamadı — solution'a eklenemedi.";
+        }
+
+        var result = await SolutionRunner.AddProjectAsync(solutionPath, csproj, "services", ct);
+        return result.Success
+            ? $"{Path.GetFileName(solutionPath)}'e eklendi (/services/)."
+            : $"Solution'a eklenemedi: {result.Output}";
+    }
 
     /// <summary>'update' ile açıldıysa ve <c>&lt;servis&gt;/spec.yaml</c> varsa onu yükler; aksi halde boş seed.</summary>
     private static ServiceSpec LoadServiceOrSeed(DesignerContext ctx)
@@ -228,19 +268,24 @@ internal static class DesignerEndpoints
         IReadOnlyList<string> Types,
         IReadOnlyList<string> RelationKinds,
         IReadOnlyList<string> Via,
-        IReadOnlyList<string> Providers);
+        IReadOnlyList<string> Providers,
+        bool SolutionFound,
+        string? SolutionName);
 
     private sealed record SpecResponse(ServiceSpec Service, AuthSpec Auth);
 
     private sealed record ValidateResponse(IReadOnlyList<string> Errors);
 
-    private sealed record GenerateServiceRequest(ServiceSpec Spec, string? Output);
+    private sealed record GenerateServiceRequest(ServiceSpec Spec, string? Output, bool IncludeInSolution);
+
+    private sealed record GenerateIdentityRequest(AuthSpec Spec, bool IncludeInSolution);
 
     private sealed record GenerateResponse(
         string Output,
         IReadOnlyList<string> Files,
         bool BuildSuccess,
-        string BuildOutput);
+        string BuildOutput,
+        string? SolutionMessage);
 
     private sealed record RunRequest(string Output, int RestPort);
 

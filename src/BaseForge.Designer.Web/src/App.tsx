@@ -17,10 +17,12 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [result, setResult] = useState<GenerateResponse | null>(null);
+  const [includeInSolution, setIncludeInSolution] = useState(false);
 
   useEffect(() => {
     Promise.all([api.meta(), api.spec()]).then(([m, s]) => {
       setMeta(m);
+      setIncludeInSolution(m.solutionFound);
       setSpec(s.service);
       setAuth(s.auth);
       setSelected(Object.keys(s.service.entities ?? {})[0] ?? null);
@@ -75,7 +77,10 @@ export function App() {
     setErrors([]);
     setResult(null);
     try {
-      const res = view === "identity" ? await api.generateIdentity(auth) : await api.generateService(spec);
+      const res =
+        view === "identity"
+          ? await api.generateIdentity(auth, includeInSolution)
+          : await api.generateService(spec, includeInSolution);
       if ("errors" in res) setErrors(res.errors);
       else setResult(res);
     } catch (e) {
@@ -122,6 +127,25 @@ export function App() {
           <div className="header-spacer" />
           {view === "er" ? null : (
             <>
+              <div
+                className="toggle-row"
+                title={
+                  meta.solutionFound
+                    ? `Üretilen proje ${meta.solutionName} içine eklenir.`
+                    : "Yakında bir .slnx/.sln bulunamadı — servis diskte ayrı bir klasör olarak kalır."
+                }
+              >
+                <button
+                  className={`toggle ${includeInSolution ? "on" : ""}`}
+                  disabled={!meta.solutionFound}
+                  onClick={() => setIncludeInSolution((v) => !v)}
+                >
+                  <span className="knob" />
+                </button>
+                <span className="hint">
+                  {meta.solutionFound ? `Solution'a ekle (${meta.solutionName})` : "Solution bulunamadı — ayrı kalacak"}
+                </span>
+              </div>
               <button className="btn" onClick={() => api.shutdown()}>Kapat</button>
               <button className="btn btn-primary" disabled={busy} onClick={generate}>
                 {busy ? "Üretiliyor…" : view === "identity" ? "Identity Üret + Derle" : "Üret + Derle"}
@@ -326,6 +350,7 @@ function GenerateResult({
           </span>
           <span className="result-meta">{result.files.length} dosya → {result.output}</span>
           <div className="files">{result.files.map((f) => f.split(/[\\/]/).slice(-2).join("/")).join(" · ")}</div>
+          {result.solutionMessage && <div className="hint" style={{ marginTop: 4 }}>{result.solutionMessage}</div>}
           {!result.buildSuccess && <pre className="build">{result.buildOutput}</pre>}
           {result.buildSuccess && (
             <div className="run-row">

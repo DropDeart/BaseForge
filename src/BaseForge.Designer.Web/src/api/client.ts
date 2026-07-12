@@ -19,18 +19,18 @@ export const api = {
       body: JSON.stringify(spec),
     }).then((r) => json<{ errors: string[] }>(r)),
 
-  generateService: (spec: ServiceSpec, output?: string) =>
+  generateService: (spec: ServiceSpec, includeInSolution: boolean, output?: string) =>
     fetch("/api/generate/service", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ spec, output }),
+      body: JSON.stringify({ spec, output, includeInSolution }),
     }).then((r) => json<GenerateResponse | { errors: string[] }>(r)),
 
-  generateIdentity: (spec: AuthSpec) =>
+  generateIdentity: (spec: AuthSpec, includeInSolution: boolean) =>
     fetch("/api/generate/identity", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(spec),
+      body: JSON.stringify({ spec, includeInSolution }),
     }).then((r) => json<GenerateResponse | { errors: string[] }>(r)),
 
   run: (output: string, restPort: number) =>

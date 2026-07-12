@@ -4,8 +4,6 @@
     <IsPackable>true</IsPackable>
     <PackageId>BaseForge.Infrastructure</PackageId>
     <Description>BaseForge altyapı katmanı: EF Core DbContext base (audit + soft delete), GenericRepository, Dapper tabanlı ham SQL sorgu yardımcıları ve RabbitMQ event bus. Core'a bağımlıdır.</Description>
-    <!-- Tüketici hosted service'i mesaj işlerken bilinçli olarak genel Exception yakalar (CA1031);
-         basit hata logging'i için LoggerMessage delege zorunluluğu (CA1848) gevşetildi -->
     <NoWarn>$(NoWarn);CA1031;CA1848</NoWarn>
   </PropertyGroup>
 

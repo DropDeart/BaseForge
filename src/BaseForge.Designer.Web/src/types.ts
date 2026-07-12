@@ -93,6 +93,8 @@ export interface Meta {
   relationKinds: string[];
   via: string[];
   providers: string[];
+  solutionFound: boolean;
+  solutionName?: string | null;
 }
 
 export interface GenerateResponse {
@@ -100,6 +102,7 @@ export interface GenerateResponse {
   files: string[];
   buildSuccess: boolean;
   buildOutput: string;
+  solutionMessage?: string | null;
 }
 
 export interface RunResponse {
