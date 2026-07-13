@@ -23,6 +23,21 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # services/BaseForge.Identity.Web/dist gitignore'lu ve BaseForge.CodeGen.csproj'un
+      # BuildIdentityWeb target'ı bunu otomatik build ETMİYOR (dotnet pack'in çoklu geçişleri
+      # arasında race condition'ı önlemek için bilinçli tasarım — bkz. csproj'daki yorum).
+      # Bu yüzden CI'da önceden elle build edilmesi gerekiyor, aksi halde "'dist' bulunamadı" hatası.
+      - name: Build Identity.Web (BaseForge.CodeGen'in embed ettiği ortak giriş SPA'sı)
+        run: |
+          cd services/BaseForge.Identity.Web
+          npm ci
+          npm run build
+
       - name: Restore
         run: dotnet restore BaseForge.slnx
 

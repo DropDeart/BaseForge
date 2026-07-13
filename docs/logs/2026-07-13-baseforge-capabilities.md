@@ -72,3 +72,15 @@ Kullanıcı isteğiyle: `Directory.Build.props`'ta `<Version>` ve `src/BaseForge
 
 **Kullanıcının yapacağı (nuget.org push):** GitHub Release oluşturulurken tag **`v0.3.0-beta`** olmalı — `.github/workflows/publish.yml` sürümü tag'den alıp `v` prefix'ini düşürüyor; tag'in `CodeGenerator.cs`'e gömülü sabit sürümle (`0.3.0-beta`) birebir eşleşmesi zorunlu, aksi halde üretilen servisler nuget.org'da olmayan bir sürüm ister.
 
+## CI/CD düzeltmesi — kullanıcı gerçek bir Actions hatasıyla geri döndü
+
+Kullanıcı `v0.3.0-beta` tag'iyle push denedi, `publish.yml`'in Build adımı "1 Error(s)" ile patladı. `gh` CLI mevcut değildi (yüklü değil), log parçaları hatanın kendisini göstermeden kesiliyordu. Kullanıcı doğru sezgiyle "Identity web ile alakalı sanırım" dedi — doğruydu.
+
+**Kök neden 1:** `services/BaseForge.Identity.Web/dist` `.gitignore`'lu ve `BaseForge.CodeGen.csproj`'un `BuildIdentityWeb` target'ı bunu **otomatik build etmiyor** (bilinçli tasarım — `dotnet pack`'in çoklu geçişleri arasındaki race condition'ı önlemek için, bkz. csproj yorumu). Ne `ci.yml` ne `publish.yml`'de bunu build eden bir adım vardı — taze bir checkout'ta `dist` hiç yok, `<Error Condition="!Exists(...)">` her zaman patlar. Bu, bu oturumun en başında yerelde çözdüğüm sorunun CI'daki karşılığı — CI'ya hiç taşınmamıştı.
+- Düzeltme: `.github/workflows/ci.yml` ve `publish.yml`'e `actions/setup-node@v4` (node 22) + `cd services/BaseForge.Identity.Web && npm ci && npm run build` adımı eklendi, `dotnet restore`'dan önce.
+
+**Kök neden 2 (düzeltmeyi doğrularken bulundu):** `package-lock.json`, `package.json` ile senkron değildi — `npm ci` (CI'nın kullanacağı, `npm install`'dan farklı olarak sıkı/lockfile-birebir kurulum) `@emnapi/core@1.11.1`/`@emnapi/runtime@1.11.1` eksik diyerek reddediyordu. Muhtemelen bu oturumun en başında (dist'i düzeltirken) çalıştırdığım `npm install`'ın lockfile'ı tutarsız bir şekilde güncellemesinden kaynaklanıyor — `npm install` "gevşek" kurulum yaptığı için o zaman fark edilmemişti, ilk kez şimdi (`npm ci` ile temiz bir state'ten test ederken) ortaya çıktı.
+- Düzeltme: `npm install` yeniden çalıştırılıp lockfile senkronize edildi; `rm -rf node_modules dist && npm ci && npm run build` ile temiz state'ten doğrulandı.
+
+**Uçtan uca doğrulama:** `publish.yml`'in tam sırası (`dotnet restore` → `build -c Release --no-restore -p:Version=0.3.0-beta` → `test -c Release --no-build` → `pack -c Release --no-build -o artifacts -p:Version=0.3.0-beta`) yerelde adım adım tekrarlandı — **hepsi başarılı**, 5 nupkg üretildi (Core/Infrastructure/API/Tools/CodeGen, hepsi 0.3.0-beta). Artifacts klasörü temizlendi (zaten gitignore'lu).
+
