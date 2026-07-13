@@ -84,3 +84,13 @@ Kullanıcı `v0.3.0-beta` tag'iyle push denedi, `publish.yml`'in Build adımı "
 
 **Uçtan uca doğrulama:** `publish.yml`'in tam sırası (`dotnet restore` → `build -c Release --no-restore -p:Version=0.3.0-beta` → `test -c Release --no-build` → `pack -c Release --no-build -o artifacts -p:Version=0.3.0-beta`) yerelde adım adım tekrarlandı — **hepsi başarılı**, 5 nupkg üretildi (Core/Infrastructure/API/Tools/CodeGen, hepsi 0.3.0-beta). Artifacts klasörü temizlendi (zaten gitignore'lu).
 
+## İkinci Actions denemesi — kullanıcı ekran görüntüsüyle geri döndü
+
+`npm install` ile "düzelttiğim" lockfile push edilip tekrar denendiğinde CI **yine** `npm ci` adımında patladı — ama bu sefer `@emnapi/core@1.11.2`/`@emnapi/runtime@1.11.2` eksik diyordu (öncekinde `1.11.1`). Bu, benim Windows'ta ürettiğim lockfile'ın Linux CI runner'ında farklı optional/platform-specific alt paketler resolve etmesinden kaynaklanan bir **cross-platform lockfile kararsızlığıydı** — tahmin etmek yerine Docker ile gerçek bir `node:22` Linux container'ında doğrudan reprodüklendi.
+
+- Container'da `npm ci` aynı hatayla patladı (kanıtlandı) → container içinde `npm install` ile lockfile Linux'a göre yeniden üretildi → temiz state'ten `npm ci` + `npm run build` **başarılı** oldu.
+- Ardından Windows'ta `npm install` çalıştırılınca lockfile **tekrar** değişti (46 satır fark) — yani bu paket, hangi platformda `npm install` çalıştırılırsa lockfile o platforma kayıyor, sürekli kırılan bir denge. Kalıcı çözüm lockfile'ı "doğru" tutmaya çalışmak değil, **CI adımını `npm ci`'den `npm install`'a çevirmek** (`ci.yml` + `publish.yml`, ikisi de güncellendi) — `npm install` sıkı lockfile-senkron istemiyor, CI kendi platformunda taze çözüyor, bu sınıf soruna tamamen bağışık.
+- Hem Linux (Docker `node:22`) hem Windows'ta `npm install` + `npm run build` ile doğrulandı, ikisi de başarılı. `dotnet build BaseForge.slnx` tekrar 0 hata ile geçti.
+
+**Ders:** Bu paketin lockfile'ını bir daha Windows'ta `npm ci` ile test etmeye çalışmayın (zaten hiçbir platformda "kalıcı doğru" bir hali yok) — CI artık `npm install` kullandığı için bu önemsiz.
+

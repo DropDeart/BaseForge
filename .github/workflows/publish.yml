@@ -32,10 +32,15 @@ jobs:
       # BuildIdentityWeb target'ı bunu otomatik build ETMİYOR (dotnet pack'in çoklu geçişleri
       # arasında race condition'ı önlemek için bilinçli tasarım — bkz. csproj'daki yorum).
       # Bu yüzden CI'da önceden elle build edilmesi gerekiyor, aksi halde "'dist' bulunamadı" hatası.
+      # `npm install` (npm ci DEĞİL): bu paketin lockfile'ı Windows/Linux arasında optional/
+      # platform-specific alt bağımlılıklar (örn. @emnapi/*) yüzünden kararsız — hangi platformda
+      # `npm install` çalıştırılırsa lockfile o platforma göre değişiyor. `npm ci`'nin sıkı
+      # lockfile-senkron kontrolü bu yüzden platformlar arası sürekli kırılıyor; `npm install`
+      # bağımlılıkları CI'nın kendi platformunda taze çözer, bu sınıf soruna tamamen bağışık.
       - name: Build Identity.Web (BaseForge.CodeGen'in embed ettiği ortak giriş SPA'sı)
         run: |
           cd services/BaseForge.Identity.Web
-          npm ci
+          npm install
           npm run build
 
       - name: Compute version
