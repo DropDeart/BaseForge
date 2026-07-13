@@ -6,17 +6,21 @@ internal static class Templates
     public const string Entity =
         """
         using System.ComponentModel.DataAnnotations;
+        using System.ComponentModel.DataAnnotations.Schema;
         using BaseForge.Core.Entities;
 
         namespace {{ Namespace }}.Entities;
 
         /// <summary>{{ Name }} entity'si (BaseForge.CodeGen tarafından üretildi).</summary>
-        public sealed class {{ Name }} : BaseEntity
+        public sealed class {{ Name }} : BaseEntity{{ if IsMultiTenant }}, ITenantEntity{{ end }}
         {
         {{~ for p in Scalars ~}}
             /// <summary>{{ p.Name }}.</summary>
         {{~ if p.MaxLength ~}}
             [MaxLength({{ p.MaxLength }})]
+        {{~ end ~}}
+        {{~ if p.IsJson ~}}
+            [Column(TypeName = "jsonb")]
         {{~ end ~}}
             public {{ p.Type }} {{ p.Name }} { get; set; }{{ p.Init }}
         {{~ end ~}}
@@ -35,6 +39,7 @@ internal static class Templates
 
     public const string DbContext =
         """
+        using BaseForge.Core.Interfaces;
         using BaseForge.Infrastructure.Data;
         using Microsoft.EntityFrameworkCore;
         using {{ Namespace }}.Entities;
@@ -45,8 +50,8 @@ internal static class Templates
         public sealed class {{ ContextName }} : BaseForgeDbContext
         {
             /// <summary>Yeni bir {{ ContextName }} oluşturur.</summary>
-            public {{ ContextName }}(DbContextOptions<{{ ContextName }}> options)
-                : base(options)
+            public {{ ContextName }}(DbContextOptions<{{ ContextName }}> options, ICurrentUser? currentUser = null, ICurrentTenant? currentTenant = null)
+                : base(options, currentUser, currentTenant)
             {
             }
 
@@ -154,6 +159,7 @@ internal static class Templates
             }
         }
 
+        {{~ if IncludeUpdate ~}}
         /// <summary>Var olan bir {{ Name }} kaydını günceller.</summary>
         public sealed class Update{{ Name }}Command : ICommand
         {
@@ -204,7 +210,9 @@ internal static class Templates
         {{~ end ~}}
             }
         }
+        {{~ end ~}}
 
+        {{~ if IncludeDelete ~}}
         /// <summary>Bir {{ Name }} kaydını siler (soft delete).</summary>
         public sealed class Delete{{ Name }}Command : ICommand
         {
@@ -245,6 +253,7 @@ internal static class Templates
         {{~ end ~}}
             }
         }
+        {{~ end ~}}
         {{~ for counter in Counters ~}}
 
         /// <summary>{{ Name }}'ın {{ counter }} sayacını bir artırır.</summary>
@@ -544,6 +553,7 @@ internal static class Templates
                 return CreatedAtAction(nameof(GetById), new { id }, id);
             }
 
+        {{~ if IncludeUpdate ~}}
             /// <summary>Var olan bir {{ Name }} kaydını günceller.</summary>
             {{~ if AnonymousUpdate ~}}
             [AllowAnonymous]
@@ -556,7 +566,9 @@ internal static class Templates
                 await Mediator.Send(command, cancellationToken);
                 return NoContent();
             }
+        {{~ end ~}}
 
+        {{~ if IncludeDelete ~}}
             /// <summary>Bir {{ Name }} kaydını siler.</summary>
             {{~ if AnonymousDelete ~}}
             [AllowAnonymous]
@@ -567,6 +579,7 @@ internal static class Templates
                 await Mediator.Send(new Delete{{ Name }}Command { Id = id }, cancellationToken);
                 return NoContent();
             }
+        {{~ end ~}}
         {{~ for counter in Counters ~}}
 
             /// <summary>{{ counter }} sayacını bir artırır (herkese açık).</summary>
@@ -738,6 +751,9 @@ internal static class Templates
                     ?? throw new InvalidOperationException("ConnectionStrings:Default tanımlı değil."));
             options.EnableCQRS(typeof(Program).Assembly);
             options.EnableAuditLog();
+        {{~ if HasMultiTenancy ~}}
+            options.EnableMultiTenancy();
+        {{~ end ~}}
         {{~ if HasAuth ~}}
             options.EnableJwt(jwt =>
             {

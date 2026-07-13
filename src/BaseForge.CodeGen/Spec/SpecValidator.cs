@@ -108,6 +108,10 @@ internal static class SpecValidator
                 {
                     errors.Add($"'{entityName}.publishes' içinde '{kind}' birden fazla kez geçiyor.");
                 }
+                else if (entity.AppendOnly && !string.Equals(kind, "created", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"'{entityName}' appendOnly=true iken 'publishes' içinde yalnızca 'created' olabilir (bulunan: '{kind}') — update/delete komutu üretilmediği için bu event hiç yayınlanamaz.");
+                }
             }
 
             var seenAnonymousActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -120,6 +124,10 @@ internal static class SpecValidator
                 else if (!seenAnonymousActions.Add(action))
                 {
                     errors.Add($"'{entityName}.anonymousActions' içinde '{action}' birden fazla kez geçiyor.");
+                }
+                else if (entity.AppendOnly && action is "update" or "delete")
+                {
+                    errors.Add($"'{entityName}' appendOnly=true iken 'anonymousActions' içinde '{action}' olamaz — bu action hiç üretilmiyor.");
                 }
             }
 

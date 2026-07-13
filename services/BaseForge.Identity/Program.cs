@@ -44,7 +44,13 @@ builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     {
+        // NOT: Bu 5 alan BaseForge.CodeGen/Spec/AuthSpecValidator.cs'de birebir aynı kurallarla
+        // (uzunluk + büyük/küçük harf + rakam + özel karakter) yeniden doğrulanıyor — biri değişirse diğeri de güncellenmeli.
         options.Password.RequiredLength = 8;
+        options.Password.RequireDigit = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireNonAlphanumeric = true;
         options.User.RequireUniqueEmail = true;
     })
     .AddEntityFrameworkStores<IdentityServiceDbContext>()

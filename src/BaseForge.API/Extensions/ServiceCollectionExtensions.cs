@@ -52,6 +52,13 @@ public static class ServiceCollectionExtensions
             services.AddScoped<ICurrentUser, CurrentUser>();
         }
 
+        // 3b) Multi-tenancy için o anki kiracı
+        if (options.MultiTenancyEnabled)
+        {
+            services.AddHttpContextAccessor();
+            services.AddScoped<ICurrentTenant, CurrentTenant>();
+        }
+
         // 4) JWT kimlik doğrulama
         if (options.Jwt is not null)
         {

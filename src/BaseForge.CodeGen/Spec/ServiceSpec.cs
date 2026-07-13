@@ -19,6 +19,14 @@ public sealed class ServiceSpec
     public DockerPortsSpec? DockerPorts { get; set; }
 
     /// <summary>
+    /// <see langword="true"/> ise servisin TÜM entity'leri <c>ITenantEntity</c> (otomatik <c>TenantId</c>
+    /// alanı) ile üretilir ve <c>options.EnableMultiTenancy()</c> çağrılır. Entity-bazlı değil,
+    /// servis-geneli bir karardır (gerçek izolasyon her tabloyu kapsamalı). Varsayılan
+    /// <see langword="false"/>.
+    /// </summary>
+    public bool MultiTenant { get; set; }
+
+    /// <summary>
     /// Bu servisin dinlediği (RabbitMQ üzerinden asenkron) olaylar. Her girdi başka bir servisin
     /// (veya kendi servisin) <c>publishes</c> ile yayınladığı bir olayı, bir <c>INotificationHandler</c>
     /// stub'ına bağlar. Boşsa servis RabbitMQ'ya hiç bağlanmaz.
@@ -109,6 +117,15 @@ public sealed class EntitySpec
     /// <c>auth.protect: false</c> ise bu liste no-op'tur (zaten hepsi açık).
     /// </summary>
     public List<string> AnonymousActions { get; set; } = [];
+
+    /// <summary>
+    /// <see langword="true"/> ise bu entity için Update/Delete komutu, handler'ı ve controller
+    /// action'ı hiç üretilmez — yalnızca Create/GetById/List kalır. GMP/21 CFR Part 11 gibi
+    /// audit/trace kayıtlarının API üzerinden asla değiştirilememesi/silinememesi gereken
+    /// senaryolar için (örn. append-only event log). Varsayılan <see langword="false"/>
+    /// (mevcut tam CRUD davranışı korunur).
+    /// </summary>
+    public bool AppendOnly { get; set; }
 
     /// <summary>
     /// Bu entity'deki <c>int</c> tipli alanlardan hangileri bir sayaç (görüntülenme, beğeni vb.) olarak

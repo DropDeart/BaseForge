@@ -23,6 +23,7 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
   const paginated = entity.paginated !== false;
   const sortable = entity.sortable !== false;
   const searchable = entity.searchable !== false;
+  const appendOnly = !!entity.appendOnly;
 
   const listToggle = (label: string, value: boolean, enabled: boolean, onToggle: () => void) => (
     <div className="toggle-row" style={enabled ? undefined : { opacity: 0.4 }}>
@@ -53,7 +54,13 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
           {listToggle("Sayfalama", paginated, true, () => onChange({ ...entity, paginated: !paginated }))}
           {listToggle("Sıralama", sortable, paginated, () => onChange({ ...entity, sortable: !sortable }))}
           {listToggle("Arama", searchable, paginated, () => onChange({ ...entity, searchable: !searchable }))}
+          {listToggle("Append-only", appendOnly, true, () => onChange({ ...entity, appendOnly: !appendOnly }))}
         </div>
+        {appendOnly && (
+          <div className="hint" style={{ marginTop: 4 }}>
+            Update/Delete hiç üretilmez — yalnızca Create/GetById/List (audit/trace kaydı için).
+          </div>
+        )}
       </div>
 
       {/* Properties */}

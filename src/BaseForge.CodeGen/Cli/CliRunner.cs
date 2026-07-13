@@ -73,9 +73,15 @@ internal static class CliRunner
         }
 
         var spec = SpecLoader.Load<AuthSpec>(specPath);
-        if (string.IsNullOrWhiteSpace(spec.Service) || string.IsNullOrWhiteSpace(spec.Database))
+        var errors = AuthSpecValidator.Validate(spec);
+        if (errors.Count > 0)
         {
-            Console.Error.WriteLine("auth.yaml: 'service' ve 'database' zorunludur.");
+            Console.Error.WriteLine("auth.yaml geçersiz:");
+            foreach (var error in errors)
+            {
+                Console.Error.WriteLine($"  - {error}");
+            }
+
             return 1;
         }
 

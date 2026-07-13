@@ -28,6 +28,8 @@ export interface EntitySpec {
   sortable?: boolean;
   /** paginated=true iken Search (string alanlarda arama) dikkate alınsın mı? Varsayılan true. */
   searchable?: boolean;
+  /** true ise Update/Delete hiç üretilmez — yalnızca Create/GetById/List kalır (append-only). */
+  appendOnly?: boolean;
 }
 
 export interface ServiceAuthSpec {
@@ -49,6 +51,8 @@ export interface ServiceSpec {
   entities: Record<string, EntitySpec>;
   auth?: ServiceAuthSpec | null;
   dockerPorts?: DockerPortsSpec | null;
+  /** true ise tüm entity'ler ITenantEntity (TenantId) ile üretilir ve options.EnableMultiTenancy() çağrılır. */
+  multiTenant?: boolean;
 }
 
 export interface ProviderSpec {

@@ -1,0 +1,20 @@
+# Örnek: json prop tipi, appendOnly entity (Update/Delete üretilmez) ve multiTenant servis
+# (tüm entity'ler ITenantEntity + TenantId ile üretilir). Üretmek için:
+#   baseforge new-service --spec samples/capabilities-test.yaml
+service: capabilitiestest
+database: capabilitiestest_db
+multiTenant: true
+
+entities:
+  AuditLog:
+    appendOnly: true
+    props:
+      eventType: string
+      payload: json
+
+  Note:
+    props:
+      title: string
+      body:
+        type: json
+        nullable: true

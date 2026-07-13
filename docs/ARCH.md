@@ -117,6 +117,34 @@ Her `via: grpc` dış referans (`ExternalRefSpec`), `baseforge new-service` sır
 - Kanal havuzu yok — `RabbitMqConnectionManager` tek bağlantıyı paylaşır ama her yayın/tüketim çağrısında yeni kanal açar.
 - gRPC çağrılarında olduğu gibi, mesajlarda JWT/kimlik propagasyonu yok.
 
+### 5.3. JSON/JSONB Alan Tipi
+
+Spec tip sistemine `json` eklendi: C# tarafında `string` (serileştirilmiş JSON metni), veritabanı tarafında Postgres `jsonb` (`[Column(TypeName = "jsonb")]`, EF Core native fluent API yerine — bu üretici mevcut `MaxLength` deseninin aynısı, DataAnnotation attribute olarak entity sınıfına gömülür).
+
+- **Karar:** `TypeMap.cs`'e `["json"] = ("string", "jsonb")` eklendi; `[Column(TypeName = "jsonb")]` **yalnızca entity sınıfında** üretilir, Create/Update komut DTO'larında değil (Column attribute'u yalnızca EF-mapped tiplerde anlamlıdır; DTO'lar mapped değildir — `MaxLength`'in DTO'larda da anlamlı olmasının [ASP.NET model validation] aksine).
+- **Gerekçe:** Esnek/şemasız payload alanları (örn. audit/trace event'lerinin olay-spesifik verisi) için ayrı bir tablo/JOIN yerine tek bir sütun yeterli; Postgres'in native `jsonb` desteği sorgu/index imkânı da sağlıyor (ileride `EF.Functions.JsonContains` vb. ile).
+- **Kısıtlar:** Yalnızca Postgres `jsonb`'e eşlenir (SQL Server gibi başka bir provider hedeflenirse bu tip yeniden değerlendirilmeli). `maxLength` json'da anlamsız olduğu için `SpecValidator`'ın string/text-only kontrolü sayesinde otomatik reddedilir (ek kod gerekmedi). gRPC proto tarafında `string` olarak taşınır (decimal/datetime/guid ile aynı "native karşılığı yok" kısıtı).
+
+### 5.4. Append-Only Entity'ler
+
+`EntitySpec.AppendOnly: bool` — `true` ise Update/Delete komutu, handler'ı ve controller action'ı **hiç üretilmez**; yalnızca Create/GetById/List kalır.
+
+- **Karar:** Servis-geneli değil, **entity-bazlı** bir bayrak (her serviste hem mutable hem append-only entity'ler bir arada olabilir — örn. `Product` mutable, `TraceEvent` append-only, aynı serviste).
+- **Gerekçe:** GMP/Annex 11 ve 21 CFR Part 11 gibi regülatif uyum gerektiren audit/trace kayıtlarının API üzerinden asla değiştirilememesi/silinememesi gerekiyor. Bunu yalnızca "istemci Update/Delete çağırmasın" (sözleşme/dokümantasyon) yerine, üretici seviyede **fiziksel olarak var olmayan bir endpoint** ile garanti altına almak daha güvenli.
+- **Kısıtlar:** `AppendOnly=true` iken `publishes` listesinde `created` dışında bir değer (`updated`/`deleted`) veya `anonymousActions` içinde `update`/`delete` olamaz — `SpecValidator` bunu derleme/üretim öncesi hata olarak yakalar (sessizce yok saymak yerine "fail loud").
+
+### 5.5. Multi-Tenancy
+
+`ServiceSpec.MultiTenant: bool` — `true` ise servisin **tüm** entity'leri `ITenantEntity` (`Guid TenantId`, `BaseForge.Core.Entities`) implemente eder; `options.EnableMultiTenancy()` çağrılır.
+
+- **Karar:** Servis-geneli, entity-bazlı **değil** — gerçek izolasyon her tabloyu kapsamalı, entity-bazlı seçim ayak tuzağı olurdu (bir tabloyu unutmak = tenant sızıntısı). `BaseEntity<TKey>` değiştirilmedi (mevcut tüm servisleri etkileyen breaking change olurdu) — yeni `ITenantEntity` marker interface'i, `ISoftDelete` ile aynı desende, yalnızca CodeGen tarafından `MultiTenant: true` olan servislerin entity'lerine eklenir; `TenantId` kullanıcı tarafından YAML'da tanımlanmaz, otomatik enjekte edilir.
+- **Mekanizma:** `ICurrentTenant` (Core, `ICurrentUser` ile aynı şekil) + `CurrentTenant` (API, JWT `tenant_id` claim'i okur) `EnableMultiTenancy()` ile DI'a kaydedilir. `BaseForgeDbContext`:
+  - `ApplyAuditAndSoftDelete`, `Added` durumundaki `ITenantEntity`'lere `TenantId`'yi damgalar; `ICurrentTenant.TenantId` null ise `InvalidOperationException` fırlatır (sessiz NULL satır yerine "fail loud").
+  - `OnModelCreating`, EF Core'un her entity tipi için yalnızca **tek** query filter'a izin vermesi nedeniyle, `ISoftDelete` ve `ITenantEntity` filtrelerini `Expression.AndAlso` ile tek bir birleşik filtrede kurar (4 durum: ne biri ne diğeri / yalnız soft-delete / yalnız tenant / ikisi birden).
+  - Üretilen DbContext'in constructor'ı `ICurrentUser?`/`ICurrentTenant?`'ı `BaseForgeDbContext`'e forward eder (`(options, currentUser = null, currentTenant = null) : base(...)`) — bu forward olmadan tenant damgalama hiç çalışmaz.
+- **Bilinen bir reflection tuzağı (üretim sırasında yakalandı, birim testle doğrulandı):** Query filter ifadesinde o anki context'e (`this`) referans verirken `Expression.Constant(this, typeof(BaseForgeDbContext))` ile **açıkça temel sınıf olarak tiplemek gerekir** — `Expression.Constant(this)` runtime tipini (her zaman türetilmiş, CodeGen'in ürettiği DbContext sınıfı) kullanırsa, `private` `CurrentTenantId` property'si (yalnızca `BaseForgeDbContext`'te tanımlı, private üyeler `FlattenHierarchy` ile türetilmiş tipe miras alınmaz) reflection'da bulunamaz ve her sorguda `ArgumentException` fırlar.
+- **Kısıtlar:** Tenant claim adı sabit: `tenant_id`. Multi-tenant bir entity'ye tenant context'siz (örn. arka plan servisinden `ICurrentTenant` olmadan) kayıt eklemek exception fırlatır — bu bilinçli bir tasarım (sessiz cross-tenant sızıntısı yerine).
+
 ## 6. Kimlik Doğrulama
 
 - Merkezi tek bir **Identity Service** vardır (JWT / OAuth2).
@@ -144,3 +172,6 @@ Her `via: grpc` dış referans (`ExternalRefSpec`), `baseforge new-service` sır
 | 2026-06-24 | Backlog "ER Diagram": **BaseForge.Tools** paketi + `DbmlGenerator` (EF Core model → DBML) eklendi; kaynak=EF Core model, çıktı=DBML | ✅ |
 | 2026-07-07 | gRPC senkron iletişim gerçek hale getirildi: otomatik proto üretimi (server+client), kardeş-spec zengin çözümleme, `identity/User` özel durumu, Kestrel iki-port (h2c) düzeltmesi. RabbitMQ hâlâ backlog'da. | ✅ |
 | 2026-07-10 | RabbitMQ asenkron event pub/sub eklendi: `IIntegrationEvent`/`IEventBus` (Core/Infrastructure, MediatR'ı yerel dağıtım için yeniden kullanır), `EnableRabbitMq` (API, `EnableJwt` deseniyle), CodeGen `publishes`/`subscribes` (bkz. §5.2). `via: event` kalıcı olarak no-op — ayrı bir gelecek özellik için rezerve. Aynı geçişte rich gRPC client'ların `ProviderHost`'u `host.docker.internal`'a düzeltildi (izole compose ağları arasında hiç çalışmıyordu). | ✅ |
+| 2026-07-13 | `json`/`jsonb` prop tipi eklendi (bkz. §5.3): `TypeMap` + `[Column(TypeName = "jsonb")]` yalnızca entity sınıfında (DTO'larda değil). | ✅ |
+| 2026-07-13 | Append-only entity desteği eklendi (bkz. §5.4): `EntitySpec.AppendOnly` — Update/Delete komut/handler/controller action'ı hiç üretilmez; GMP/21 CFR Part 11 audit/trace senaryosu için. | ✅ |
+| 2026-07-13 | Multi-tenancy eklendi (bkz. §5.5): `ServiceSpec.MultiTenant`, `ITenantEntity`/`ICurrentTenant`/`EnableMultiTenancy()`, `BaseForgeDbContext`'te `Expression.AndAlso` ile birleşik soft-delete+tenant query filter. Üretim sırasında iki gerçek hata bulunup düzeltildi: (1) üretilen DbContext constructor'ı `ICurrentUser`/`ICurrentTenant`'ı hiç forward etmiyordu, (2) query filter'daki `Expression.Constant(this)` runtime tipini kullandığından `private CurrentTenantId` property'si türetilmiş tipte reflection ile bulunamıyordu (`Expression.Constant(this, typeof(BaseForgeDbContext))` ile düzeltildi, birim testle doğrulandı). | ✅ |

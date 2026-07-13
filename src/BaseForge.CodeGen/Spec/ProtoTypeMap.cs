@@ -30,6 +30,7 @@ internal static class ProtoTypeMap
         ["date"] = "string",
         ["guid"] = "string",
         ["uuid"] = "string",
+        ["json"] = "string",
     };
 
     public static string ToProto(string specType)
@@ -58,7 +59,7 @@ internal static class ProtoTypeMap
             "datetime" => $"{csharpAccess}?.ToString(\"o\", CultureInfo.InvariantCulture) ?? string.Empty",
             "date" => $"{csharpAccess}?.ToString(\"O\", CultureInfo.InvariantCulture) ?? string.Empty",
             "guid" or "uuid" => $"{csharpAccess}?.ToString() ?? string.Empty",
-            "string" or "text" => $"{csharpAccess} ?? string.Empty",
+            "string" or "text" or "json" => $"{csharpAccess} ?? string.Empty",
             "short" => $"(int){csharpAccess}.GetValueOrDefault()",
             _ => $"{csharpAccess}.GetValueOrDefault()",
         };
@@ -89,7 +90,7 @@ internal static class ProtoTypeMap
             "datetime" => $"string.IsNullOrEmpty({protoAccess}) ? null : DateTimeOffset.Parse({protoAccess}, CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind)",
             "date" => $"string.IsNullOrEmpty({protoAccess}) ? null : DateOnly.ParseExact({protoAccess}, \"O\", CultureInfo.InvariantCulture)",
             "guid" or "uuid" => $"string.IsNullOrEmpty({protoAccess}) ? null : Guid.Parse({protoAccess})",
-            "string" or "text" => $"string.IsNullOrEmpty({protoAccess}) ? null : {protoAccess}",
+            "string" or "text" or "json" => $"string.IsNullOrEmpty({protoAccess}) ? null : {protoAccess}",
             "short" => $"(short){protoAccess}",
             _ => protoAccess,
         };

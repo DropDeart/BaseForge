@@ -14,12 +14,29 @@ namespace BaseForge.Infrastructure.Data;
 public abstract class BaseForgeDbContext : DbContext
 {
     private readonly ICurrentUser? _currentUser;
+    private readonly ICurrentTenant? _currentTenant;
 
     /// <summary>Yeni bir <see cref="BaseForgeDbContext"/> oluşturur.</summary>
     /// <param name="options">EF Core context seçenekleri.</param>
     /// <param name="currentUser">Audit (<c>CreatedBy</c>) için o anki kullanıcı; DI'da kayıtlı değilse <see langword="null"/>.</param>
-    protected BaseForgeDbContext(DbContextOptions options, ICurrentUser? currentUser = null)
-        : base(options) => _currentUser = currentUser;
+    /// <param name="currentTenant">
+    /// Multi-tenancy (<c>TenantId</c> damgalama + query filter) için o anki kiracı; DI'da kayıtlı
+    /// değilse (<c>EnableMultiTenancy()</c> çağrılmadıysa) <see langword="null"/>.
+    /// </param>
+    protected BaseForgeDbContext(DbContextOptions options, ICurrentUser? currentUser = null, ICurrentTenant? currentTenant = null)
+        : base(options)
+    {
+        _currentUser = currentUser;
+        _currentTenant = currentTenant;
+    }
+
+    /// <summary>
+    /// O anki kiracının kimliği — <see cref="OnModelCreating"/>'de kurulan query filter'ların
+    /// referans aldığı instance member (EF Core'un "current tenant" desenindeki <c>this.X</c>
+    /// referansıyla birebir aynı mekanizma: filtre, model build anındaki değil, sorguyu çalıştıran
+    /// DbContext instance'ının o anki değerini okur).
+    /// </summary>
+    private Guid? CurrentTenantId => _currentTenant?.TenantId;
 
     /// <inheritdoc />
     public override int SaveChanges()
@@ -55,18 +72,43 @@ public abstract class BaseForgeDbContext : DbContext
         ArgumentNullException.ThrowIfNull(modelBuilder);
         base.OnModelCreating(modelBuilder);
 
-        // ISoftDelete uygulayan tüm entity'lere "IsDeleted == false" global query filter'ı eklenir.
+        // ISoftDelete ve/veya ITenantEntity uygulayan entity'lere birleşik bir global query filter
+        // eklenir. EF Core her entity tipi için yalnızca TEK bir query filter'a izin verdiğinden,
+        // iki koşul (varsa) tek bir Expression.AndAlso ile birleştirilir.
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            if (!typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType))
+            var isSoftDelete = typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType);
+            var isTenant = typeof(ITenantEntity).IsAssignableFrom(entityType.ClrType);
+
+            if (!isSoftDelete && !isTenant)
             {
                 continue;
             }
 
             var parameter = Expression.Parameter(entityType.ClrType, "e");
-            var isDeleted = Expression.Property(parameter, nameof(ISoftDelete.IsDeleted));
-            var filter = Expression.Lambda(Expression.Not(isDeleted), parameter);
-            entityType.SetQueryFilter(filter);
+            Expression? body = null;
+
+            if (isSoftDelete)
+            {
+                var isDeleted = Expression.Property(parameter, nameof(ISoftDelete.IsDeleted));
+                body = Expression.Not(isDeleted);
+            }
+
+            if (isTenant)
+            {
+                var tenantId = Expression.Convert(
+                    Expression.Property(parameter, nameof(ITenantEntity.TenantId)), typeof(Guid?));
+                // Constant'ı açıkça BaseForgeDbContext olarak tiple: CurrentTenantId private ve yalnızca
+                // burada tanımlı — Expression.Constant(this) runtime tipini (türetilmiş context sınıfını)
+                // kullanırsa reflection bu private üyeyi türetilmiş tipte bulamaz (private üyeler
+                // FlattenHierarchy ile miras alınmaz).
+                var currentTenantId = Expression.Property(
+                    Expression.Constant(this, typeof(BaseForgeDbContext)), nameof(CurrentTenantId));
+                var tenantMatches = Expression.Equal(tenantId, currentTenantId);
+                body = body is null ? tenantMatches : Expression.AndAlso(body, tenantMatches);
+            }
+
+            entityType.SetQueryFilter(Expression.Lambda(body!, parameter));
         }
     }
 
@@ -104,6 +146,20 @@ public abstract class BaseForgeDbContext : DbContext
             entry.State = EntityState.Modified;
             entry.Entity.IsDeleted = true;
             entry.Entity.DeletedAt = now;
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
+        {
+            if (entry.State != EntityState.Added)
+            {
+                continue;
+            }
+
+            entry.Entity.TenantId = _currentTenant?.TenantId
+                ?? throw new InvalidOperationException(
+                    $"'{entry.Entity.GetType().Name}' bir ITenantEntity ama o anki istekte çözümlenebilir bir " +
+                    "TenantId yok (ICurrentTenant.TenantId null). Multi-tenant bir serviste JWT'de 'tenant_id' " +
+                    "claim'i bulunmalı.");
         }
     }
 }

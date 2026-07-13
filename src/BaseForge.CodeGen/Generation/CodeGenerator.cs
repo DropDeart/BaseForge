@@ -49,7 +49,7 @@ internal static class CodeGenerator
 
         foreach (var (name, entity) in spec.Entities)
         {
-            var code = TemplateEngine.Render(Templates.Entity, BuildEntityModel(ns, name, entity));
+            var code = TemplateEngine.Render(Templates.Entity, BuildEntityModel(ns, name, entity, spec.MultiTenant));
             written.Add(WriteFile(Path.Combine(outputDir, "Entities", name + ".cs"), code));
 
             var counters = BuildCounterNames(entity);
@@ -63,6 +63,8 @@ internal static class CodeGenerator
                 PublishCreated = entity.Publishes.Any(p => string.Equals(p, "created", StringComparison.OrdinalIgnoreCase)),
                 PublishUpdated = entity.Publishes.Any(p => string.Equals(p, "updated", StringComparison.OrdinalIgnoreCase)),
                 PublishDeleted = entity.Publishes.Any(p => string.Equals(p, "deleted", StringComparison.OrdinalIgnoreCase)),
+                IncludeUpdate = !entity.AppendOnly,
+                IncludeDelete = !entity.AppendOnly,
                 Counters = counters,
                 SearchPredicate = entity.Searchable ? BuildSearchPredicate(fields) : null,
                 Paginated = entity.Paginated,
@@ -88,6 +90,8 @@ internal static class CodeGenerator
                 AnonymousCreate = isProtected && HasAnonymousAction(entity, "create"),
                 AnonymousUpdate = isProtected && HasAnonymousAction(entity, "update"),
                 AnonymousDelete = isProtected && HasAnonymousAction(entity, "delete"),
+                IncludeUpdate = !entity.AppendOnly,
+                IncludeDelete = !entity.AppendOnly,
                 Counters = counters,
                 Paginated = entity.Paginated,
             };
@@ -136,6 +140,7 @@ internal static class CodeGenerator
             GrpcClients = richResolutions,
             HasRabbitMq = hasRabbitMq,
             Subscriptions = subscriptionResolutions,
+            HasMultiTenancy = spec.MultiTenant,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "Program.cs"), TemplateEngine.Render(Templates.Program, programModel)));
 
@@ -227,14 +232,23 @@ internal static class CodeGenerator
             .Select(NameUtil.Pascal)
             .ToList();
 
-    private static EntityFileModel BuildEntityModel(string ns, string name, EntitySpec entity)
+    private static EntityFileModel BuildEntityModel(string ns, string name, EntitySpec entity, bool multiTenant)
     {
         var model = new EntityFileModel
         {
             Namespace = ns,
             Name = name,
             Scalars = BuildScalars(entity),
+            IsMultiTenant = multiTenant,
         };
+
+        if (multiTenant)
+        {
+            // TenantId kullanıcı tarafından YAML'da tanımlanmaz — BaseForgeDbContext tarafından
+            // Added durumundaki entity'lere otomatik damgalanır (bkz. ApplyAuditAndSoftDelete).
+            // Bu yüzden yalnızca entity sınıfına eklenir, Create/Update komut DTO'larına (Fields) değil.
+            model.Scalars.Add(new ScalarModel { Name = "TenantId", Type = "Guid" });
+        }
 
         foreach (var (relName, relation) in entity.Relations)
         {
@@ -606,6 +620,7 @@ internal static class CodeGenerator
                 Type = csharpBase + (prop.Nullable ? "?" : string.Empty),
                 Init = ComputeInit(prop, csharpBase),
                 MaxLength = prop.MaxLength,
+                IsJson = prop.Type.Equals("json", StringComparison.OrdinalIgnoreCase),
             });
         }
 

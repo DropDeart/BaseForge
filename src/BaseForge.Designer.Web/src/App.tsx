@@ -221,6 +221,15 @@ export function App() {
                     </div>
                   </div>
                 )}
+                <div className="toggle-row" style={{ marginTop: 14 }}>
+                  <button
+                    className={`toggle ${spec.multiTenant ? "on" : ""}`}
+                    onClick={() => setSpec({ ...spec, multiTenant: !spec.multiTenant })}
+                  >
+                    <span className="knob" />
+                  </button>
+                  <span className="hint">Multi-tenancy (tüm entity'lere TenantId + izolasyon)</span>
+                </div>
                 <div className="field-row" style={{ marginTop: 14 }}>
                   <div className="field">
                     <span className="field-label">REST portu</span>

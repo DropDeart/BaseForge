@@ -63,9 +63,10 @@ internal static class DesignerEndpoints
         api.MapPost("/generate/identity", async (GenerateIdentityRequest req, DesignerContext ctx, CancellationToken ct) =>
         {
             var spec = req.Spec;
-            if (string.IsNullOrWhiteSpace(spec.Service) || string.IsNullOrWhiteSpace(spec.Database))
+            var errors = AuthSpecValidator.Validate(spec);
+            if (errors.Count > 0)
             {
-                return Results.BadRequest(new ValidateResponse(["'service' ve 'database' zorunludur."]));
+                return Results.BadRequest(new ValidateResponse(errors));
             }
 
             var output = ResolveOutput(null, ctx, spec.Service);

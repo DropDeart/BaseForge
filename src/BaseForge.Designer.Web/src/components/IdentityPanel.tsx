@@ -15,6 +15,17 @@ const PROVIDER_KEYS: Record<string, keyof ProvidersSpec> = {
   Facebook: "facebook",
 };
 
+/** services/BaseForge.Identity/Program.cs'deki AddIdentity Password politikasıyla aynı kural seti. */
+function isPasswordPolicyValid(password: string): boolean {
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
+}
+
 export function IdentityPanel({ meta, auth, onChange, children }: Props) {
   const [selectedLabel, setSelectedLabel] = useState(meta.providers[0]);
   const providers = auth.providers ?? {};
@@ -23,6 +34,8 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
 
   const setProvider = (key: keyof ProvidersSpec, value: ProviderSpec | null) =>
     onChange({ ...auth, providers: { ...providers, [key]: value } });
+
+  const passwordInvalid = !!auth.seedAdmin?.password && !isPasswordPolicyValid(auth.seedAdmin.password);
 
   return (
     <div className="cols">
@@ -136,16 +149,21 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
             <span className="group-label" style={{ margin: 0 }}>Seed Admin</span>
           </div>
           {auth.seedAdmin && (
-            <div className="field-row">
-              <div className="field">
-                <span className="field-label">E-posta</span>
-                <input className="uinput" placeholder="admin@baseforge.local" value={auth.seedAdmin.email} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, email: e.target.value } })} />
+            <>
+              <div className="field-row">
+                <div className="field">
+                  <span className="field-label">E-posta</span>
+                  <input className="uinput" placeholder="admin@baseforge.local" value={auth.seedAdmin.email} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, email: e.target.value } })} />
+                </div>
+                <div className="field">
+                  <span className="field-label">Parola</span>
+                  <input className="uinput" type="password" placeholder="kayıtlı — değiştirmek için gir" value={auth.seedAdmin.password} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, password: e.target.value } })} />
+                </div>
               </div>
-              <div className="field">
-                <span className="field-label">Parola</span>
-                <input className="uinput" type="password" placeholder="kayıtlı — değiştirmek için gir" value={auth.seedAdmin.password} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, password: e.target.value } })} />
+              <div className="hint" style={passwordInvalid ? { color: "var(--red)" } : undefined}>
+                Parola politikası: en az 8 karakter, büyük+küçük harf, rakam ve özel karakter içermeli.
               </div>
-            </div>
+            </>
           )}
         </div>
 

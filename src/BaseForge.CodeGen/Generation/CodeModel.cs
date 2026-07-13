@@ -13,6 +13,9 @@ internal sealed class ScalarModel
 
     /// <summary>Yalnızca string/text tipinde dolu — <c>[MaxLength(n)]</c> attribute'u için.</summary>
     public int? MaxLength { get; set; }
+
+    /// <summary>Spec tipi <c>json</c> ise true — entity sınıfında <c>[Column(TypeName = "jsonb")]</c> üretimi için.</summary>
+    public bool IsJson { get; set; }
 }
 
 /// <summary>Servis içi bir ilişki için navigation property.</summary>
@@ -35,6 +38,9 @@ internal sealed class EntityFileModel
     public List<ScalarModel> Scalars { get; set; } = [];
 
     public List<NavModel> Navigations { get; set; } = [];
+
+    /// <summary><c>ServiceSpec.MultiTenant</c> true ise entity <c>ITenantEntity</c> implemente eder.</summary>
+    public bool IsMultiTenant { get; set; }
 }
 
 /// <summary>DbContext içinde bir entity referansı (DbSet üretimi için).</summary>
@@ -96,6 +102,12 @@ internal sealed class FeatureFileModel
     /// <summary>Delete komutu başarılı olduğunda <c>{Name}DeletedEvent</c> yayınlansın mı?</summary>
     public bool PublishDeleted { get; set; }
 
+    /// <summary>Update komutu/handler'ı üretilsin mi? <c>AppendOnly</c> entity'lerde <see langword="false"/>.</summary>
+    public bool IncludeUpdate { get; set; } = true;
+
+    /// <summary>Delete komutu/handler'ı üretilsin mi? <c>AppendOnly</c> entity'lerde <see langword="false"/>.</summary>
+    public bool IncludeDelete { get; set; } = true;
+
     /// <summary>Herhangi bir Publish* bayrağı true mu — <c>IEventBus</c> enjeksiyonu/using için.</summary>
     public bool HasAnyPublish => PublishCreated || PublishUpdated || PublishDeleted;
 
@@ -145,6 +157,12 @@ internal sealed class ControllerFileModel
     /// <summary>Protect=true iken bile Delete action'ı [AllowAnonymous] olsun mu?</summary>
     public bool AnonymousDelete { get; set; }
 
+    /// <summary>Update action'ı üretilsin mi? <c>AppendOnly</c> entity'lerde <see langword="false"/>.</summary>
+    public bool IncludeUpdate { get; set; } = true;
+
+    /// <summary>Delete action'ı üretilsin mi? <c>AppendOnly</c> entity'lerde <see langword="false"/>.</summary>
+    public bool IncludeDelete { get; set; } = true;
+
     /// <summary>Sayaç olarak işaretlenmiş alanların adları (PascalCase) — her biri için her zaman herkese açık bir increment ucu üretilir.</summary>
     public List<string> Counters { get; set; } = [];
 
@@ -183,6 +201,9 @@ internal sealed class ProgramFileModel
 
     /// <summary>Çözümlenmiş abonelikler — her biri için <c>mq.Subscribe&lt;...&gt;()</c> üretilir.</summary>
     public List<SubscriptionResolution> Subscriptions { get; set; } = [];
+
+    /// <summary><c>ServiceSpec.MultiTenant</c>'tan türetilir — <c>options.EnableMultiTenancy()</c> bloğu için.</summary>
+    public bool HasMultiTenancy { get; set; }
 }
 
 /// <summary>appsettings / Dockerfile / docker-compose şablonları için model.</summary>

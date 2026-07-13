@@ -21,6 +21,8 @@ public sealed class BaseForgeOptions
 
     internal bool AuditLogEnabled { get; private set; }
 
+    internal bool MultiTenancyEnabled { get; private set; }
+
     internal JwtOptions? Jwt { get; private set; }
 
     internal RabbitMqOptions? RabbitMq { get; private set; }
@@ -65,6 +67,19 @@ public sealed class BaseForgeOptions
     public BaseForgeOptions EnableAuditLog()
     {
         AuditLogEnabled = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Multi-tenancy'yi etkinleştirir: <see cref="Core.Interfaces.ICurrentTenant"/>'ı HttpContext/JWT
+    /// (<c>tenant_id</c> claim'i) tabanlı implementasyonla kaydeder. <see cref="Infrastructure.Data.BaseForgeDbContext"/>
+    /// bunu <c>ITenantEntity</c> uygulayan entity'lerde otomatik <c>TenantId</c> damgalama ve
+    /// query filter için kullanır.
+    /// </summary>
+    /// <returns>Zincirleme için aynı seçenek nesnesi.</returns>
+    public BaseForgeOptions EnableMultiTenancy()
+    {
+        MultiTenancyEnabled = true;
         return this;
     }
 
