@@ -53,16 +53,20 @@ internal static class CodeGenerator
             written.Add(WriteFile(Path.Combine(outputDir, "Entities", name + ".cs"), code));
 
             var counters = BuildCounterNames(entity);
+            var fields = BuildScalars(entity);
             var feature = new FeatureFileModel
             {
                 Namespace = ns,
                 Name = name,
-                Fields = BuildScalars(entity),
+                Fields = fields,
                 Service = spec.Service.ToLowerInvariant(),
                 PublishCreated = entity.Publishes.Any(p => string.Equals(p, "created", StringComparison.OrdinalIgnoreCase)),
                 PublishUpdated = entity.Publishes.Any(p => string.Equals(p, "updated", StringComparison.OrdinalIgnoreCase)),
                 PublishDeleted = entity.Publishes.Any(p => string.Equals(p, "deleted", StringComparison.OrdinalIgnoreCase)),
                 Counters = counters,
+                SearchPredicate = entity.Searchable ? BuildSearchPredicate(fields) : null,
+                Paginated = entity.Paginated,
+                Sortable = entity.Sortable,
             };
             var featureDir = Path.Combine(outputDir, "Features", name + "s");
             written.Add(WriteFile(Path.Combine(featureDir, name + "Dto.cs"), TemplateEngine.Render(Templates.Dto, feature)));
@@ -85,6 +89,7 @@ internal static class CodeGenerator
                 AnonymousUpdate = isProtected && HasAnonymousAction(entity, "update"),
                 AnonymousDelete = isProtected && HasAnonymousAction(entity, "delete"),
                 Counters = counters,
+                Paginated = entity.Paginated,
             };
             var controller = TemplateEngine.Render(Templates.Controller, controllerModel);
             written.Add(WriteFile(Path.Combine(outputDir, "Controllers", name + "sController.cs"), controller));
@@ -619,6 +624,23 @@ internal static class CodeGenerator
         }
 
         return scalars;
+    }
+
+    /// <summary>
+    /// Entity'nin string/text alanları üzerinden, <c>List</c> sorgusunun <c>Search</c> filtresi için
+    /// <c>||</c> ile birleştirilmiş <c>EF.Functions.ILike(...)</c> ifadesini üretir. Hiç string alan
+    /// yoksa <see langword="null"/> döner (üretilen handler arama desteği sunmaz).
+    /// </summary>
+    private static string? BuildSearchPredicate(List<ScalarModel> fields)
+    {
+        var stringFields = fields.Where(f => f.Type is "string" or "string?").ToList();
+        return stringFields.Count == 0
+            ? null
+            : string.Join(" || ", stringFields.Select(f =>
+            {
+                var accessor = f.Type == "string?" ? $"(x.{f.Name} ?? string.Empty)" : $"x.{f.Name}";
+                return "EF.Functions.ILike(" + accessor + ", $\"%{request.Search}%\")";
+            }));
     }
 
     /// <summary>

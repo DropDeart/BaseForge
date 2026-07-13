@@ -22,6 +22,12 @@ export interface EntitySpec {
   props: Record<string, PropSpec>; // ad -> tanım
   relations?: Record<string, RelationSpec>;
   externalRefs?: Record<string, ExternalRefSpec>;
+  /** List sorgusu sayfalı mı (PagedResult<Dto>)? Varsayılan true — false ise bare liste. */
+  paginated?: boolean;
+  /** paginated=true iken SortBy dikkate alınsın mı? Varsayılan true. */
+  sortable?: boolean;
+  /** paginated=true iken Search (string alanlarda arama) dikkate alınsın mı? Varsayılan true. */
+  searchable?: boolean;
 }
 
 export interface ServiceAuthSpec {

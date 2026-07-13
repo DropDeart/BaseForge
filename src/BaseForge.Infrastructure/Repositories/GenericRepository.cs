@@ -1,7 +1,10 @@
 using BaseForge.Core.Entities;
+using BaseForge.Core.Exceptions;
 using BaseForge.Core.Interfaces;
 using BaseForge.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Dynamic.Core;
+using System.Linq.Dynamic.Core.Exceptions;
 
 namespace BaseForge.Infrastructure.Repositories;
 
@@ -38,6 +41,47 @@ public class GenericRepository<TEntity, TKey> : IRepository<TEntity, TKey>
     /// <inheritdoc />
     public virtual async Task<IReadOnlyList<TEntity>> ListAllAsync(CancellationToken cancellationToken = default)
         => await Set.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public virtual async Task<(IReadOnlyList<TEntity> Items, int TotalCount)> ListPagedAsync(
+        int skip,
+        int take,
+        string? sortBy,
+        Func<IQueryable<TEntity>, IQueryable<TEntity>>? applyFilter = null,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<TEntity> query = Set.AsNoTracking();
+        if (applyFilter is not null)
+        {
+            query = applyFilter(query);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        query = string.IsNullOrWhiteSpace(sortBy)
+            ? query.OrderByDescending(x => x.CreatedAt)
+            : ApplyDynamicSort(query, sortBy);
+
+        var items = await query.Skip(skip).Take(take).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return (items, totalCount);
+    }
+
+    /// <summary>
+    /// <paramref name="sortBy"/>'ı Dynamic LINQ ile uygular. İfade ayrıştırılamazsa ya da bilinmeyen bir
+    /// alana referans veriyorsa, çağıran tarafın 400'e çevirebilmesi için <see cref="ValidationException"/>
+    /// fırlatılır (ham parse/reflection istisnası sızdırılmaz).
+    /// </summary>
+    private static IQueryable<TEntity> ApplyDynamicSort(IQueryable<TEntity> query, string sortBy)
+    {
+        try
+        {
+            return query.OrderBy(sortBy);
+        }
+        catch (Exception ex) when (ex is ParseException or InvalidOperationException)
+        {
+            throw new ValidationException("sortBy", $"Geçersiz sıralama ifadesi: '{sortBy}'.");
+        }
+    }
 
     /// <inheritdoc />
     public virtual async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)

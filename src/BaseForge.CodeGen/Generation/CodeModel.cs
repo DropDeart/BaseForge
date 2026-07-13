@@ -101,6 +101,23 @@ internal sealed class FeatureFileModel
 
     /// <summary>Sayaç olarak işaretlenmiş <c>int</c> alanların adları (PascalCase) — her biri için ayrı bir Increment komutu/handler'ı üretilir.</summary>
     public List<string> Counters { get; set; } = [];
+
+    /// <summary>
+    /// <c>List</c> sorgusunun arama (<c>Search</c>) filtresi için, entity'nin string/text alanları üzerinden
+    /// <c>||</c> ile birleştirilmiş <c>EF.Functions.ILike(...)</c> ifadesi. Entity'nin hiç string alanı
+    /// yoksa veya <c>Searchable=false</c> ise <see langword="null"/> — bu durumda üretilen handler arama
+    /// desteği sunmaz.
+    /// </summary>
+    public string? SearchPredicate { get; set; }
+
+    /// <summary>
+    /// <c>List{Name}Query</c> sayfalı mı üretilsin (<c>PagedRequest</c>/<c>PagedResult&lt;Dto&gt;</c>)
+    /// yoksa eski bare-liste davranışı mı korunsun.
+    /// </summary>
+    public bool Paginated { get; set; } = true;
+
+    /// <summary><see cref="Paginated"/>=true iken <c>SortBy</c> dikkate alınsın mı.</summary>
+    public bool Sortable { get; set; } = true;
 }
 
 /// <summary>Controller şablonu için model.</summary>
@@ -130,6 +147,9 @@ internal sealed class ControllerFileModel
 
     /// <summary>Sayaç olarak işaretlenmiş alanların adları (PascalCase) — her biri için her zaman herkese açık bir increment ucu üretilir.</summary>
     public List<string> Counters { get; set; } = [];
+
+    /// <summary>List action'ı sayfalı mı (<c>[FromQuery] List{Name}Query</c> + <c>PagedResult&lt;Dto&gt;</c>) yoksa eski bare-liste mi.</summary>
+    public bool Paginated { get; set; } = true;
 }
 
 /// <summary>Program.cs şablonu için model.</summary>

@@ -19,6 +19,24 @@ public interface IRepository<TEntity, in TKey>
     /// <summary>Silinmemiş tüm kayıtları getirir.</summary>
     Task<IReadOnlyList<TEntity>> ListAllAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sayfalama ve dinamik sıralama uygulayarak kayıtları ve (sayfalamadan önceki) toplam sayıyı döner.
+    /// </summary>
+    /// <param name="skip">Atlanacak kayıt sayısı.</param>
+    /// <param name="take">Alınacak kayıt sayısı.</param>
+    /// <param name="sortBy">
+    /// Dynamic LINQ sıralama ifadesi (örn. <c>"Name desc"</c>). Boşsa <c>CreatedAt desc</c> varsayılanı
+    /// kullanılır; ifade geçersizse implementasyon <see cref="Exceptions.ValidationException"/> fırlatır.
+    /// </param>
+    /// <param name="applyFilter">Sayfalama/sıralamadan önce uygulanacak opsiyonel filtre (örn. arama).</param>
+    /// <param name="cancellationToken">İptal token'ı.</param>
+    Task<(IReadOnlyList<TEntity> Items, int TotalCount)> ListPagedAsync(
+        int skip,
+        int take,
+        string? sortBy,
+        Func<IQueryable<TEntity>, IQueryable<TEntity>>? applyFilter = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Yeni bir kayıt ekler.</summary>
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
 

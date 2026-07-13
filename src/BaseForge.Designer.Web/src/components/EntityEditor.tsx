@@ -19,6 +19,20 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
   const others = allEntities.filter((e) => e !== name);
   const [expandedProp, setExpandedProp] = useState<string | null>(null);
 
+  // Backend'de varsayılan true — alan yoksa (yeni entity) açık kabul edilir.
+  const paginated = entity.paginated !== false;
+  const sortable = entity.sortable !== false;
+  const searchable = entity.searchable !== false;
+
+  const listToggle = (label: string, value: boolean, enabled: boolean, onToggle: () => void) => (
+    <div className="toggle-row" style={enabled ? undefined : { opacity: 0.4 }}>
+      <button className={`toggle ${value ? "on" : ""}`} disabled={!enabled} onClick={onToggle}>
+        <span className="knob" />
+      </button>
+      <span className="hint">{label}</span>
+    </div>
+  );
+
   const updateProp = (pName: string, patch: Partial<PropSpec>) =>
     onChange({ ...entity, props: setKey(props, pName, { ...props[pName], ...patch }) });
 
@@ -34,6 +48,11 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
           <div style={{ flex: 0 }}>
             <button className="btn" onClick={onRemove}>Entity'yi sil</button>
           </div>
+        </div>
+        <div className="field-row" style={{ marginTop: 12, gap: 24 }}>
+          {listToggle("Sayfalama", paginated, true, () => onChange({ ...entity, paginated: !paginated }))}
+          {listToggle("Sıralama", sortable, paginated, () => onChange({ ...entity, sortable: !sortable }))}
+          {listToggle("Arama", searchable, paginated, () => onChange({ ...entity, searchable: !searchable }))}
         </div>
       </div>
 

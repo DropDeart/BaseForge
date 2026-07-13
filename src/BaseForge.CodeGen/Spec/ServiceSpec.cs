@@ -117,6 +117,27 @@ public sealed class EntitySpec
     /// (yalnızca ilgili alanı bir artırır; başka hiçbir alanı değiştirmez/döndürmez).
     /// </summary>
     public List<string> Counters { get; set; } = [];
+
+    /// <summary>
+    /// <c>List</c> sorgusu sayfalı mı? <see langword="true"/> ise <c>List{Entity}Query : PagedRequest</c>
+    /// olur ve <c>PagedResult&lt;Dto&gt;</c> döner; <see langword="false"/> ise eski davranış korunur —
+    /// parametresiz sorgu, bare <c>IReadOnlyList&lt;Dto&gt;</c>. Varsayılan <see langword="true"/>.
+    /// </summary>
+    public bool Paginated { get; set; } = true;
+
+    /// <summary>
+    /// <see cref="Paginated"/>=true iken <c>SortBy</c> (Dynamic LINQ ifadesi) dikkate alınsın mı?
+    /// <see langword="false"/> ise istek üzerinde alan yine de var ama yok sayılır — her zaman
+    /// varsayılan sıralama (<c>CreatedAt desc</c>) kullanılır. Varsayılan <see langword="true"/>.
+    /// </summary>
+    public bool Sortable { get; set; } = true;
+
+    /// <summary>
+    /// <see cref="Paginated"/>=true iken <c>Search</c> (string/text alanlarda ILIKE) dikkate alınsın mı?
+    /// <see langword="false"/> ise istekteki <c>Search</c> yok sayılır (entity'nin hiç string alanı
+    /// yoksa zaten etkisizdir). Varsayılan <see langword="true"/>.
+    /// </summary>
+    public bool Searchable { get; set; } = true;
 }
 
 /// <summary>Servis içi iki entity arasındaki ilişki.</summary>

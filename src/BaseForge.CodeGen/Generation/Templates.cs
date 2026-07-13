@@ -283,6 +283,9 @@ internal static class Templates
         using BaseForge.Core.CQRS;
         using BaseForge.Core.Interfaces;
         using {{ Namespace }}.Entities;
+        {{~ if SearchPredicate ~}}
+        using Microsoft.EntityFrameworkCore;
+        {{~ end ~}}
 
         namespace {{ Namespace }}.Features.{{ Name }}s;
 
@@ -307,6 +310,44 @@ internal static class Templates
             }
         }
 
+        {{~ if Paginated ~}}
+        /// <summary>{{ Name }} kayıtlarını sayfalı{{ if Sortable }}, sıralı{{ end }}{{ if SearchPredicate }} ve aranabilir{{ end }} biçimde listeler.</summary>
+        public sealed class List{{ Name }}Query : PagedRequest, IQuery<PagedResult<{{ Name }}Dto>>;
+
+        internal sealed class List{{ Name }}Handler : IQueryHandler<List{{ Name }}Query, PagedResult<{{ Name }}Dto>>
+        {
+            private readonly IRepository<{{ Name }}> _repository;
+
+            public List{{ Name }}Handler(IRepository<{{ Name }}> repository) => _repository = repository;
+
+            public async Task<PagedResult<{{ Name }}Dto>> Handle(List{{ Name }}Query request, CancellationToken cancellationToken)
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                var (items, totalCount) = await _repository.ListPagedAsync(
+                    request.Skip,
+                    request.PageSize,
+        {{~ if Sortable ~}}
+                    request.SortBy,
+        {{~ else ~}}
+                    null,
+        {{~ end ~}}
+        {{~ if SearchPredicate ~}}
+                    query => string.IsNullOrWhiteSpace(request.Search) ? query : query.Where(x => {{ SearchPredicate }}),
+        {{~ else ~}}
+                    null,
+        {{~ end ~}}
+                    cancellationToken);
+
+                return new PagedResult<{{ Name }}Dto>
+                {
+                    Items = items.Select({{ Name }}Dto.From).ToList(),
+                    TotalCount = totalCount,
+                    Page = request.Page,
+                    PageSize = request.PageSize,
+                };
+            }
+        }
+        {{~ else ~}}
         /// <summary>Tüm {{ Name }} kayıtlarını getirir.</summary>
         public sealed class List{{ Name }}Query : IQuery<IReadOnlyList<{{ Name }}Dto>>;
 
@@ -322,6 +363,7 @@ internal static class Templates
                 return items.Select({{ Name }}Dto.From).ToList();
             }
         }
+        {{~ end ~}}
 
         """;
 
@@ -444,6 +486,9 @@ internal static class Templates
     public const string Controller =
         """
         using BaseForge.API.Controllers;
+        {{~ if Paginated ~}}
+        using BaseForge.Core.CQRS;
+        {{~ end ~}}
         {{~ if Protect ~}}
         using Microsoft.AspNetCore.Authorization;
         {{~ end ~}}
@@ -470,6 +515,15 @@ internal static class Templates
                 return result is null ? NotFound() : Ok(result);
             }
 
+        {{~ if Paginated ~}}
+            /// <summary>{{ Name }} kayıtlarını sayfalı listeler (query string: page, pageSize, sortBy, search).</summary>
+            {{~ if AnonymousList ~}}
+            [AllowAnonymous]
+            {{~ end ~}}
+            [HttpGet]
+            public async Task<ActionResult<PagedResult<{{ Name }}Dto>>> List([FromQuery] List{{ Name }}Query query, CancellationToken cancellationToken)
+                => Ok(await Mediator.Send(query, cancellationToken));
+        {{~ else ~}}
             /// <summary>Tüm {{ Name }} kayıtlarını listeler.</summary>
             {{~ if AnonymousList ~}}
             [AllowAnonymous]
@@ -477,6 +531,7 @@ internal static class Templates
             [HttpGet]
             public async Task<ActionResult<IReadOnlyList<{{ Name }}Dto>>> List(CancellationToken cancellationToken)
                 => Ok(await Mediator.Send(new List{{ Name }}Query(), cancellationToken));
+        {{~ end ~}}
 
             /// <summary>Yeni bir {{ Name }} oluşturur.</summary>
             {{~ if AnonymousCreate ~}}
