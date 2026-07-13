@@ -66,3 +66,9 @@ Plan: `C:\Users\pc\.claude\plans\declarative-splashing-fox.md`. Otomatik yürüt
 - **Sonuç:** Plandaki 3 kapasitenin tamamı uygulandı, tüm solution + yeni birim testler yeşil. Yol boyunca plan aşamasında öngörülmeyen 3 gerçek hata bulunup düzeltildi (ProtoTypeMap nullable json round-trip, üretilen DbContext'in ICurrentUser/ICurrentTenant'ı forward etmemesi, Expression.Constant'ın private property lookup'ını kırması) — hepsi ya derleme ya da birim testleriyle yakalandı, hiçbiri elle keşfedilmedi.
 - **İncelemen gereken tek konu:** `services/BaseForge.Identity/Program.cs`, `AuthSpecValidator.cs`, `CliRunner.cs`, `DesignerEndpoints.cs`, `IdentityPanel.tsx` bu görevden ÖNCEKİ bir işten (seed admin parola politikası doğrulaması) kalan, hâlâ commit edilmemiş değişiklikler — bu logun kapsamı dışında, ayrı bir iş.
 
+## Sürüm güncellemesi (alpha → beta)
+
+Kullanıcı isteğiyle: `Directory.Build.props`'ta `<Version>` ve `src/BaseForge.CodeGen/Generation/CodeGenerator.cs`'teki `BaseForgeVersion` sabiti `0.2.1-alpha` → **`0.3.0-beta`** olarak güncellendi (ikisi senkron olmak zorunda — biri üretilen servislerin restore ettiği `PackageReference` sürümü, diğeri local pack/dev varsayılanı). `dotnet build BaseForge.slnx` ile doğrulandı, local feed + global `baseforge` aracı da `0.3.0-beta`'ya taşındı (`dotnet tool uninstall` + `install` gerekti — semver'de `-local` etiketi `-beta`'dan "büyük" sayıldığından `update` reddetti).
+
+**Kullanıcının yapacağı (nuget.org push):** GitHub Release oluşturulurken tag **`v0.3.0-beta`** olmalı — `.github/workflows/publish.yml` sürümü tag'den alıp `v` prefix'ini düşürüyor; tag'in `CodeGenerator.cs`'e gömülü sabit sürümle (`0.3.0-beta`) birebir eşleşmesi zorunlu, aksi halde üretilen servisler nuget.org'da olmayan bir sürüm ister.
+

@@ -6,7 +6,7 @@ namespace BaseForge.CodeGen.Generation;
 internal static class CodeGenerator
 {
     /// <summary>Üretilen kodun referans verdiği BaseForge NuGet paket sürümü.</summary>
-    private const string BaseForgeVersion = "0.2.1-alpha";
+    private const string BaseForgeVersion = "0.3.0-beta";
 
     /// <summary>Identity'nin gömülü <c>user.proto</c> kaynağındaki referans namespace'i.</summary>
     private const string IdentityReferenceNamespace = "BaseForge.Identity";
