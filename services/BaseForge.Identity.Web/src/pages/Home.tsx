@@ -5,11 +5,38 @@ import { Badge } from "../components/ui/badge";
 import { api } from "../api";
 import type { ServiceRegistryEntry } from "../types";
 
+const STATUS_POLL_INTERVAL_MS = 10_000;
+
 export function Home() {
   const [services, setServices] = useState<ServiceRegistryEntry[] | "loading">("loading");
+  const [statusByName, setStatusByName] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     api.services().then(setServices);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    // setInterval yerine kendini yeniden zamanlayan setTimeout: yavaş/kilitli bir yanıt varken
+    // bir sonraki poll, öncekinin bitmesini beklemeden tetiklenip isteklerin üst üste binmesine
+    // (ve her biri kendi 2 saniyelik HttpClient timeout'unu beklemesine) yol açmaz.
+    const poll = () => {
+      api.serviceStatus().then((rows) => {
+        if (cancelled) {
+          return;
+        }
+        setStatusByName(Object.fromEntries(rows.map((r) => [r.name, r.healthy])));
+        timer = setTimeout(poll, STATUS_POLL_INTERVAL_MS);
+      });
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   const connected = services === "loading" ? [] : services.filter((s) => !s.isIdentity);
@@ -51,7 +78,10 @@ export function Home() {
           {connected.map((s) => (
             <Card key={s.name}>
               <CardHeader>
-                <CardTitle className="capitalize">{s.name}</CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="capitalize">{s.name}</CardTitle>
+                  <StatusDot healthy={statusByName[s.name]} />
+                </div>
                 <CardDescription>
                   {s.entityCount !== null ? `${s.entityCount} entity` : "servis"}
                   {s.restPort ? ` · :${s.restPort}` : ""}
@@ -97,5 +127,21 @@ function DiagramArrow({ label }: { label: string }) {
       <span className="text-[10px] whitespace-nowrap text-slate-400">{label}</span>
       <span className="rotate-90 text-lg leading-none sm:rotate-0">→</span>
     </div>
+  );
+}
+
+function StatusDot({ healthy }: { healthy: boolean | undefined }) {
+  const { dot, text, label } =
+    healthy === undefined
+      ? { dot: "bg-slate-300", text: "text-slate-400", label: "Kontrol ediliyor…" }
+      : healthy
+        ? { dot: "bg-emerald-500", text: "text-emerald-700", label: "Ayakta" }
+        : { dot: "bg-red-500", text: "text-red-700", label: "Kapalı" };
+
+  return (
+    <span className={`flex items-center gap-1.5 text-[11px] font-medium ${text}`}>
+      <span className={`h-2 w-2 rounded-full ${dot}`} />
+      {label}
+    </span>
   );
 }

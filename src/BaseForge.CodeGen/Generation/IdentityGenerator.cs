@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using BaseForge.CodeGen.Spec;
+using BaseForge.CodeGen.Contracts;
 
 namespace BaseForge.CodeGen.Generation;
 
@@ -298,6 +298,7 @@ internal static class IdentityGenerator
 
         FROM mcr.microsoft.com/dotnet/aspnet:10.0
         WORKDIR /app
+        RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
         COPY --from=build /app .
         ENTRYPOINT ["dotnet", "{ns}.dll"]
 
@@ -349,6 +350,12 @@ internal static class IdentityGenerator
               - "{{grpcPort}}:8081"   # gRPC (h2c) — merkez User entity'sine erişim
             volumes:
               - {{spec.Service}}-avatars:/app/wwwroot/uploads   # profil fotoğrafları — container recreate'te kaybolmasın
+            healthcheck:
+              test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+              interval: 10s
+              timeout: 3s
+              retries: 5
+              start_period: 15s
             depends_on:
               postgres:
                 condition: service_healthy

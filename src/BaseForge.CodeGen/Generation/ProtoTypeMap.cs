@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace BaseForge.CodeGen.Spec;
+namespace BaseForge.CodeGen.Generation;
 
 /// <summary>
 /// Spec tip adlarını proto3 skaler tiplerine ve C#↔proto dönüşüm ifadelerine eşler.

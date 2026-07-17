@@ -182,6 +182,50 @@ Her mikroservis kendi konsol çıktısına hapsolmuş durumdaydı — bir isteğ
 - `Serilog:LokiUrl` boşsa/erişilemezse konsola düşülür; erişilemezse artık `SelfLog` ile stderr'e tanılama mesajı yazılır (2026-07-16) — ama bu tam bir healthcheck/retry değil, yalnızca görünürlük.
 - gRPC client interceptor'ı yalnızca unary çağrıları destekler (CodeGen bugün yalnızca unary `GetById` üretiyor — streaming RPC yok).
 
+### 5.7. Health Check ve Servis Durumu İzleme
+
+Docker-compose'daki `healthcheck:` blokları önceden yalnızca altyapı container'ları (Postgres `pg_isready`,
+RabbitMQ `rabbitmq-diagnostics ping`) içindi — üretilen servisin kendi uygulama container'ının canlı olup
+olmadığını gösteren bir app-level probe yoktu, dolayısıyla Identity dashboard'unun "Servisler" bölümü de
+sadece codegen anında donmuş bir `services.json` anlık görüntüsü gösteriyordu (isim/port/entity sayısı,
+canlılık bilgisi yok).
+
+**Tasarım kararı — her zaman açık:** §5.6'daki loglama gibi, `/health` de `spec.yaml`'da opt-in bir toggle
+**değildir** — amacı tam olarak Identity'nin her servisi güvenilir şekilde yoklayabilmesi; opt-in olsaydı
+bazı servisler dashboard'da görünmezdi.
+
+- **`/health` endpoint'i (BaseForge.API):** `AddBaseForge` her zaman `AddHealthChecks()` çağırır; `UsePostgreSQL`
+  ile bir bağlantı dizesi verildiyse (her zaman verilir) `PostgresHealthCheck` (Infrastructure, ham
+  `NpgsqlConnection` + `SELECT 1` — ayrı bir `AspNetCore.HealthChecks.NpgSql` bağımlılığı eklemeden) bir
+  `"postgresql"` check'i olarak eklenir. `UseBaseForge` (artık `WebApplication` alıyor — endpoint eşleme
+  gerektiği için `IApplicationBuilder`'dan genişletildi) `/health`'i JWT/`[Authorize]`'dan bağımsız
+  (`Protect` per-controller uygulanıyor, global filtre yok) küçük özel bir JSON response writer'la eşler:
+  `{"status":"Healthy","checks":[{"name":"postgresql","status":"Healthy","durationMs":12}]}`.
+- **Docker healthcheck:** CodeGen'in `docker-compose.yml`/`Dockerfile` şablonlarına (`Templates.cs`,
+  identity için `IdentityGenerator.BuildCompose`/`BuildDockerfile`) `curl -f http://localhost:8080/health`
+  tabanlı bir `healthcheck:` bloğu eklendi; `mcr.microsoft.com/dotnet/aspnet:10.0` curl içermediği için final
+  Docker stage'e `apt-get install curl` eklendi.
+- **Identity'nin canlı yoklaması (`ServicesApiController.Status`, `GET /api/services/status`):** Identity
+  kendisi hariç kayıtlı her servisi `host.docker.internal:{restPort}/health` üzerinden yoklar — her üretilen
+  servis kendi bağımsız docker-compose ağında çalıştığı için (container DNS'i paylaşılmıyor), mevcut
+  cross-service gRPC deseniyle (§7.1, `CrossServiceHost = "host.docker.internal"`) aynı host-mapped port
+  yaklaşımı kullanılır. Bu, kod tabanındaki **ilk server-to-server `HttpClient`** kullanımı (`"ServiceHealthClient"`,
+  2 saniye timeout, `AddHttpClient` ile adlandırılmış) — bugüne kadar servisler arası iletişim yalnızca
+  gRPC/RabbitMQ idi.
+- **Dashboard (React):** `Home.tsx` mevcut statik `services.json` listesini (isim/port/entity sayısı)
+  `/api/services/status`'un döndürdüğü canlı `{name, healthy, checkedAt}` listesiyle isim eşleştirerek
+  birleştirir; 10 saniyede bir `setInterval` ile yeniler, her kartta yeşil/kırmızı/gri nokta + "Ayakta"/
+  "Kapalı"/"Kontrol ediliyor…" rozeti gösterir.
+
+**v1 sınırlamaları (bilinçli, dokümante edilen basitlik):**
+
+- Geçmişe dönük uptime/downtime kaydı veya grafik yok — sadece anlık durum (pull/polling, push değil).
+- `/health` ve `/api/services/status` kimlik doğrulamasız — statik `services.json`'ın zaten paylaştığı
+  trust seviyesiyle tutarlı (internal/ops amaçlı, dashboard zaten aynı trust boundary'de).
+- Otomatik alarm/bildirim (servis düşünce e-posta/Slack) yok — ayrı bir gelecek özellik.
+- Yerel (`dotnet run`, container dışı) çalıştırmada `host.docker.internal` çözümlemesi garanti değil —
+  mevcut gRPC cross-service deseninin de paylaştığı bilinen bir kısıt, yeni bir risk değil.
+
 ## 6. Kimlik Doğrulama
 
 - Merkezi tek bir **Identity Service** vardır (JWT / OAuth2).

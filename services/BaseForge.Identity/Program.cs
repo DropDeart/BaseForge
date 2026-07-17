@@ -3,9 +3,11 @@ using BaseForge.Identity.Authentication;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 // CreateBuilder'dan ÖNCE yüklenmeli — aksi halde environment-variable configuration
@@ -161,6 +163,13 @@ builder.Services.AddControllers();
 // Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin gRPC ile salt-okunur erişimi.
 builder.Services.AddGrpc();
 
+// Her üretilen servisle aynı /health sözleşmesi (bkz. BaseForge.API.Extensions.ApplicationBuilderExtensions).
+builder.Services.AddHealthChecks().AddCheck("postgresql", new PostgresHealthCheck(connectionString));
+
+// Dashboard'un "Servisler" bölümünün diğer servisleri host.docker.internal üzerinden yoklaması için
+// (bkz. ServicesApiController) — kod tabanındaki ilk server-to-server HttpClient kullanımı.
+builder.Services.AddHttpClient("ServiceHealthClient", c => c.Timeout = TimeSpan.FromSeconds(2));
+
 var app = builder.Build();
 
 // Reverse proxy (nginx vb.) arkasında çalışırken gerçek şema/host'u (https, gerçek domain) Kestrel'e
@@ -190,9 +199,22 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGrpcService<BaseForge.Identity.Grpc.UserGrpcService>();
+app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthReportAsync });
 
 // Ortak Giriş SPA'sı (Login/Register/Admin) wwwroot'a gömülü — client-side route'lar (örn. /Account/Login)
 // için index.html fallback'i. /api, /connect ve gRPC uçları yukarıda zaten eşlendiği için önceliklidir.
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+static Task WriteHealthReportAsync(HttpContext context, HealthReport report) =>
+    context.Response.WriteAsJsonAsync(new
+    {
+        status = report.Status.ToString(),
+        checks = report.Entries.Select(e => new
+        {
+            name = e.Key,
+            status = e.Value.Status.ToString(),
+            durationMs = e.Value.Duration.TotalMilliseconds,
+        }),
+    });

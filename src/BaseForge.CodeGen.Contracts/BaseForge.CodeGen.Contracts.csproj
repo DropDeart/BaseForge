@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>BaseForge.CodeGen.Contracts</PackageId>
+    <Description>BaseForge.CodeGen'in servis/entity spec modelini (ServiceSpec, AuthSpec, YAML yükleme/doğrulama) dış tüketicilerle (ör. bağımsız UI generator'lar) paylaşan, saf veri sözleşmesi paketi.</Description>
+    <!-- YamlDotNet'e deserialize edilen DTO'lar: koleksiyon property'leri kasıtlı olarak settable
+         (CA2227). ProtoTypeMap gibi codegen'e özgü iş mantığı burada yok (CA1031/CA1812 BaseForge.CodeGen
+         ile aynı gerekçeyle gevşetildi). -->
+    <NoWarn>$(NoWarn);CA2227;CA1812;CA1031</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="18.0.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,9 +1,9 @@
 using System.Globalization;
 
-namespace BaseForge.CodeGen.Spec;
+namespace BaseForge.CodeGen.Contracts;
 
 /// <summary>Bir <see cref="ServiceSpec"/>'i kod/diyagram üretiminden önce doğrular.</summary>
-internal static class SpecValidator
+public static class SpecValidator
 {
     private static readonly string[] AllowedKinds = ["one-to-many", "many-to-one", "one-to-one"];
 

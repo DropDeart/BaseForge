@@ -1,4 +1,4 @@
-namespace BaseForge.CodeGen.Spec;
+namespace BaseForge.CodeGen.Contracts;
 
 /// <summary>Bir mikroservisin (bounded context) tam tanımı. Tek YAML dosyası = tek servis = tek DB.</summary>
 public sealed class ServiceSpec

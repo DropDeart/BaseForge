@@ -26,3 +26,8 @@ export interface ServiceRegistryEntry {
   audience: string | null;
   protected: boolean;
 }
+
+export interface ServiceStatusRow {
+  name: string;
+  healthy: boolean;
+}

@@ -22,6 +22,10 @@
     <PackageReference Include="YamlDotNet" Version="18.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\BaseForge.CodeGen.Contracts\BaseForge.CodeGen.Contracts.csproj" />
+  </ItemGroup>
+
   <!-- Identity referans servisi dosyaları: new-identity için gömülü şablon (tek doğru kaynak).
        Üretimde 'BaseForge.Identity' namespace'i kullanıcının servis adıyla değiştirilir. -->
   <ItemGroup>
@@ -30,9 +34,11 @@
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Entities\ApplicationUser.cs" LogicalName="identity/Entities/ApplicationUser.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\IdentityServiceDbContext.cs" LogicalName="identity/Data/IdentityServiceDbContext.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\SeedData.cs" LogicalName="identity/Data/SeedData.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\PostgresHealthCheck.cs" LogicalName="identity/Data/PostgresHealthCheck.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AuthorizationController.cs" LogicalName="identity/Controllers/AuthorizationController.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AccountApiController.cs" LogicalName="identity/Controllers/AccountApiController.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AdminUsersApiController.cs" LogicalName="identity/Controllers/AdminUsersApiController.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\ServicesApiController.cs" LogicalName="identity/Controllers/ServicesApiController.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Authentication\ExternalProviders.cs" LogicalName="identity/Authentication/ExternalProviders.cs" />
     <!-- Merkez kullanıcı (User) gRPC servisi: new-identity için kopyalanır. Aynı "identity/Protos/user.proto"
          kaynağı, "identity/User" dış referansı çözümlenirken CodeGenerator tarafından da doğrudan okunur

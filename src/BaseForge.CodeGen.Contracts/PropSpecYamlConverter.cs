@@ -3,17 +3,19 @@ using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 using YamlDotNet.Serialization;
 
-namespace BaseForge.CodeGen.Spec;
+namespace BaseForge.CodeGen.Contracts;
 
 /// <summary>
 /// <see cref="PropSpec"/> için özel YAML dönüştürücü. Geriye dönük uyumluluk amacıyla iki formu da
 /// destekler: düz scalar (<c>total: decimal</c>) ve zengin obje (<c>total: { type: decimal, nullable: true }</c>).
 /// Yazarken de aynı kurala uyar: nullable/maxLength/default hepsi varsayılandaysa düz scalar üretir.
 /// </summary>
-internal sealed class PropSpecYamlConverter : IYamlTypeConverter
+public sealed class PropSpecYamlConverter : IYamlTypeConverter
 {
+    /// <summary>Bu dönüştürücünün yalnızca <see cref="PropSpec"/> tipini işlediğini belirtir.</summary>
     public bool Accepts(Type type) => type == typeof(PropSpec);
 
+    /// <summary>Bir <see cref="PropSpec"/>'i YAML'dan (scalar veya zengin obje biçiminde) okur.</summary>
     public object ReadYaml(IParser parser, Type type, ObjectDeserializer rootDeserializer)
     {
         if (parser.TryConsume<Scalar>(out var scalar))
@@ -50,6 +52,7 @@ internal sealed class PropSpecYamlConverter : IYamlTypeConverter
         return spec;
     }
 
+    /// <summary>Bir <see cref="PropSpec"/>'i YAML'a yazar (tüm alanlar varsayılandaysa düz scalar olarak).</summary>
     public void WriteYaml(IEmitter emitter, object? value, Type type, ObjectSerializer serializer)
     {
         var spec = (PropSpec)value!;

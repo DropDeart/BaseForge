@@ -917,6 +917,7 @@ internal static class Templates
 
         FROM mcr.microsoft.com/dotnet/aspnet:10.0
         WORKDIR /app
+        RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
         COPY --from=build /app .
         ENTRYPOINT ["dotnet", "{{ Namespace }}.dll"]
 
@@ -962,6 +963,12 @@ internal static class Templates
               - "{{ GrpcPort }}:8081"   # gRPC (h2c, TLS'siz HTTP/2)  — Kestrel:Endpoints:Grpc
             volumes:
               - {{ Service }}-uploads:/app/wwwroot/uploads   # MediaController'ın kaydettiği dosyalar — container recreate'te kaybolmasın
+            healthcheck:
+              test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+              interval: 10s
+              timeout: 3s
+              retries: 5
+              start_period: 15s
             depends_on:
               postgres:
                 condition: service_healthy

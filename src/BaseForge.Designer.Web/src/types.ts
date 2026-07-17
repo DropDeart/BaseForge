@@ -1,4 +1,4 @@
-// C# BaseForge.CodeGen.Spec sınıflarının TypeScript karşılıkları (camelCase).
+// C# BaseForge.CodeGen.Contracts sınıflarının TypeScript karşılıkları (camelCase).
 
 export interface RelationSpec {
   kind: string; // one-to-many | many-to-one | one-to-one

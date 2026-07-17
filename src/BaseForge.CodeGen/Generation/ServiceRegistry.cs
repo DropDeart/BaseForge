@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using BaseForge.CodeGen.Spec;
+using BaseForge.CodeGen.Contracts;
 
 namespace BaseForge.CodeGen.Generation;
 

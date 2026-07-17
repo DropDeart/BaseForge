@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Security;
 using System.Text;
-using BaseForge.CodeGen.Spec;
+using BaseForge.CodeGen.Contracts;
 
 namespace BaseForge.CodeGen.Generation;
 

@@ -1,6 +1,6 @@
+using BaseForge.CodeGen.Contracts;
 using BaseForge.CodeGen.Designer;
 using BaseForge.CodeGen.Generation;
-using BaseForge.CodeGen.Spec;
 
 namespace BaseForge.CodeGen.Cli;
 
@@ -52,10 +52,29 @@ internal static class CliRunner
     private static int RunUpdate(List<string> positional, Dictionary<string, string> options)
     {
         var service = positional.FirstOrDefault() ?? options.GetValueOrDefault("service", "service");
-        var specPath = Path.Combine(Directory.GetCurrentDirectory(), service, "spec.yaml");
-        if (!File.Exists(specPath))
+        var cwd = Directory.GetCurrentDirectory();
+
+        // Identity servisi auth.yaml kullanır, spec.yaml değil — ve klasör adı auth.yaml'daki
+        // 'Service' alanı "identity" dışında bir şeye değiştirilmiş olabilir. Gerçek adı, Designer'ın
+        // kendi identity panel yüklemesiyle (bkz. DesignerEndpoints.ResolveIdentityFolderName) aynı
+        // paylaşılan kayıttan (ServiceRegistry) çözülür; aksi halde her 'update identity' çağrısında
+        // var olmayan bir spec.yaml aranıp yanlışlıkla "bulunamadı" uyarısı basılırdı.
+        var identityName = ServiceRegistry.LoadForWorkspace(cwd).FirstOrDefault(e => e.IsIdentity)?.Name;
+        if (string.Equals(service, identityName ?? "identity", StringComparison.OrdinalIgnoreCase))
         {
-            Console.WriteLine($"Uyarı: '{specPath}' bulunamadı — boş bir spec ile açılıyor (yeni servis gibi).");
+            var authPath = Path.Combine(cwd, identityName ?? service, "auth.yaml");
+            if (!File.Exists(authPath))
+            {
+                Console.WriteLine($"Uyarı: '{authPath}' bulunamadı — boş bir auth spec ile açılıyor (yeni identity gibi).");
+            }
+        }
+        else
+        {
+            var specPath = Path.Combine(cwd, service, "spec.yaml");
+            if (!File.Exists(specPath))
+            {
+                Console.WriteLine($"Uyarı: '{specPath}' bulunamadı — boş bir spec ile açılıyor (yeni servis gibi).");
+            }
         }
 
         return DesignerServer.Run(service, ParsePort(options), loadExisting: true);

@@ -1,4 +1,4 @@
-import type { AdminUserRow, MeResponse, ServiceRegistryEntry } from "./types";
+import type { AdminUserRow, MeResponse, ServiceRegistryEntry, ServiceStatusRow } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -94,5 +94,13 @@ export const api = {
     }
     const data = (await res.json()) as { services?: ServiceRegistryEntry[] };
     return data.services ?? [];
+  },
+
+  serviceStatus: async (): Promise<ServiceStatusRow[]> => {
+    const res = await fetch("/api/services/status", { credentials: "same-origin" });
+    if (!res.ok) {
+      return [];
+    }
+    return (await res.json()) as ServiceStatusRow[];
   },
 };

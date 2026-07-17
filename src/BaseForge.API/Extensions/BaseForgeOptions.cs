@@ -15,6 +15,8 @@ public sealed class BaseForgeOptions
 {
     internal Action<IServiceCollection>? InfrastructureRegistration { get; private set; }
 
+    internal string? ConnectionString { get; private set; }
+
     internal bool CqrsEnabled { get; private set; }
 
     internal Assembly[] HandlerAssemblies { get; private set; } = [];
@@ -38,6 +40,7 @@ public sealed class BaseForgeOptions
         where TContext : BaseForgeDbContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        ConnectionString = connectionString;
         InfrastructureRegistration = services => services.AddBaseForgeInfrastructure<TContext>(connectionString);
         return this;
     }

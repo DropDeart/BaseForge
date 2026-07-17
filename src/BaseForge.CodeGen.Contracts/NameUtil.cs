@@ -1,10 +1,11 @@
 using System.Globalization;
 
-namespace BaseForge.CodeGen.Spec;
+namespace BaseForge.CodeGen.Contracts;
 
 /// <summary>İsim dönüşümleri (PascalCase, camelCase, basit çoğullama).</summary>
-internal static class NameUtil
+public static class NameUtil
 {
+    /// <summary>Verilen adın ilk harfini büyütür (PascalCase).</summary>
     public static string Pascal(string value)
     {
         if (string.IsNullOrEmpty(value))
@@ -15,6 +16,7 @@ internal static class NameUtil
         return char.ToUpper(value[0], CultureInfo.InvariantCulture) + value[1..];
     }
 
+    /// <summary>Verilen adın ilk harfini küçültür (camelCase).</summary>
     public static string Camel(string value)
     {
         if (string.IsNullOrEmpty(value))

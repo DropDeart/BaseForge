@@ -3,6 +3,7 @@ using BaseForge.API.Authentication;
 using BaseForge.Core.Interfaces;
 using BaseForge.Core.Logging;
 using BaseForge.Core.Messaging;
+using BaseForge.Infrastructure.Data;
 using BaseForge.Infrastructure.Logging;
 using BaseForge.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -45,6 +46,14 @@ public static class ServiceCollectionExtensions
 
         // 1) Veri erişimi (DbContext + repository + UnitOfWork + Dapper)
         options.InfrastructureRegistration?.Invoke(services);
+
+        // 1b) Health check — her zaman açık (opt-in yapılmadı: amacı Identity'nin her servisi
+        // güvenilir şekilde yoklayabilmesi, opt-in olsaydı bazı servisler dashboard'da görünmezdi).
+        var healthChecks = services.AddHealthChecks();
+        if (options.ConnectionString is not null)
+        {
+            healthChecks.AddCheck("postgresql", new PostgresHealthCheck(options.ConnectionString));
+        }
 
         // 2) CQRS (MediatR)
         if (options.CqrsEnabled)

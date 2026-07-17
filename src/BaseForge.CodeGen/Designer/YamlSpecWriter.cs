@@ -1,4 +1,4 @@
-using BaseForge.CodeGen.Spec;
+using BaseForge.CodeGen.Contracts;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 

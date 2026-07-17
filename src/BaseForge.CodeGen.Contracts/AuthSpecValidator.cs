@@ -1,7 +1,7 @@
-namespace BaseForge.CodeGen.Spec;
+namespace BaseForge.CodeGen.Contracts;
 
 /// <summary>Bir <see cref="AuthSpec"/>'i identity servisi üretiminden önce doğrular.</summary>
-internal static class AuthSpecValidator
+public static class AuthSpecValidator
 {
     /// <summary>Spec'i doğrular ve bulunan hataların listesini döndürür (boşsa geçerli).</summary>
     public static IReadOnlyList<string> Validate(AuthSpec spec)

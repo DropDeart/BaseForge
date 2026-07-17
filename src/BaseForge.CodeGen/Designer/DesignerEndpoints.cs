@@ -1,5 +1,5 @@
+using BaseForge.CodeGen.Contracts;
 using BaseForge.CodeGen.Generation;
-using BaseForge.CodeGen.Spec;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

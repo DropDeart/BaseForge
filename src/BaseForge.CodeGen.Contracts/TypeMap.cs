@@ -1,7 +1,7 @@
-namespace BaseForge.CodeGen.Spec;
+namespace BaseForge.CodeGen.Contracts;
 
 /// <summary>Spec tip adlarını C# ve (görselleştirme için) veritabanı tiplerine eşler.</summary>
-internal static class TypeMap
+public static class TypeMap
 {
     private static readonly Dictionary<string, (string CSharp, string Display)> Map =
         new(StringComparer.OrdinalIgnoreCase)
@@ -29,11 +29,14 @@ internal static class TypeMap
         "double", "float", "bool", "datetime", "date", "guid", "uuid", "json",
     ];
 
+    /// <summary>Verilen spec tip adının bilinen (desteklenen) bir tip olup olmadığını döner.</summary>
     public static bool IsKnown(string specType) => Map.ContainsKey(specType.Trim());
 
+    /// <summary>Spec tip adının karşılık geldiği C# tipini döner (bilinmiyorsa girdiyi olduğu gibi geri verir).</summary>
     public static string ToCSharp(string specType)
         => Map.TryGetValue(specType.Trim(), out var v) ? v.CSharp : specType.Trim();
 
+    /// <summary>Spec tip adının görselleştirme (DB) tipini döner (bilinmiyorsa girdiyi olduğu gibi geri verir).</summary>
     public static string ToDisplay(string specType)
         => Map.TryGetValue(specType.Trim(), out var v) ? v.Display : specType.Trim();
 }
