@@ -3,6 +3,7 @@ import { api } from "./api/client";
 import { EntityEditor } from "./components/EntityEditor";
 import { IdentityPanel } from "./components/IdentityPanel";
 import { ErDiagram } from "./components/ErDiagram";
+import { UiDesignLauncher } from "./components/UiDesignLauncher";
 import type { AuthSpec, DockerPortsSpec, GenerateResponse, Meta, ServiceSpec, WorkspaceEntry } from "./types";
 import { removeKey, renameKey, setKey, uniqueKey } from "./util";
 
@@ -376,7 +377,15 @@ export function App() {
                 <div className="empty">Soldan bir entity seçin ya da yeni ekleyin.</div>
               )}
 
-              <GenerateResult key={result?.output} errors={errors} result={result} restPort={spec.dockerPorts?.rest ?? 8080} linkPath="/scalar/v1" />
+              <GenerateResult
+                key={result?.output}
+                errors={errors}
+                result={result}
+                restPort={spec.dockerPorts?.rest ?? 8080}
+                linkPath="/scalar/v1"
+                workspace={workspace}
+                defaultService={spec.service}
+              />
             </div>
           </div>
         )}
@@ -398,11 +407,15 @@ function GenerateResult({
   result,
   restPort,
   linkPath,
+  workspace,
+  defaultService,
 }: {
   errors: string[];
   result: GenerateResponse | null;
   restPort: number;
   linkPath: string;
+  workspace?: WorkspaceEntry[];
+  defaultService?: string;
 }) {
   const [running, setRunning] = useState<"idle" | "starting" | "running" | "stopping">("idle");
   const [runUrl, setRunUrl] = useState<string | null>(null);
@@ -472,6 +485,9 @@ function GenerateResult({
               )}
               {runError && <div className="hint" style={{ color: "var(--red)" }}>{runError}</div>}
             </div>
+          )}
+          {result.buildSuccess && workspace && defaultService && (
+            <UiDesignLauncher workspace={workspace} defaultService={defaultService} />
           )}
         </>
       )}

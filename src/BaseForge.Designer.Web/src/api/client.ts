@@ -1,4 +1,13 @@
-import type { AuthSpec, GenerateResponse, Meta, RunResponse, ServiceSpec, StopResponse, WorkspaceEntry } from "../types";
+import type {
+  AuthSpec,
+  GenerateResponse,
+  Meta,
+  RunResponse,
+  ServiceSpec,
+  StopResponse,
+  UiDesignLaunchResponse,
+  WorkspaceEntry,
+} from "../types";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok && res.status !== 400) {
@@ -50,4 +59,11 @@ export const api = {
     }).then((r) => json<StopResponse>(r)),
 
   shutdown: () => fetch("/api/shutdown", { method: "POST" }),
+
+  launchUiDesign: (services: string[]) =>
+    fetch("/api/ui-design/launch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ services }),
+    }).then((r) => json<UiDesignLaunchResponse>(r)),
 };

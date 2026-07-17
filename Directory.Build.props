@@ -24,7 +24,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>microservice;clean-architecture;cqrs;mediatr;efcore;dapper;postgresql;base-library</PackageTags>
-    <Version>4.1.0</Version>
+    <Version>0.4.1-beta</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 

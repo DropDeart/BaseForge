@@ -106,6 +106,19 @@ internal static class DesignerEndpoints
             lifetime.StopApplication();
             return Results.Ok();
         });
+
+        // "Arayüz oluştur": ayrı bir tool olan 'uidesign'ı (BaseForge.UiDesigner.Cli) seçilen
+        // servislerle başlatır. Tool kurulu değilse kurulum talimatı döner (bkz. UiDesignRunner).
+        api.MapPost("/ui-design/launch", async (UiDesignLaunchRequest req, DesignerContext ctx, CancellationToken ct) =>
+        {
+            if (req.Services.Count == 0)
+            {
+                return Results.BadRequest(new UiDesignLaunchResponse(false, null, "En az bir servis seçilmelidir."));
+            }
+
+            var result = await UiDesignRunner.LaunchAsync(ctx.WorkingDirectory, req.Services, ct);
+            return Results.Ok(new UiDesignLaunchResponse(result.Success, result.Url, result.Message));
+        });
     }
 
     private static string ResolveOutput(string? requested, DesignerContext ctx, string service)
@@ -315,4 +328,8 @@ internal static class DesignerEndpoints
     private sealed record StopRequest(string Output);
 
     private sealed record StopResponse(bool Stopped);
+
+    private sealed record UiDesignLaunchRequest(IReadOnlyList<string> Services);
+
+    private sealed record UiDesignLaunchResponse(bool Success, string? Url, string Message);
 }

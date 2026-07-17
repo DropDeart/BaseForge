@@ -152,3 +152,10 @@ export interface RunResponse {
 export interface StopResponse {
   stopped: boolean;
 }
+
+/** UiDesignRunner.cs'deki LaunchResult'ın camelCase karşılığı — 'uidesign' tool'unu başlatma sonucu. */
+export interface UiDesignLaunchResponse {
+  success: boolean;
+  url?: string | null;
+  message: string;
+}
