@@ -3,10 +3,35 @@ import { api } from "./api/client";
 import { EntityEditor } from "./components/EntityEditor";
 import { IdentityPanel } from "./components/IdentityPanel";
 import { ErDiagram } from "./components/ErDiagram";
-import type { AuthSpec, GenerateResponse, Meta, ServiceSpec } from "./types";
+import type { AuthSpec, DockerPortsSpec, GenerateResponse, Meta, ServiceSpec, WorkspaceEntry } from "./types";
 import { removeKey, renameKey, setKey, uniqueKey } from "./util";
 
 type View = "service" | "identity" | "er";
+
+/** Workspace'teki en yüksek kullanılan portun bir fazlası; hiç kayıt yoksa verilen taban. */
+function nextPort(workspace: WorkspaceEntry[], key: "restPort" | "grpcPort" | "postgresPort", base: number): number {
+  const used = workspace.map((e) => e[key]).filter((p): p is number => typeof p === "number" && p > 0);
+  return used.length > 0 ? Math.max(...used) + 1 : base;
+}
+
+/** identity'nin varsayılan tabanı (8081/8082) diğer servislerinkinden (8080/8081) farklı — mevcut IdentityGenerator konvansiyonuyla tutarlı. */
+function suggestPorts(workspace: WorkspaceEntry[], isIdentity: boolean): DockerPortsSpec {
+  return {
+    rest: nextPort(workspace, "restPort", isIdentity ? 8081 : 8080),
+    grpc: nextPort(workspace, "grpcPort", isIdentity ? 8082 : 8081),
+    postgres: nextPort(workspace, "postgresPort", 5432),
+  };
+}
+
+/** Workspace'te identity zaten üretilmişse Docker-doğru adresi (host.docker.internal:{gerçek REST portu}) önerir. */
+function suggestAuthority(workspace: WorkspaceEntry[]): string {
+  const identity = workspace.find((e) => e.isIdentity);
+  return identity?.restPort ? `http://host.docker.internal:${identity.restPort}` : "http://localhost:5090";
+}
+
+function portsEqual(a: DockerPortsSpec, b: DockerPortsSpec): boolean {
+  return a.rest === b.rest && a.grpc === b.grpc && a.postgres === b.postgres;
+}
 
 export function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -18,14 +43,32 @@ export function App() {
   const [errors, setErrors] = useState<string[]>([]);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [includeInSolution, setIncludeInSolution] = useState(false);
+  const [workspace, setWorkspace] = useState<WorkspaceEntry[]>([]);
+  const [suggested, setSuggested] = useState<{ ports: DockerPortsSpec; authority: string } | null>(null);
 
   useEffect(() => {
-    Promise.all([api.meta(), api.spec()]).then(([m, s]) => {
+    Promise.all([api.meta(), api.spec(), api.workspace()]).then(([m, s, ws]) => {
       setMeta(m);
+      setWorkspace(ws);
       setIncludeInSolution(m.solutionFound);
-      setSpec(s.service);
-      setAuth(s.auth);
-      setSelected(Object.keys(s.service.entities ?? {})[0] ?? null);
+
+      const suggestedPorts = suggestPorts(ws, false);
+      const suggestedAuthority = suggestAuthority(ws);
+      setSuggested({ ports: suggestedPorts, authority: suggestedAuthority });
+
+      let service = s.service;
+      if (m.serviceIsNew && !service.dockerPorts) {
+        service = { ...service, dockerPorts: suggestedPorts };
+      }
+
+      let authSpec = s.auth;
+      if (m.identityIsNew && !authSpec.dockerPorts) {
+        authSpec = { ...authSpec, dockerPorts: suggestPorts(ws, true) };
+      }
+
+      setSpec(service);
+      setAuth(authSpec);
+      setSelected(Object.keys(service.entities ?? {})[0] ?? null);
     });
   }, []);
 
@@ -81,8 +124,33 @@ export function App() {
         view === "identity"
           ? await api.generateIdentity(auth, includeInSolution)
           : await api.generateService(spec, includeInSolution);
-      if ("errors" in res) setErrors(res.errors);
-      else setResult(res);
+      if ("errors" in res) {
+        setErrors(res.errors);
+      } else {
+        setResult(res);
+
+        // Identity ve normal bir servis aynı Designer oturumundan art arda üretilebildiği için,
+        // az önce üretilen servisin portu/authority'si diğer sekmenin önerisini etkileyebilir.
+        // Workspace kaydını tazeleyip, kullanıcının HÂLÂ ELLE DEĞİŞTİRMEDİĞİ (önceki önerilen
+        // değerle aynı kalan) alanları güncelliyoruz — elle girilmiş bir değeri asla ezmiyoruz.
+        const ws = await api.workspace();
+        setWorkspace(ws);
+        const nextSuggested = { ports: suggestPorts(ws, false), authority: suggestAuthority(ws) };
+
+        if (suggested) {
+          const patch: Partial<ServiceSpec> = {};
+          if (spec.dockerPorts && portsEqual(spec.dockerPorts, suggested.ports)) {
+            patch.dockerPorts = nextSuggested.ports;
+          }
+          if (spec.auth && spec.auth.authority === suggested.authority) {
+            patch.auth = { ...spec.auth, authority: nextSuggested.authority };
+          }
+          if (Object.keys(patch).length > 0) {
+            setSpec({ ...spec, ...patch });
+          }
+        }
+        setSuggested(nextSuggested);
+      }
     } catch (e) {
       setErrors([String(e)]);
     } finally {
@@ -192,7 +260,7 @@ export function App() {
                         ...spec,
                         auth: spec.auth
                           ? null
-                          : { authority: "http://localhost:5090", audience: "baseforge-api", requireHttpsMetadata: false, protect: true },
+                          : { authority: suggested?.authority ?? "http://localhost:5090", audience: "baseforge-api", requireHttpsMetadata: false, protect: true },
                       })
                     }
                   >
@@ -262,7 +330,36 @@ export function App() {
                     />
                   </div>
                 </div>
-                <div className="hint" style={{ marginTop: 4 }}>Boş = varsayılan. Başka bir projeyle port çakışıyorsa değiştirin.</div>
+                <div className="hint" style={{ marginTop: 4 }}>
+                  {workspace.length > 0
+                    ? `Bu workspace'te zaten üretilmiş: ${workspace.map((w) => `${w.name} (REST ${w.restPort ?? "?"}, gRPC ${w.grpcPort ?? "?"}, PG ${w.postgresPort ?? "?"})`).join(" · ")}. Portlar bunlarla çakışmayacak şekilde otomatik önerildi, istersen elle değiştir.`
+                    : "Boş = varsayılan. Başka bir projeyle port çakışıyorsa değiştirin."}
+                </div>
+                <div className="field-row" style={{ marginTop: 14 }}>
+                  <div className="field">
+                    <span className="field-label">Outbox max retry</span>
+                    <input
+                      className="uinput mono"
+                      type="number"
+                      placeholder="10"
+                      value={spec.rabbitMqTuning?.outboxMaxRetries ?? ""}
+                      onChange={(e) => setSpec({ ...spec, rabbitMqTuning: { ...spec.rabbitMqTuning, outboxMaxRetries: e.target.value === "" ? null : Number(e.target.value) } })}
+                    />
+                  </div>
+                  <div className="field">
+                    <span className="field-label">Outbox retention (gün)</span>
+                    <input
+                      className="uinput mono"
+                      type="number"
+                      placeholder="7"
+                      value={spec.rabbitMqTuning?.outboxRetentionDays ?? ""}
+                      onChange={(e) => setSpec({ ...spec, rabbitMqTuning: { ...spec.rabbitMqTuning, outboxRetentionDays: e.target.value === "" ? null : Number(e.target.value) } })}
+                    />
+                  </div>
+                </div>
+                <div className="hint" style={{ marginTop: 4 }}>
+                  Yalnızca <code>publishes</code>/<code>subscribes</code> kullanan servislerde anlamlıdır. Boş = kütüphane varsayılanı (10 deneme / 7 gün).
+                </div>
               </div>
 
               {selected && entities[selected] ? (

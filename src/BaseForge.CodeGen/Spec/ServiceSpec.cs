@@ -19,6 +19,13 @@ public sealed class ServiceSpec
     public DockerPortsSpec? DockerPorts { get; set; }
 
     /// <summary>
+    /// RabbitMQ outbox/DLQ ince ayarları (opsiyonel). Yalnızca en az bir entity <c>publishes</c>
+    /// tanımlıyorsa veya <c>Subscribes</c> doluysa anlamlıdır; boş alanlar için kütüphane
+    /// varsayılanları (<c>RabbitMqOptions</c>) kullanılır.
+    /// </summary>
+    public RabbitMqTuningSpec? RabbitMqTuning { get; set; }
+
+    /// <summary>
     /// <see langword="true"/> ise servisin TÜM entity'leri <c>ITenantEntity</c> (otomatik <c>TenantId</c>
     /// alanı) ile üretilir ve <c>options.EnableMultiTenancy()</c> çağrılır. Entity-bazlı değil,
     /// servis-geneli bir karardır (gerçek izolasyon her tabloyu kapsamalı). Varsayılan
@@ -67,6 +74,20 @@ public sealed class DockerPortsSpec
 
     /// <summary>PostgreSQL'in host portu.</summary>
     public int? Postgres { get; set; }
+}
+
+/// <summary>
+/// RabbitMQ outbox/DLQ ince ayarları. Tüm alanlar opsiyonel — boş bırakılırsa <c>RabbitMqOptions</c>'ın
+/// kendi varsayılanı (kod seviyesinde) kullanılır; burada yalnızca üretilen <c>Program.cs</c>'e
+/// override olarak yazılır.
+/// </summary>
+public sealed class RabbitMqTuningSpec
+{
+    /// <summary>Bir outbox satırının kaç başarısız denemeden sonra dead işaretleneceği (varsayılan 10).</summary>
+    public int? OutboxMaxRetries { get; set; }
+
+    /// <summary>İşlenmiş outbox satırlarının kaç gün sonra silineceği (varsayılan 7).</summary>
+    public int? OutboxRetentionDays { get; set; }
 }
 
 /// <summary>Üretilen servisin merkez Identity'ye JWT ile bağlanma ayarları.</summary>

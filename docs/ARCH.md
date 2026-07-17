@@ -99,22 +99,39 @@ Her `via: grpc` dış referans (`ExternalRefSpec`), `baseforge new-service` sır
 
 **Kütüphane tarafı (`BaseForge.Core`/`Infrastructure`/`API`):**
 
-- `IIntegrationEvent : INotification` (Core) — MediatR'ın bildirim sözleşmesini genişletir. Yayıncı `IEventBus.PublishAsync<TEvent>()` (Core sözleşmesi, Infrastructure'da `RabbitMqEventBus` implementasyonu) ile RabbitMQ'ya yazar; tüketici tarafında `RabbitMqConsumerHostedService` (Infrastructure, `BackgroundService`) kuyruktan gelen mesajı ilgili CLR tipine deserialize edip yerel olarak `IPublisher.Publish()` (MediatR) ile dağıtır. Geliştirici sıradan bir `INotificationHandler<TEvent>` yazar, RabbitMQ'yu hiç görmez — **yeni bir CQRS kütüphanesi eklenmemiş olur** (§3 kararıyla tutarlı).
-- `builder.Services.AddBaseForge(options => options.EnableRabbitMq(mq => { ... }))` — `EnableJwt` ile birebir aynı fluent desen. Abonelik varsa (`mq.Subscribe<TEvent>(eventType, queueName)`) tüketici hosted service'i otomatik eklenir; yoksa yalnızca `IEventBus` (yayıncı) register edilir.
+- `IIntegrationEvent : INotification` (Core) — MediatR'ın bildirim sözleşmesini genişletir. Yayıncı `IEventBus.PublishAsync<TEvent>()` çağırır; tüketici tarafında `RabbitMqConsumerHostedService` (Infrastructure, `BackgroundService`) kuyruktan gelen mesajı ilgili CLR tipine deserialize edip yerel olarak `IPublisher.Publish()` (MediatR) ile dağıtır. Geliştirici sıradan bir `INotificationHandler<TEvent>` yazar, RabbitMQ'yu hiç görmez — **yeni bir CQRS kütüphanesi eklenmemiş olur** (§3 kararıyla tutarlı).
+- `builder.Services.AddBaseForge(options => options.EnableRabbitMq(mq => { ... }))` — `EnableJwt` ile birebir aynı fluent desen. Abonelik varsa (`mq.Subscribe<TEvent>(eventType, queueName)`) tüketici hosted service'i otomatik eklenir; publish varsa (her zaman) outbox relay'i (aşağıda) otomatik eklenir.
 - Broker: tek bir topic exchange (`baseforge.events`). Routing key, olayın `EventType`'ından türetilir (`servis/EntityKind` → `servis.EntityKind`).
 - Paket: `RabbitMQ.Client` (tam async API) + `Microsoft.Extensions.Hosting.Abstractions` — `BaseForge.Infrastructure`'a eklendi (ASP.NET Core'a bağımlılık getirmez, host-framework-agnostic kuralı korunur).
 
+**Transactional Outbox (2026-07-16 — dual-write riskini çözer):**
+
+`IEventBus.PublishAsync<TEvent>()` artık RabbitMQ'ya **doğrudan yazmıyor**. Önceki tasarımda handler önce `_unitOfWork.SaveChangesAsync()` ile DB'ye commit ediyor, sonra `_eventBus.PublishAsync()` ile broker'a yazıyordu — bu ikisi arasında atomiklik yoktu: DB commit başarılı olur ama publish (network/broker hatası) başarısız olursa, değişiklik kalıcı olur ama event hiç yayınlanmazdı.
+
+- `OutboxEventBus : IEventBus` (Infrastructure, **Scoped**) — `PublishAsync`, olayı bir `OutboxMessage` (Core, plain POCO — `IAuditEntity`/`ISoftDelete`/`ITenantEntity` implemente etmez, global query filter'lara girmez) satırı olarak çağıranın o anki `BaseForgeDbContext`'inin change tracker'ına ekler. DB'ye yazmaz, I/O yapmaz.
+- CodeGen şablonlarında (`Templates.cs`) `_eventBus.PublishAsync(...)` çağrısı artık `_unitOfWork.SaveChangesAsync(...)`'den **önce** yapılır — böylece outbox satırı, tetikleyen business entity değişikliğiyle **tek bir `SaveChangesAsync` çağrısında, aynı transaction'da** atomik yazılır.
+- `OutboxPublisherHostedService` (Infrastructure, `BackgroundService`) — `BaseForgeDbContext.OutboxMessages`'ı periyodik tarar (`RabbitMqOptions.OutboxPollingInterval`, varsayılan 2s), işlenmemiş (`ProcessedAt IS NULL`) satırları `IRabbitMqPublisher.PublishRawAsync()` (eski `RabbitMqEventBus`'ın yeniden adlandırılmış hâli — artık jenerik değil, zaten hazır zarf JSON'unu olduğu gibi yazar) ile gerçek broker'a gönderir, başarılıysa `ProcessedAt` işaretler.
+- Çoklu-instance güvenliği: satır seçimi `SELECT ... FOR UPDATE SKIP LOCKED` ile yapılır — iki instance aynı satırı asla aynı anda işlemez, ekstra lease/claim kolonu gerekmez, process çökerse Postgres kilidi otomatik serbest kalır.
+- `IEventBus` kaydı Singleton'dan **Scoped**'a değişti (çağıranla aynı scope'un `BaseForgeDbContext`'ine yazması gerektiği için) — `OutboxPublisherHostedService` her zaman kayıtlıdır (abonelik sayısından bağımsız, publish varsa aktif).
+- **Max-retry + dead marking (2026-07-16):** `RabbitMqOptions.OutboxMaxRetries` (varsayılan 10) aşılınca satır `OutboxMessage.IsDead = true` olarak işaretlenir, relay'in `WHERE` koşulundan çıkar (`AND "IsDead" = false`) — sonsuza kadar denenmez, ama silinmez (manuel inceleme için tabloda kalır).
+- **Cleanup/retention job (2026-07-16):** Her tarama tick'inin sonunda (yeni mesaj olsun olmasın), işlenmiş (`ProcessedAt` dolu) ve `RabbitMqOptions.OutboxRetention` (varsayılan 7 gün) süresinden eski satırlar `ExecuteDeleteAsync` ile toplu silinir. `IsDead` satırlar bu temizlikten muaftır.
+
 **CodeGen tarafı:**
 
-- `EntitySpec.Publishes: List<string>` (`created`/`updated`/`deleted`) — ilgili Create/Update/Delete komutu `SaveChangesAsync` sonrası `{Entity}{Kind}Event`'i yayınlar (`Features/{Entity}s/{Entity}Events.cs`).
+- `EntitySpec.Publishes: List<string>` (`created`/`updated`/`deleted`) — ilgili Create/Update/Delete komutu (artık `SaveChangesAsync`'den **önce**, outbox'a) `{Entity}{Kind}Event`'i yayınlar (`Features/{Entity}s/{Entity}Events.cs`).
 - `ServiceSpec.Subscribes: List<SubscribeSpec>` (`event: "servis/EntityKind"`, `handler: ClassName`) — hedef entity kardeş spec'te (veya **kendi spec'inde**, kendi kendine abonelik için özel durum gerekmez) bulunup `publishes` listesinde ilgili Kind varsa gerçek alanlarla ("rich"), bulunamazsa yalnızca `Id` ile ("minimal") bir gölge event/data class'ı + `INotificationHandler<T>` stub'ı üretilir (`Integration/{Handler}.cs`). Kardeş-spec bulma mantığı, gRPC dış referans çözümlemesiyle (§5.1) aynı `LoadSiblingSpec` helper'ını paylaşır.
-- CLI/YAML-only v1: Designer web UI'da form karşılığı yok (`auth:` bloğunun bugünkü durumuyla aynı — CLI soru sormuyor, YAML elle yazılır). `via: event`'in aksine bu iki alan `/meta` endpoint'inde veya `EntityEditor.tsx`'te temsil edilmez; fast-follow olarak planlanabilir.
+- CLI/YAML-only v1: `publishes`/`subscribes`'ın kendisi (hangi entity hangi olayı yayınlar/dinler) hâlâ Designer web UI'da form karşılığı yok (`auth:` bloğunun bugünkü durumuyla aynı — CLI soru sormuyor, YAML elle yazılır). `via: event`'in aksine bu iki alan `/meta` endpoint'inde veya `EntityEditor.tsx`'te temsil edilmez; fast-follow olarak planlanabilir.
+- **RabbitMQ ince ayarları için Designer formu eklendi (2026-07-16):** `ServiceSpec.RabbitMqTuning` (`OutboxMaxRetries`/`OutboxRetentionDays`, opsiyonel) — `DockerPortsSpec` ile birebir aynı desen (nullable nested object, doğrudan controlled input). Designer'da servis formunun altında (DockerPorts'un hemen altında), `publishes`/`subscribes` durumundan bağımsız olarak **her zaman** görünür — `DockerPorts` da aynı şekilde koşulsuz gösteriliyor, ve Designer'ın `ServiceSpec`/`EntitySpec` TS modelinde `publishes`/`subscribes` hiç temsil edilmediği için istemci tarafında "bu servis RabbitMQ kullanıyor mu" güvenilir şekilde hesaplanamıyordu (plan bunu koşullu göstermeyi öngörmüştü, uygulama sırasında bu kısıt fark edilip düzeltildi). Doldurulursa üretilen `Program.cs`'teki `options.EnableRabbitMq(mq => ...)` bloğuna `mq.OutboxMaxRetries`/`mq.OutboxRetention` override satırları eklenir.
 - Docker topolojisi: kökteki `docker-compose.yml`'daki (kullanılmadan duran, `.env.example`'da `RABBITMQ_*` değişkenleriyle zaten scaffold edilmiş) `rabbitmq` servisi tek paylaşılan broker olur. Üretilen servisler kendi izole compose'larında RabbitMQ container'ı açmaz; `appsettings.json`'daki `RabbitMq:Host` varsayılanı `host.docker.internal`'dır (bkz. §5.1 cross-service host notu).
 
 **v1 sınırlamaları (bilinçli, dokümante edilen basitlik):**
 
-- DLQ/retry politikası yok — tüketici hata alırsa mesaj `nack(requeue: false)` ile atılır, loglanır. "Fire and forget" felsefesiyle tutarlı (§5), ileride ayrı bir iyileştirme konusu.
-- Kanal havuzu yok — `RabbitMqConnectionManager` tek bağlantıyı paylaşır ama her yayın/tüketim çağrısında yeni kanal açar.
+- ~~Tüketici tarafı: DLQ/retry politikası yok~~ **DLQ çözüldü (2026-07-16):** Daha önce `nack(requeue: false)` ile reddedilen bir mesaj, kuyrukta hiçbir dead-letter-exchange tanımlı olmadığı için RabbitMQ tarafından **sessizce ve kalıcı olarak siliniyordu** — gerçek bir veri kaybıydı. Artık her abonelik için paylaşılan bir `{ExchangeName}.dlx` (fanout) exchange'e bağlı bir `{queue}.dead` kuyruğu declare ediliyor (asıl kuyruk `x-dead-letter-exchange` argümanıyla açılıyor); reddedilen mesaj artık kaybolmuyor, `{queue}.dead`'de (RabbitMQ management UI'dan) görülüp incelenebiliyor/elle replay edilebiliyor. **Bilinçli kapsam dışı:** Otomatik N-kere-yeniden-dene-sonra-DLQ (retry-with-delay) eklenmedi — TTL+DLX zincirleme (delay queue pattern) gerektirir, canlı bir broker'a karşı doğrulanmadan doğru kurulduğuna güvenmek riskli; ayrı bir gelecek iş.
+- Outbox relay tarafı: **at-least-once teslim, exactly-once değil** — publish RabbitMQ'ya gittikten sonra `ProcessedAt` commit edilmeden process çökerse mesaj bir sonraki taramada tekrar gönderilebilir. Asıl çözülen sorun (commit sonrası publish başarısızlığında event'in tamamen kaybolması) tamamen giderildi. ~~Tüketici tarafı `EventId` bazlı idempotency yok~~ **Çözüldü (2026-07-16) — Inbox pattern:** `InboxMessage` (Core, `OutboxMessage` ile aynı gerekçeyle marker interface implemente etmez) + `BaseForgeDbContext.InboxMessages`. `RabbitMqConsumerHostedService.HandleDeliveryAsync`, MediatR'a dağıtmadan önce `InboxMessages`'ta aynı `EventId`'yi arar — bulursa handler'ı tekrar çalıştırmadan `ack`'ler. İşaretleme **handler'dan SONRA** yapılır (mark-after, mark-before değil): handler çökerse Inbox satırı henüz commit edilmediği için yeniden teslimat hâlâ "işlenmemiş" görünüp tekrar denenir — mark-before olsaydı event yanlışlıkla "zaten işlendi" sayılıp kaybolurdu. Kalan kısıt: bu iki adım (handler'ın kendi DB etkileri + Inbox satırı) TEK bir transaction'da değil — handler başarılı ama Inbox commit/ack arasında çökme olursa nadir bir gerçek duplicate işlem olabilir (bugünkünden çok daha iyi, mükemmel değil).
+- ~~Outbox'ta cleanup/retention job yok~~ **Çözüldü (2026-07-16)** — yukarıya bkz.
+- ~~Outbox'ta sınırsız retry var~~ **Çözüldü (2026-07-16)** — max-retry sonrası dead marking, yukarıya bkz. (Outbox'ın kendi "dead" satırları için ayrı bir DLQ/broker yolu yoktur, tabloda kalır — tüketici tarafındaki broker DLQ'su [aşağıdaki madde] farklı bir mekanizma.)
+- `OutboxMessages` tablosu da diğer tüm entity tabloları gibi migration'sız, yalnızca `Database.EnsureCreated()` (Development ortamı) ile oluşur.
+- ~~Kanal havuzu yok~~ **Çözüldü (2026-07-16):** `RabbitMqConnectionManager`'a sınırlı (kapasite 10) bir `RentChannelAsync`/`ReturnChannelAsync` havuzu eklendi; `RabbitMqPublisher.PublishRawAsync` artık her publish'te aç/kapat yerine bunu kullanır. Tüketici hosted service'i zaten uygulama ömrü boyunca tek bir kanal tuttuğu için değişmedi (havuza ihtiyacı yok).
 - gRPC çağrılarında olduğu gibi, mesajlarda JWT/kimlik propagasyonu yok.
 
 ### 5.3. JSON/JSONB Alan Tipi
@@ -145,6 +162,26 @@ Spec tip sistemine `json` eklendi: C# tarafında `string` (serileştirilmiş JSO
 - **Bilinen bir reflection tuzağı (üretim sırasında yakalandı, birim testle doğrulandı):** Query filter ifadesinde o anki context'e (`this`) referans verirken `Expression.Constant(this, typeof(BaseForgeDbContext))` ile **açıkça temel sınıf olarak tiplemek gerekir** — `Expression.Constant(this)` runtime tipini (her zaman türetilmiş, CodeGen'in ürettiği DbContext sınıfı) kullanırsa, `private` `CurrentTenantId` property'si (yalnızca `BaseForgeDbContext`'te tanımlı, private üyeler `FlattenHierarchy` ile türetilmiş tipe miras alınmaz) reflection'da bulunamaz ve her sorguda `ArgumentException` fırlar.
 - **Kısıtlar:** Tenant claim adı sabit: `tenant_id`. Multi-tenant bir entity'ye tenant context'siz (örn. arka plan servisinden `ICurrentTenant` olmadan) kayıt eklemek exception fırlatır — bu bilinçli bir tasarım (sessiz cross-tenant sızıntısı yerine).
 
+### 5.6. Merkezi Loglama ve Correlation ID
+
+Her mikroservis kendi konsol çıktısına hapsolmuş durumdaydı — bir isteği HTTP → gRPC → RabbitMQ event zinciri boyunca servisler arasında takip etmenin yolu yoktu. Serilog + Grafana Loki ile merkezi, yapılandırılmış (structured) loglama ve üç sınırı (HTTP/gRPC/RabbitMQ) aşan bir `CorrelationId` eklendi.
+
+**Tasarım kararı — her zaman açık:** `ExceptionHandlingMiddleware`/`RequestLoggingMiddleware` gibi bu da `spec.yaml`'da opt-in bir toggle **değildir** — `ServiceSpec`/`CodeModel`/Designer UI'a dokunulmadı, yalnızca sabit CodeGen template'lerine eklendi. Loki URL'i boşsa/erişilemezse servis konsola loglamaya devam eder (RabbitMq'nun `host.docker.internal` ile paylaşılan broker'a bağlanma deseniyle tutarlı — Loki'nin ayakta olması bir ön koşul değildir); Loki sink'i içeride bir yazma hatasıyla karşılaşırsa (2026-07-16) artık `Serilog.Debugging.SelfLog` ile stderr'e bir tanılama satırı düşer — tamamen sessiz değildir.
+
+- `ICorrelationIdAccessor` (Core, `BaseForge.Core.Logging`) — o anki akışın correlation id'sine ambient erişim sözleşmesi. `CorrelationIdAccessor` (Infrastructure) `AsyncLocal<string?>` ile implemente eder, Singleton kaydedilir; async çağrı zinciri boyunca (HTTP → handler → outbox yazımı, gRPC çağrısı, consumer'ın MediatR dispatch'i) doğru akar, eşzamanlı farklı akışlar arasında sızmaz.
+- **HTTP sınırı:** `CorrelationIdMiddleware` (API) — pipeline'ın en başına eklenir (`ExceptionHandlingMiddleware`'den bile önce). Gelen `X-Correlation-Id` header'ını kullanır (yoksa üretir), accessor'a yazar, Serilog `LogContext`'e ekler, response'a da aynı header'ı geri yazar.
+- **gRPC sınırı:** `CorrelationIdClientInterceptor`/`CorrelationIdServerInterceptor` (API, `BaseForge.API.Grpc`) — giden çağrının metadata'sına `correlation-id` eklenir, sunucu tarafında okunup accessor/LogContext'e yazılır. CodeGen Program.cs şablonu her `AddGrpcClient<...>()` çağrısına `.AddInterceptor<CorrelationIdClientInterceptor>()`, `AddGrpc()` çağrısına da server interceptor'ı otomatik ekler.
+- **RabbitMQ sınırı:** `EventEnvelope`'a (Infrastructure) `CorrelationId` alanı eklendi — DB şema/migration değişikliği **yok** (`OutboxMessage.Payload` zaten tam JSON blob'u, yeni alan sadece o JSON'un bir üyesi). `OutboxEventBus.PublishAsync`, envelope'u oluştururken accessor'ın o anki değerini gömer; `RabbitMqConsumerHostedService.HandleDeliveryAsync`, mesajı MediatR'a dağıtmadan önce bu id'yi yeni scope'un accessor'ına ve `LogContext`'e geri yükler — event'i işleyen handler'ın logları, olayı tetikleyen orijinal istekle aynı id'yi taşır.
+- **Serilog wiring:** yeni `WebApplicationBuilder.AddBaseForgeLogging(serviceName)` (API) — `AddBaseForge` (services, DI) çağrısından **ayrı**, `builder.Host.UseSerilog(...)` seviyesinde çağrılır (Serilog logging provider'ı Host üzerinden değiştirir). Her log satırı `Service` alanıyla etiketlenir; `Serilog:LokiUrl` appsettings anahtarı doluysa `Serilog.Sinks.Grafana.Loki` ile push edilir, boşsa yalnızca konsola yazılır.
+- Kök `docker-compose.yml`'a paylaşılan `loki` + `grafana` container'ları eklendi (Postgres/RabbitMQ ile aynı desen); Grafana, `grafana/provisioning/datasources/loki.yaml` ile Loki datasource'unu otomatik provision eder (elle "Add datasource" gerekmez).
+
+**v1 sınırlamaları (bilinçli, dokümante edilen basitlik):**
+
+- ~~Grafana'da hazır bir dashboard yok~~ **Çözüldü (2026-07-16):** `grafana/dashboards/baseforge-logs.json` (provisioning: `grafana/provisioning/dashboards/dashboards.yaml`) — `Service`/`CorrelationId` template değişkenleriyle filtrelenebilen bir log paneli + servise göre log hacmi zaman serisi paneli. Daha ileri düzey sorgular hâlâ LogQL ile Explore üzerinden yapılır.
+- Log retention/rotation: `grafana/loki-config.yaml` (2026-07-16) ile 7 gün (`retention_period: 168h`, `compactor.retention_enabled: true`) olarak yapılandırıldı — değiştirmek için bu dosyayı düzenleyip `docker compose up -d loki` ile yeniden başlatmak yeterli. **Not:** bu config dosyası canlı bir Loki container'ına karşı çalıştırılıp doğrulanmadı (önceki turlardaki "docker compose up ile canlı doğrulama kapsam dışı" kararıyla tutarlı).
+- `Serilog:LokiUrl` boşsa/erişilemezse konsola düşülür; erişilemezse artık `SelfLog` ile stderr'e tanılama mesajı yazılır (2026-07-16) — ama bu tam bir healthcheck/retry değil, yalnızca görünürlük.
+- gRPC client interceptor'ı yalnızca unary çağrıları destekler (CodeGen bugün yalnızca unary `GetById` üretiyor — streaming RPC yok).
+
 ## 6. Kimlik Doğrulama
 
 - Merkezi tek bir **Identity Service** vardır (JWT / OAuth2).
@@ -155,6 +192,36 @@ Spec tip sistemine `json` eklendi: C# tarafında `string` (serileştirilmiş JSO
 - Her servis için ayrı `Dockerfile`.
 - Tüm servisler tek bir `docker-compose.yml` ile ayağa kalkar. **Not:** CodeGen bugün her servis için ayrı, izole bir `docker-compose.yml` üretir (kendi Postgres'i ile); kökteki paylaşılan `docker-compose.yml` yalnızca tek-örnek altyapı için kullanılır (Postgres + RabbitMQ, bkz. §5.2) — üretilen servisler bu paylaşılan broker'a `host.docker.internal` üzerinden bağlanır.
 - Konfigürasyon `.env` dosyasından okunur; production'da `.env.production` kullanılır.
+
+### 7.1. Servis Kaydı (`ServiceRegistry`) — Port/Authority Doğruluğu
+
+`ServiceRegistry.cs` her üretimde workspace kökünde (üretilen servis klasörünün bir üstünde)
+paylaşılan bir `services.json` tutar: `Name`, `RestPort`, `GrpcPort`, `PostgresPort`, `IsIdentity`,
+`Authority`, `Audience`, `Protected`. Bunun iki tüketicisi var:
+
+- **Identity dashboard'u** — üretim sırasında bu kaydın güncel hali identity'nin kendi `wwwroot`'una
+  kopyalanıp imaja gömülür (`SnapshotForIdentity`), "Servisler" bölümü bunu okur.
+- **CodeGen'in kendisi** — bir servis `identity/User`'a (`via: grpc`) referans verdiğinde, Identity'nin
+  **gerçek** gRPC portu bu kayıttan okunur (`ServiceRegistry.LoadForWorkspace`); kardeş bir servise
+  referans veriliyorsa (identity dışı) port doğrudan kardeşin kendi `spec.yaml`'inden (`DockerPorts.Grpc`)
+  okunur. **Karar değişikliği (2026-07-13):** Önceden appsettings.json'daki `Grpc:{Provider}` adresi
+  portu hardcoded `8081` yazıyordu — sağlayıcının gerçekte hangi portu kullandığından bağımsız. Bu,
+  herkes varsayılan portları kullandığı sürece fark edilmiyordu; portlar artık rutin olarak farklılaşacağı
+  (bkz. §7.2) için gerçek bir bağlantı hatasına dönüşürdü. Kayıt/kardeş-spec'te port bulunamazsa
+  eski varsayılana (`8081`, identity için `8082`) sessizce düşülür — hata fırlatılmaz.
+
+### 7.2. Designer — Otomatik Artan Port/Authority Önerisi
+
+Designer, `/api/workspace` ile bu kaydı okuyup **yeni** bir servis/identity açıldığında (spec.yaml/
+auth.yaml diskte henüz yoksa) REST/gRPC/Postgres portlarını, workspace'teki en yüksek kullanılan
+değerin bir fazlası olacak şekilde **gerçek, düzenlenebilir varsayılan değer** olarak önceden doldurur
+(salt placeholder metni değil) — kullanıcı hâlâ elle değiştirebilir. Authority alanı da aynı şekilde,
+workspace'te bir Identity kaydı varsa `http://host.docker.internal:{identity'nin gerçek REST portu}`
+olarak önerilir (önceden hardcoded `http://localhost:5090` idi — bu, Docker container içinden asla
+erişilemeyen bir adres, çünkü `5090` yalnızca Identity'nin yerel `dotnet run` portu). Bir servis/identity
+üretildikten sonra (aynı Designer oturumunda ikisi art arda üretilebildiği için) workspace yeniden
+okunur; kullanıcının elle değiştirmediği (hâlâ önceki önerilen değere eşit) alanlar canlı güncellenir,
+elle girilmiş bir değer asla ezilmez.
 
 ## 8. Dağıtım
 
@@ -175,3 +242,6 @@ Spec tip sistemine `json` eklendi: C# tarafında `string` (serileştirilmiş JSO
 | 2026-07-13 | `json`/`jsonb` prop tipi eklendi (bkz. §5.3): `TypeMap` + `[Column(TypeName = "jsonb")]` yalnızca entity sınıfında (DTO'larda değil). | ✅ |
 | 2026-07-13 | Append-only entity desteği eklendi (bkz. §5.4): `EntitySpec.AppendOnly` — Update/Delete komut/handler/controller action'ı hiç üretilmez; GMP/21 CFR Part 11 audit/trace senaryosu için. | ✅ |
 | 2026-07-13 | Multi-tenancy eklendi (bkz. §5.5): `ServiceSpec.MultiTenant`, `ITenantEntity`/`ICurrentTenant`/`EnableMultiTenancy()`, `BaseForgeDbContext`'te `Expression.AndAlso` ile birleşik soft-delete+tenant query filter. Üretim sırasında iki gerçek hata bulunup düzeltildi: (1) üretilen DbContext constructor'ı `ICurrentUser`/`ICurrentTenant`'ı hiç forward etmiyordu, (2) query filter'daki `Expression.Constant(this)` runtime tipini kullandığından `private CurrentTenantId` property'si türetilmiş tipte reflection ile bulunamıyordu (`Expression.Constant(this, typeof(BaseForgeDbContext))` ile düzeltildi, birim testle doğrulandı). | ✅ |
+| 2026-07-13 | Docker port/Authority doğruluğu eklendi (bkz. §7.1/7.2): `ServiceRegistry`'ye Postgres portu + public `LoadForWorkspace`; gRPC cross-service appsettings adresi artık gerçek (sağlayıcının kendi spec'inden veya identity kaydından okunan) portu kullanıyor — önceden hardcoded `8081`'di, gerçek bir bağlantı hatasıydı. Designer artık yeni bir servis/identity açıldığında portları/Authority'yi workspace kaydından otomatik, çakışmayacak şekilde önceden dolduruyor (elle değiştirilebilir); Identity ve normal bir servis aynı oturumdan art arda üretildiğinde öneriler canlı güncelleniyor. | ✅ |
+| 2026-07-16 | Transactional Outbox Pattern eklendi (bkz. §5.2): `IEventBus` artık RabbitMQ'ya doğrudan yazmıyor, `OutboxEventBus` olayı aynı `SaveChangesAsync` transaction'ında bir `OutboxMessage` satırı olarak yazıyor; `OutboxPublisherHostedService` (`FOR UPDATE SKIP LOCKED` ile çoklu-instance güvenli) bunu ayrı, güvenilir bir relay ile gerçek broker'a gönderiyor. DB commit ile RabbitMQ publish arasındaki dual-write/event-kaybı riski çözüldü (at-least-once garantisiyle). `RabbitMqEventBus` → `RabbitMqPublisher`/`IRabbitMqPublisher` olarak refactor edildi (wire format değişmedi). | ✅ |
+| 2026-07-16 | Merkezi loglama (Serilog + Grafana Loki) + Correlation ID eklendi (bkz. §5.6): `ICorrelationIdAccessor` (AsyncLocal) HTTP middleware, gRPC client/server interceptor'ları ve RabbitMQ outbox/consumer arasında paylaşılıyor — bir isteğin üç sınır boyunca (HTTP/gRPC/RabbitMQ) aynı id ile loglanmasını sağlıyor. `AddBaseForgeLogging` (Host seviyesi, `AddBaseForge`'dan ayrı) her zaman konsola, `Serilog:LokiUrl` doluysa Loki'ye de yazıyor. Kök `docker-compose.yml`'a paylaşılan `loki`/`grafana` container'ları eklendi. Her zaman açık (RabbitMQ/JWT gibi opt-in bir spec toggle değil) — `ServiceSpec`/Designer UI'a dokunulmadı. | ✅ |

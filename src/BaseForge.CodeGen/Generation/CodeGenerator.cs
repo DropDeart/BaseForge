@@ -28,7 +28,7 @@ internal static class CodeGenerator
         var written = new List<string>();
 
         // Dış referansları (via: grpc) önceden çözümle — Project/Program/AppSettings render'ları buna bağlı.
-        var externalRefResolutions = ResolveExternalRefs(spec, ns, specPath);
+        var externalRefResolutions = ResolveExternalRefs(spec, ns, specPath, outputDir);
         var richResolutions = externalRefResolutions.Where(r => r.IsRich).ToList();
         var grpcServerEntities = new List<string>();
 
@@ -141,6 +141,9 @@ internal static class CodeGenerator
             HasRabbitMq = hasRabbitMq,
             Subscriptions = subscriptionResolutions,
             HasMultiTenancy = spec.MultiTenant,
+            ServiceKey = spec.Service.ToLowerInvariant(),
+            OutboxMaxRetries = spec.RabbitMqTuning?.OutboxMaxRetries,
+            OutboxRetentionDays = spec.RabbitMqTuning?.OutboxRetentionDays,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "Program.cs"), TemplateEngine.Render(Templates.Program, programModel)));
 
@@ -308,7 +311,7 @@ internal static class CodeGenerator
     /// <c>identity/User</c> özel durumu bulunursa zengin (gerçek alanlı), bulunamazsa minimal
     /// (yalnızca Id) bir sonuç döner — hiçbir durumda hata fırlatmaz.
     /// </summary>
-    private static List<GrpcClientResolution> ResolveExternalRefs(ServiceSpec spec, string ns, string? specPath)
+    private static List<GrpcClientResolution> ResolveExternalRefs(ServiceSpec spec, string ns, string? specPath, string outputDir)
     {
         var resolutions = new Dictionary<string, GrpcClientResolution>(StringComparer.Ordinal);
 
@@ -331,7 +334,7 @@ internal static class CodeGenerator
                     continue;
                 }
 
-                resolutions[entityName] = TryResolveIdentityUser(target, ns, entityName)
+                resolutions[entityName] = TryResolveIdentityUser(target, ns, entityName, outputDir)
                     ?? TryResolveSibling(target, ns, specPath, entityName)
                     ?? new GrpcClientResolution { Namespace = ns, Entity = entityName, Target = target, IsRich = false };
             }
@@ -341,7 +344,7 @@ internal static class CodeGenerator
     }
 
     /// <summary><c>identity/User</c> özel durumu — Identity'nin sabit (ApplicationUser) alan şekliyle çözümler.</summary>
-    private static GrpcClientResolution? TryResolveIdentityUser(string target, string ns, string entityName)
+    private static GrpcClientResolution? TryResolveIdentityUser(string target, string ns, string entityName, string outputDir)
     {
         if (!string.Equals(target, "identity/User", StringComparison.OrdinalIgnoreCase))
         {
@@ -355,6 +358,12 @@ internal static class CodeGenerator
             MakeProtoField("FullName", "string", 4),
         };
 
+        // Identity'nin gerçek gRPC portu workspace kökündeki paylaşılan services.json kaydından okunur
+        // (identity daha önce üretildiyse); bulunamazsa identity'nin kendi varsayılanına (8082) düşülür.
+        var workspaceRoot = Path.GetDirectoryName(Path.GetFullPath(outputDir)) ?? outputDir;
+        var identityEntry = ServiceRegistry.LoadForWorkspace(workspaceRoot).FirstOrDefault(e => e.IsIdentity);
+        var grpcPort = identityEntry?.GrpcPort ?? 8082;
+
         return new GrpcClientResolution
         {
             Namespace = ns,
@@ -364,6 +373,7 @@ internal static class CodeGenerator
             ProviderNamespace = "Identity",
             ConfigKey = "Identity",
             ProviderHost = CrossServiceHost,
+            ProviderGrpcPort = grpcPort,
             Fields = fields,
         };
     }
@@ -407,6 +417,7 @@ internal static class CodeGenerator
             ProviderNamespace = providerNs,
             ConfigKey = providerNs,
             ProviderHost = CrossServiceHost,
+            ProviderGrpcPort = siblingSpec.DockerPorts?.Grpc ?? 8081,
             Fields = BuildProtoFields(targetEntity),
         };
     }

@@ -18,14 +18,23 @@ internal static class DesignerEndpoints
         api.MapGet("/meta", (DesignerContext ctx) =>
         {
             var solutionPath = SolutionRunner.FindNearestSolution(ctx.WorkingDirectory);
+            var serviceSpecPath = Path.Combine(ResolveOutput(null, ctx, ctx.ServiceName), "spec.yaml");
+            var identityAuthPath = Path.Combine(ResolveOutput(null, ctx, ResolveIdentityFolderName(ctx)), "auth.yaml");
             return Results.Ok(new MetaResponse(
                 Types: TypeMap.KnownTypes,
                 RelationKinds: ["one-to-many", "many-to-one", "one-to-one"],
                 Via: ["grpc", "event"],
                 Providers: ["Google", "GitHub", "Microsoft", "Facebook"],
                 SolutionFound: solutionPath is not null,
-                SolutionName: solutionPath is not null ? Path.GetFileName(solutionPath) : null));
+                SolutionName: solutionPath is not null ? Path.GetFileName(solutionPath) : null,
+                ServiceIsNew: !File.Exists(serviceSpecPath),
+                IdentityIsNew: !File.Exists(identityAuthPath)));
         });
+
+        // Workspace'te daha önce üretilmiş servislerin (identity dahil) kaydı — Designer'ın port/authority
+        // önerisi üretmesi için (bkz. ServiceRegistry).
+        api.MapGet("/workspace", (DesignerContext ctx) =>
+            Results.Ok(ServiceRegistry.LoadForWorkspace(ctx.WorkingDirectory)));
 
         // 'new' -> CLI arg'ından seed edilmiş boş spec. 'update' -> diskteki spec.yaml/auth.yaml (varsa) yüklenir.
         api.MapGet("/spec", (DesignerContext ctx) => Results.Ok(new SpecResponse(
@@ -105,6 +114,15 @@ internal static class DesignerEndpoints
             : Path.GetFullPath(Path.Combine(ctx.WorkingDirectory, service));
 
     /// <summary>
+    /// Workspace'te daha önce üretilmiş bir identity servisi varsa onun GERÇEK klasör/servis adını
+    /// (<c>auth.yaml</c>'daki <c>Service</c>'i "identity" dışında bir şeye değiştirilmiş olsa bile)
+    /// paylaşılan kayıttan (<see cref="ServiceRegistry"/>) döner; hiç üretilmemişse yeni bir identity
+    /// için varsayılan öneri olan <c>"identity"</c>'ye düşer.
+    /// </summary>
+    private static string ResolveIdentityFolderName(DesignerContext ctx)
+        => ServiceRegistry.LoadForWorkspace(ctx.WorkingDirectory).FirstOrDefault(e => e.IsIdentity)?.Name ?? "identity";
+
+    /// <summary>
     /// Kullanıcı Designer'da "Solution'a ekle" seçtiyse, üretilen projeyi en yakın <c>.slnx</c>/<c>.sln</c>'e
     /// <c>/services/</c> çözüm klasörü altında ekler. Seçmediyse hiçbir şeye dokunulmaz — servis diskte
     /// bağımsız bir klasör olarak kalır (örn. ayrı bir repo/pipeline'dan yayınlanacaksa).
@@ -165,7 +183,7 @@ internal static class DesignerEndpoints
     {
         if (ctx.LoadExisting)
         {
-            var path = Path.Combine(ResolveOutput(null, ctx, "identity"), "auth.yaml");
+            var path = Path.Combine(ResolveOutput(null, ctx, ResolveIdentityFolderName(ctx)), "auth.yaml");
             if (File.Exists(path))
             {
                 try
@@ -271,7 +289,9 @@ internal static class DesignerEndpoints
         IReadOnlyList<string> Via,
         IReadOnlyList<string> Providers,
         bool SolutionFound,
-        string? SolutionName);
+        string? SolutionName,
+        bool ServiceIsNew,
+        bool IdentityIsNew);
 
     private sealed record SpecResponse(ServiceSpec Service, AuthSpec Auth);
 

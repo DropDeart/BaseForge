@@ -60,6 +60,10 @@ export function toDbml(spec: ServiceSpec): string {
     for (const [xn, x] of Object.entries(e.externalRefs ?? {})) {
       lines.push(`  ${x.store || `${xn}Id`} uuid [note: 'external: ${x.target} via ${x.via}']`);
     }
+    // ServiceSpec.MultiTenant true iken CodeGen HER entity'ye bunu otomatik ekler
+    // (bkz. CodeGenerator.BuildEntityModel) — YAML/spec'te elle tanımlanmaz, ER önizlemesi
+    // gerçek üretilen şemayı yansıtsın diye burada da eklenir.
+    if (spec.multiTenant) lines.push(`  TenantId uuid [not null]`);
     lines.push(`}`);
     lines.push("");
   }

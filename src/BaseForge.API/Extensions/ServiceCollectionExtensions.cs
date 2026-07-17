@@ -1,7 +1,9 @@
 using System.Text;
 using BaseForge.API.Authentication;
 using BaseForge.Core.Interfaces;
+using BaseForge.Core.Logging;
 using BaseForge.Core.Messaging;
+using BaseForge.Infrastructure.Logging;
 using BaseForge.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +37,11 @@ public static class ServiceCollectionExtensions
 
         var options = new BaseForgeOptions();
         configure(options);
+
+        // 0) Correlation id — HTTP middleware, gRPC interceptor'ları ve RabbitMQ outbox/consumer
+        // hepsi aynı ambient accessor'ı paylaşır (bkz. CorrelationIdMiddleware, OutboxEventBus,
+        // RabbitMqConsumerHostedService). RabbitMq etkin olsun olmasın her zaman gerekli.
+        services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
         // 1) Veri erişimi (DbContext + repository + UnitOfWork + Dapper)
         options.InfrastructureRegistration?.Invoke(services);
@@ -119,7 +126,14 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton(rabbitMq);
         services.AddSingleton<RabbitMqConnectionManager>();
-        services.AddSingleton<IEventBus, RabbitMqEventBus>();
+        services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
+
+        // IEventBus artık broker'a doğrudan yazmıyor (transactional outbox) — çağıranın o anki
+        // DbContext'ine yazdığı için Scoped olmak ZORUNDA (Singleton olsaydı yanlış/disposed bir
+        // scope'un context'ine erişmeye çalışırdı). Gerçek publish OutboxPublisherHostedService'in
+        // işi.
+        services.AddScoped<IEventBus, OutboxEventBus>();
+        services.AddHostedService<OutboxPublisherHostedService>();
 
         if (rabbitMq.Subscriptions.Count > 0)
         {

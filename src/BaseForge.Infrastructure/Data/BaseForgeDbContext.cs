@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using BaseForge.Core.Entities;
 using BaseForge.Core.Interfaces;
+using BaseForge.Core.Messaging;
 using Microsoft.EntityFrameworkCore;
 
 namespace BaseForge.Infrastructure.Data;
@@ -38,6 +39,21 @@ public abstract class BaseForgeDbContext : DbContext
     /// </summary>
     private Guid? CurrentTenantId => _currentTenant?.TenantId;
 
+    /// <summary>
+    /// Transactional outbox tablosu — bir olay yayınlandığında (<c>OutboxEventBus.PublishAsync</c>)
+    /// business entity değişikliğiyle AYNI <c>SaveChangesAsync</c> çağrısında yazılır. Her
+    /// <c>BaseForgeDbContext</c>'ten türeyen (yani CodeGen'in ürettiği her) context bu DbSet'i
+    /// otomatik miras alır.
+    /// </summary>
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    /// <summary>
+    /// Tüketici tarafı idempotency (Inbox pattern) tablosu — bir olayın bu serviste daha önce
+    /// başarıyla işlendiğini işaretler (bkz. <see cref="InboxMessage"/>). Her
+    /// <c>BaseForgeDbContext</c>'ten türeyen context bu DbSet'i otomatik miras alır.
+    /// </summary>
+    public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
     /// <inheritdoc />
     public override int SaveChanges()
     {
@@ -71,6 +87,17 @@ public abstract class BaseForgeDbContext : DbContext
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         base.OnModelCreating(modelBuilder);
+
+        // OutboxMessage'ın birincil anahtarı EventId'dir (EF'in "Id"/"{Tip}Id" adlandırma
+        // konvansiyonuna uymadığı için açıkça belirtilmesi gerekir). Relay'in her tick'te taradığı
+        // (ProcessedAt IS NULL AND IsDead = false) ve temizlik geçişinin sildiği (ProcessedAt dolu +
+        // eski) satırları indeksli bir aralık taraması olarak bulabilmesi için birleşik bir indeks eklendi
+        // — aksi halde tablo büyüdükçe her tick tam tablo taraması olurdu.
+        modelBuilder.Entity<OutboxMessage>(outbox =>
+        {
+            outbox.HasKey(m => m.EventId);
+            outbox.HasIndex(m => new { m.ProcessedAt, m.IsDead });
+        });
 
         // ISoftDelete ve/veya ITenantEntity uygulayan entity'lere birleşik bir global query filter
         // eklenir. EF Core her entity tipi için yalnızca TEK bir query filter'a izin verdiğinden,

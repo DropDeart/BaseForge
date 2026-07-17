@@ -1,4 +1,4 @@
-import type { AuthSpec, GenerateResponse, Meta, RunResponse, ServiceSpec, StopResponse } from "../types";
+import type { AuthSpec, GenerateResponse, Meta, RunResponse, ServiceSpec, StopResponse, WorkspaceEntry } from "../types";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok && res.status !== 400) {
@@ -9,6 +9,8 @@ async function json<T>(res: Response): Promise<T> {
 
 export const api = {
   meta: () => fetch("/api/meta").then((r) => json<Meta>(r)),
+
+  workspace: () => fetch("/api/workspace").then((r) => json<WorkspaceEntry[]>(r)),
 
   spec: () => fetch("/api/spec").then((r) => json<{ service: ServiceSpec; auth: AuthSpec }>(r)),
 

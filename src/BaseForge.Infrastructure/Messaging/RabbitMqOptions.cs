@@ -29,6 +29,28 @@ public sealed class RabbitMqOptions
     /// <summary>Bu servisin dinlediği olay abonelikleri (<see cref="Subscribe{TEvent}"/> ile eklenir).</summary>
     public IReadOnlyList<EventSubscription> Subscriptions => _subscriptions;
 
+    /// <summary>
+    /// <c>OutboxPublisherHostedService</c>'in outbox tablosunu ne sıklıkla taradığı (varsayılan 2 sn).
+    /// </summary>
+    public TimeSpan OutboxPollingInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>Bir taramada en fazla işlenecek outbox satırı sayısı (varsayılan 50).</summary>
+    public int OutboxBatchSize { get; set; } = 50;
+
+    /// <summary>
+    /// Bir outbox satırı bu kadar başarısız denemeden sonra <c>IsDead</c> olarak işaretlenir ve
+    /// artık taranmaz (varsayılan 10). Sınırsız retry yerine — sürekli başarısız olan bir mesajın
+    /// relay'i sonsuza kadar meşgul etmesini önler.
+    /// </summary>
+    public int OutboxMaxRetries { get; set; } = 10;
+
+    /// <summary>
+    /// Başarıyla işlenmiş (<c>ProcessedAt</c> dolu) outbox satırlarının ne kadar süre sonra
+    /// silineceği (varsayılan 7 gün). <c>IsDead</c> satırlar bu temizlikten muaftır (manuel
+    /// inceleme için kalır).
+    /// </summary>
+    public TimeSpan OutboxRetention { get; set; } = TimeSpan.FromDays(7);
+
     private readonly List<EventSubscription> _subscriptions = [];
 
     /// <summary>

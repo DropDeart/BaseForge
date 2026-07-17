@@ -29,6 +29,7 @@ internal static class ServiceRegistry
             Name: spec.Service,
             RestPort: spec.DockerPorts?.Rest,
             GrpcPort: spec.DockerPorts?.Grpc,
+            PostgresPort: spec.DockerPorts?.Postgres,
             EntityCount: spec.Entities.Count,
             IsIdentity: false,
             Authority: spec.Auth?.Authority,
@@ -44,6 +45,7 @@ internal static class ServiceRegistry
             Name: spec.Service,
             RestPort: spec.DockerPorts?.Rest ?? 8081,
             GrpcPort: spec.DockerPorts?.Grpc ?? 8082,
+            PostgresPort: spec.DockerPorts?.Postgres ?? 5432,
             EntityCount: null,
             IsIdentity: true,
             Authority: null,
@@ -52,6 +54,14 @@ internal static class ServiceRegistry
 
         Upsert(WorkspaceRoot(outputDir), entry);
     }
+
+    /// <summary>
+    /// Workspace kökündeki paylaşılan servis kaydını okur (Designer UI'ın port/authority
+    /// önerisi üretmesi ve <see cref="Generation.CodeGenerator"/>'ın identity'nin gerçek
+    /// gRPC portunu bulması için).
+    /// </summary>
+    public static IReadOnlyList<ServiceRegistryEntry> LoadForWorkspace(string workspaceRoot)
+        => Load(Path.Combine(workspaceRoot, FileName));
 
     /// <summary>Workspace kökündeki güncel kaydı identity'nin kendi wwwroot'una (Docker imajına gömülsün diye) kopyalar.</summary>
     public static void SnapshotForIdentity(string identityOutputDir)
@@ -115,6 +125,7 @@ public sealed record ServiceRegistryEntry(
     string Name,
     int? RestPort,
     int? GrpcPort,
+    int? PostgresPort,
     int? EntityCount,
     bool IsIdentity,
     string? Authority,

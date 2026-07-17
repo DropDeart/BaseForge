@@ -94,3 +94,100 @@ Kullanıcı `v0.3.0-beta` tag'iyle push denedi, `publish.yml`'in Build adımı "
 
 **Ders:** Bu paketin lockfile'ını bir daha Windows'ta `npm ci` ile test etmeye çalışmayın (zaten hiçbir platformda "kalıcı doğru" bir hali yok) — CI artık `npm install` kullandığı için bu önemsiz.
 
+## Designer.Web — counters desteği eklendi (gerçek bir eksiklik)
+
+Kullanıcı Designer'da `SerialPool.consumedCount`'u counter yapmak isterken UI'da hiçbir kontrol olmadığını fark etti. Daha önceki explore ajanı bunu zaten doğrulamıştı (`counters`/`anonymousActions` C#'ta var, React'ta hiç yok) ama bu ana kadar `counters` için elle bir ekleme yapılmamıştı. Küçük, `appendOnly` ile aynı desende bir ekleme:
+
+- `types.ts` — `EntitySpec.counters?: string[]` eklendi.
+- `EntityEditor.tsx` — prop'un ⚙ gelişmiş panelinde, **yalnızca `int` tipli alanlarda** görünen bir "counter" checkbox'ı eklendi. Prop yeniden adlandırılırsa/silinirse `counters` dizisi de senkron tutuluyor (dangling reference olmasın diye, App.tsx'in relation rename'de yaptığı disipline benzer); tip `int`'ten başka bir şeye değiştirilirse counter işareti otomatik kaldırılıyor (`SpecValidator`'ın "counter yalnızca int'te olur" hatasına düşmemek için).
+- `AnonymousActions` (entity-bazlı action kısıtlama) için hâlâ UI yok — bugüne kadar ihtiyaç doğmadı, gerekirse aynı desenle eklenir.
+- ✅ `dotnet build src/BaseForge.CodeGen` (npm build dahil) — 0 hata, 0 uyarı.
+
+## Kullanıcının Pharma/core üretimi — yetim "Entity" dosyaları
+
+Kullanıcı `core`'u ilk kez gerçekten üretti (`C:\Users\pc\Desktop\Pharma\core`), build 3 hata ile patladı: `Grpc/EntityGrpcService.cs` içinde `EntityService`/`EntityMessage`/`EntityByIdRequest` bulunamadı. Kök neden: Designer'da bir noktada "+ ekle" ile varsayılan isimli ("Entity") boş bir entity oluşmuş, sonra silinmiş — ama **CodeGen önceki üretimden kalan dosyaları hiç temizlemiyor**. `Core.csproj`'daki `<Protobuf Include="Protos/entity.proto">` doğru şekilde kaybolmuştu ama 7 yetim dosya (`Controllers/EntitysController.cs`, `Entities/Entity.cs`, `Features/Entitys/Entity{Commands,Dto,Queries}.cs`, `Grpc/EntityGrpcService.cs`, `Protos/entity.proto`) diskte kalmıştı ve .NET SDK'nın varsayılan `**/*.cs` glob'u onları hâlâ derliyordu. Silindi, `obj`/`bin` temizlendi, `dotnet restore` + `build` **0 hata** ile geçti.
+
+## Docker-doğru port/Authority + otomatik artan port önerisi
+
+Kullanıcı 4 Pharma servisinin (core/its/netsis/api) hiç port ayarlanmadığı için hepsinin aynı
+varsayılan portları (8080/8081/5432) kullandığını fark etti. İncelerken daha derin bir sorun
+bulundu: JWT `Authority` Docker container içinden asla erişilemeyecek `localhost:5090` literal'i
+olarak gömülüyordu (gRPC client'ların doğru kullandığı `host.docker.internal` deseni JWT
+tarafına hiç yayılmamış). Plan: `C:\Users\pc\.claude\plans\declarative-splashing-fox.md`.
+
+- **Bölüm 2'de araştırma sırasında bulunan 5. gerçek hata:** `Templates.cs:875`'teki
+  `Grpc:{Provider}` appsettings satırı gRPC portunu da **hardcoded `8081`** yazıyordu —
+  sağlayıcının gerçek portundan bağımsız. Bugüne kadar fark edilmemiş çünkü herkes varsayılan
+  portları kullanıyordu; artık portlar rutin farklılaşacağı için bu da kırılacaktı.
+- **Bölüm 1** — `ServiceRegistry.cs`: `ServiceRegistryEntry`'ye `PostgresPort` eklendi;
+  `UpsertService`/`UpsertIdentity` bunu dolduruyor; yeni public `LoadForWorkspace(workspaceRoot)`.
+- **Bölüm 2** — `CodeModel.cs`: `GrpcClientResolution.ProviderGrpcPort` (varsayılan 8081) eklendi.
+  `CodeGenerator.cs`: `TryResolveSibling` artık `siblingSpec.DockerPorts?.Grpc ?? 8081` kullanıyor;
+  `TryResolveIdentityUser` artık `outputDir`'den hesaplanan workspace kökünden
+  `ServiceRegistry.LoadForWorkspace` ile identity'nin gerçek portunu (`?? 8082`) okuyor;
+  `ResolveExternalRefs` imzasına `outputDir` eklendi. `Templates.cs:875` artık
+  `{{ c.ProviderGrpcPort }}` kullanıyor (hardcoded 8081 değil).
+- **Bölüm 3** — `DesignerEndpoints.cs`: yeni `GET /api/workspace` (ServiceRegistry'yi döner);
+  `/api/meta`'ya `ServiceIsNew`/`IdentityIsNew` eklendi (dosya varlığına bakarak, `ctx.LoadExisting`'den
+  bağımsız — daha güvenilir).
+- ✅ `dotnet build src/BaseForge.CodeGen` — 0 hata, 0 uyarı (backend tarafı tamamlandı).
+- **Bölüm 4** — `types.ts`: `Meta.serviceIsNew/identityIsNew`, yeni `WorkspaceEntry` interface'i.
+  `api/client.ts`: `workspace()` çağrısı. `App.tsx`: `suggestPorts`/`suggestAuthority`/`portsEqual`
+  yardımcıları; mount effect'te workspace çekilip yeni servis/identity için portlar+authority
+  gerçek (placeholder değil, düzenlenebilir) değer olarak ön-dolduruluyor; auth toggle varsayılanı
+  artık `suggested.authority`; `generate()` başarı sonrası workspace'i yeniden çekip yalnızca
+  **hâlâ önceki önerilen değere eşit kalan** alanları güncelliyor (elle girileni ezmiyor) —
+  Identity + servis aynı oturumdan art arda üretilme senaryosunu kapsıyor. Port alanlarının
+  altına, workspace'teki diğer servisleri gösteren bir ipucu eklendi (TypeScript'in
+  "workspace state hiç okunmuyor" uyarısını da gerçek bir faydaya çevirdi).
+- ✅ `dotnet build BaseForge.slnx` + `dotnet test tests/BaseForge.UnitTests` — 0 hata, 7/7 test başarılı.
+
+## Doğrulama (uçtan uca)
+
+1. **Regresyon:** `samples/blog.yaml` yeniden üretildi (workspace'te `services.json` yok — izole
+   `/tmp` klasörü) — `Grpc:Identity` doğru şekilde identity'nin kendi varsayılanına (`8082`, eski
+   hardcoded `8081` değil) düştü, `dotnet build` 0 hata.
+2. **Gerçek senaryo:** Identity özel portlarla (`9000`/`9001`/`5433`) `/tmp/multiservice-test`'e
+   üretildi → `services.json`'da doğru kaydedildiği doğrulandı → `identity/User`'a referans veren
+   yeni bir `testsvc` üretildi → **`appsettings.json`'da `"Identity": "http://host.docker.internal:9001"`**
+   (hardcoded `8081` değil, gerçek kayıtlı port) — `dotnet build` 0 hata. Gerçek bug tam olarak
+   hedeflendiği gibi düzeltildi.
+3. Geçici test klasörleri temizlendi.
+
+## docs/ARCH.md
+
+- §7.1 (Servis Kaydı / ServiceRegistry — port doğruluğu) ve §7.2 (Designer otomatik port/Authority
+  önerisi) eklendi. Karar Günlüğü'ne 1 satır.
+
+## Kapanış
+
+- `dotnet build BaseForge.slnx` + `dotnet test` — 0 hata, 7/7 test başarılı.
+- Global `baseforge` aracı `0.3.4-local`'e güncellendi (çalışan bir Designer oturumu yoktu, sormaya
+  gerek kalmadı).
+- **Sonuç:** Kullanıcının port çakışması gözlemi, gerçekte 2 ayrı kök nedene ("hiç port ayarlanmamış"
+  + "Authority Docker'da hiç çalışmayan bir adres") ve araştırma sırasında bulunan 3. bir gerçek
+  hataya (gRPC cross-service portu da hardcoded'dı) çıktı. Üçü de BaseForge'a kalıcı olarak
+  eklendi/düzeltildi, iki ayrı senaryoyla (tek servis regresyon + gerçek çok-servisli özel port
+  testi) uçtan uca doğrulandı. Kullanıcının 4 mevcut Pharma servisindeki port/Authority değerlerini
+  Designer'ı yeniden açarak (artık otomatik doğru öneri gelecek) kendisinin güncellemesi gerekiyor —
+  mevcut spec.yaml'lar otomatik değiştirilmedi.
+
+**Bilinen kısıt (CodeGen'e kasıtlı eklenmedi):** Bir entity Designer'da silinip yeniden üretilirse, eski dosyaları elle silmek gerekiyor — otomatik temizlemek, kullanıcının elle eklediği iş mantığı dosyalarını (örn. TraceEvent "verify" handler'ı) da silme riski taşıdığı için bilinçli olarak yapılmadı.
+
+## ER önizlemesi (DBML + canlı diyagram) — MultiTenant'ın TenantId'yi hiç göstermediği bulundu
+
+Kullanıcı `core` için ürettiği DBML'i yapıştırdı, önceki 3 bulgunun (AggregateId ismi, ilişki kardinalitesi, ConsumedCount nullable) hepsi doğru düzeltilmişti. Ama **hiçbir tabloda `TenantId` yoktu** — Multi-tenancy açıkken bunun görünmesi gerekirdi. Kontrol edilince: bu, ER önizlemesinin **3 ayrı yerde** (ikisi Designer.Web'de canlı önizleme için, biri CodeGen'de gerçek `.drawio` dosyası için) `ServiceSpec.MultiTenant`'tan tamamen habersiz, kendi başına `entity.Props`'u dolaşan kopya bir implementasyon olmasından kaynaklanıyor — Capability C'yi eklerken yalnızca `CodeGenerator.BuildEntityModel`'e (gerçek `.cs` üretimi) `TenantId` enjeksiyonu eklenmişti, ER önizleme kod yollarına hiç yayılmamıştı.
+
+- `src/BaseForge.Designer.Web/src/dbml.ts` (`toDbml`, "DBML kopyala" butonu) — `spec.multiTenant` true iken her tabloya `TenantId uuid [not null]` satırı eklendi.
+- `src/BaseForge.Designer.Web/src/components/ErDiagram.tsx` (canlı görsel ER kutucukları) — aynı koşulla `TenantId · uuid` satırı eklendi.
+- `src/BaseForge.CodeGen/Generation/DrawioErGenerator.cs` (`baseforge new-service`'in diske yazdığı gerçek `.drawio` dosyası) — `BuildEntityLines`'a `multiTenant` parametresi eklendi, aynı satır eklendi.
+- ✅ `dotnet build BaseForge.slnx` (tam çözüm, npm build dahil) — 0 hata, 0 uyarı.
+
+## Designer.Web — dış referans `store` alanı için input yoktu (gerçek bir eksiklik)
+
+Kullanıcı ER diyagramında `TraceEvent.operator` dış referansının `store: CustomerId` gösterdiğini fark edip sordu. Kontrol edince: `EntityEditor.tsx`'teki "+ referans" butonu `store: "CustomerId"` (muhtemelen `orders.yaml` örneğinden kalma) hardcoded varsayılanla ekliyordu, ama render edilen `ext-row`'da **`store` için hiç input alanı yoktu** — kullanıcı bunu asla değiştiremezdi, sadece isim (`xName`) ve hedef (`target`) ve `via` dropdown'ı vardı. `counters` ile aynı sınıf bir eksiklik.
+
+- "+ referans" varsayılanları `target: "", store: ""` olarak boşaltıldı (yanıltıcı hardcoded örnek değer kalmasın diye — `target` zaten `placeholder="servis/Entity"` gösteriyor).
+- `ext-row`'a `store` için yeni bir `<input placeholder="ör. OperatorId">` eklendi (`.ext-row` flexbox olduğu için CSS'e dokunmaya gerek kalmadı).
+- ✅ `dotnet build src/BaseForge.CodeGen` (npm build dahil) — 0 hata, 0 uyarı.
+

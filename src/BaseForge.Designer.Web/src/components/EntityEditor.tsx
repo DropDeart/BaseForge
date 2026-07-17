@@ -16,6 +16,7 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
   const props = entity.props ?? {};
   const relations = entity.relations ?? {};
   const externalRefs = entity.externalRefs ?? {};
+  const counters = entity.counters ?? [];
   const others = allEntities.filter((e) => e !== name);
   const [expandedProp, setExpandedProp] = useState<string | null>(null);
 
@@ -35,7 +36,33 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
   );
 
   const updateProp = (pName: string, patch: Partial<PropSpec>) =>
-    onChange({ ...entity, props: setKey(props, pName, { ...props[pName], ...patch }) });
+    onChange({
+      ...entity,
+      props: setKey(props, pName, { ...props[pName], ...patch }),
+      // counter yalnızca int alanlarda anlamlı — tip int'ten başka bir şeye değişirse geçersiz
+      // bir spec'e (SpecValidator hatası) düşmemek için işaret otomatik kaldırılır.
+      counters: patch.type && patch.type !== "int" ? counters.filter((c) => c !== pName) : counters,
+    });
+
+  const renameProp = (pName: string, newName: string) =>
+    onChange({
+      ...entity,
+      props: renameKey(props, pName, newName),
+      counters: counters.map((c) => (c === pName ? newName : c)),
+    });
+
+  const removeProp = (pName: string) =>
+    onChange({
+      ...entity,
+      props: removeKey(props, pName),
+      counters: counters.filter((c) => c !== pName),
+    });
+
+  const toggleCounter = (pName: string) =>
+    onChange({
+      ...entity,
+      counters: counters.includes(pName) ? counters.filter((c) => c !== pName) : [...counters, pName],
+    });
 
   return (
     <>
@@ -80,10 +107,12 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
         {Object.entries(props).map(([pName, pSpec], index) => {
           const isOpen = expandedProp === pName;
           const isStringLike = pSpec.type === "string" || pSpec.type === "text";
+          const isInt = pSpec.type === "int";
+          const isCounter = counters.includes(pName);
           return (
             <div className="prop-row-wrap" key={index}>
               <div className="prop-row">
-                <input className="uinput mono" value={pName} onChange={(e) => onChange({ ...entity, props: renameKey(props, pName, e.target.value) })} />
+                <input className="uinput mono" value={pName} onChange={(e) => renameProp(pName, e.target.value)} />
                 <select
                   className={`uselect type-select ${typeClass(pSpec.type)}`}
                   value={pSpec.type}
@@ -96,12 +125,12 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
                 <div className="prop-row-actions">
                   <button
                     className="icon-btn"
-                    title="Gelişmiş ayarlar (nullable / maxLength / default)"
+                    title="Gelişmiş ayarlar (nullable / maxLength / default / counter)"
                     onClick={() => setExpandedProp(isOpen ? null : pName)}
                   >
                     ⚙
                   </button>
-                  <button className="icon-btn" onClick={() => onChange({ ...entity, props: removeKey(props, pName) })}>Sil</button>
+                  <button className="icon-btn" onClick={() => removeProp(pName)}>Sil</button>
                 </div>
               </div>
               {isOpen && (
@@ -132,6 +161,14 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
                     value={pSpec.default ?? ""}
                     onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
                   />
+                  {isInt ? (
+                    <label title="Her zaman herkese açık bir POST .../{id}/increment-{alan} ucu üretilir.">
+                      <input type="checkbox" checked={isCounter} onChange={() => toggleCounter(pName)} />
+                      counter
+                    </label>
+                  ) : (
+                    <span />
+                  )}
                 </div>
               )}
             </div>
@@ -187,7 +224,7 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
               onClick={() =>
                 onChange({
                   ...entity,
-                  externalRefs: setKey(externalRefs, uniqueKey(externalRefs, "ref"), { target: "customers/Customer", store: "CustomerId", via: meta.via[0] }),
+                  externalRefs: setKey(externalRefs, uniqueKey(externalRefs, "ref"), { target: "", store: "", via: meta.via[0] }),
                 })
               }
             >
@@ -199,6 +236,7 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
             <div className="ext-row" key={index}>
               <input className="uinput mono" style={{ width: 80 }} value={xName} onChange={(e) => onChange({ ...entity, externalRefs: renameKey(externalRefs, xName, e.target.value) })} />
               <input className="uinput grow" placeholder="servis/Entity" value={x.target} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, target: e.target.value }) })} />
+              <input className="uinput mono" style={{ width: 110 }} placeholder="ör. OperatorId" value={x.store} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, store: e.target.value }) })} />
               <select className="uselect" value={x.via} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, via: e.target.value }) })}>
                 {meta.via.map((v) => (
                   <option key={v} value={v}>{v}</option>

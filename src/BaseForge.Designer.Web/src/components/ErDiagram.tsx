@@ -81,6 +81,7 @@ export function ErDiagram({ spec }: Props) {
                     {Object.values(entities[name].externalRefs ?? {}).map((x, i) => (
                       <div className="fk" key={i}>{x.store} · uuid (ext)</div>
                     ))}
+                    {spec.multiTenant && <div className="fk">TenantId · uuid</div>}
                   </div>
                 </div>
               ))}

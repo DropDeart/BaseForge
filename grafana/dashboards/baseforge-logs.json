@@ -1,0 +1,67 @@
+{
+  "title": "BaseForge - Servis Logları",
+  "uid": "baseforge-logs",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s",
+  "templating": {
+    "list": [
+      {
+        "name": "Service",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "Loki" },
+        "query": "label_values(service)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "CorrelationId",
+        "type": "textbox",
+        "label": "Correlation ID",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Servise Göre Log Hacmi",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "expr": "sum by (service) (count_over_time({service=~\"$Service\"} |= \"$CorrelationId\" [$__interval]))"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Loglar",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 8 },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "expr": "{service=~\"$Service\"} |= \"$CorrelationId\""
+        }
+      ]
+    }
+  ]
+}

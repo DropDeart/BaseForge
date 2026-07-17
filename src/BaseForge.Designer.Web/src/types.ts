@@ -30,6 +30,8 @@ export interface EntitySpec {
   searchable?: boolean;
   /** true ise Update/Delete hiç üretilmez — yalnızca Create/GetById/List kalır (append-only). */
   appendOnly?: boolean;
+  /** Sayaç olarak işaretlenmiş int alanların adları — her biri için herkese açık bir increment ucu üretilir. */
+  counters?: string[];
 }
 
 export interface ServiceAuthSpec {
@@ -45,6 +47,13 @@ export interface DockerPortsSpec {
   postgres?: number | null;
 }
 
+export interface RabbitMqTuningSpec {
+  /** Bir outbox satırının kaç başarısız denemeden sonra dead işaretleneceği (varsayılan 10). */
+  outboxMaxRetries?: number | null;
+  /** İşlenmiş outbox satırlarının kaç gün sonra silineceği (varsayılan 7). */
+  outboxRetentionDays?: number | null;
+}
+
 export interface ServiceSpec {
   service: string;
   database: string;
@@ -53,6 +62,8 @@ export interface ServiceSpec {
   dockerPorts?: DockerPortsSpec | null;
   /** true ise tüm entity'ler ITenantEntity (TenantId) ile üretilir ve options.EnableMultiTenancy() çağrılır. */
   multiTenant?: boolean;
+  /** RabbitMQ outbox/DLQ ince ayarları (opsiyonel) — yalnızca publishes/subscribes kullanan servislerde anlamlı. */
+  rabbitMqTuning?: RabbitMqTuningSpec | null;
 }
 
 export interface ProviderSpec {
@@ -105,6 +116,23 @@ export interface Meta {
   providers: string[];
   solutionFound: boolean;
   solutionName?: string | null;
+  /** Bu servisin spec.yaml'i diskte henüz yoksa true — port/authority önerisi yalnızca bu durumda uygulanır. */
+  serviceIsNew: boolean;
+  /** identity/auth.yaml diskte henüz yoksa true. */
+  identityIsNew: boolean;
+}
+
+/** ServiceRegistry.cs'deki ServiceRegistryEntry'nin camelCase karşılığı — workspace'te daha önce üretilmiş servisler. */
+export interface WorkspaceEntry {
+  name: string;
+  restPort?: number | null;
+  grpcPort?: number | null;
+  postgresPort?: number | null;
+  entityCount?: number | null;
+  isIdentity: boolean;
+  authority?: string | null;
+  audience?: string | null;
+  protected: boolean;
 }
 
 export interface GenerateResponse {

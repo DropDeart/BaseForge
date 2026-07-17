@@ -46,7 +46,7 @@ internal static class DrawioErGenerator
             var x = 40 + (col * ColumnSpacing);
             var y = 40 + (row * RowSpacing);
 
-            var lines = BuildEntityLines(entity, fkColumns.GetValueOrDefault(name));
+            var lines = BuildEntityLines(entity, fkColumns.GetValueOrDefault(name), spec.MultiTenant);
             AppendEntityCell(sb, name, lines, x, y);
         }
 
@@ -84,7 +84,7 @@ internal static class DrawioErGenerator
         return sb.ToString();
     }
 
-    private static List<string> BuildEntityLines(EntitySpec entity, List<string>? foreignKeys)
+    private static List<string> BuildEntityLines(EntitySpec entity, List<string>? foreignKeys, bool multiTenant)
     {
         var lines = new List<string> { "Id : uuid (PK)" };
 
@@ -112,6 +112,13 @@ internal static class DrawioErGenerator
         foreach (var (_, externalRef) in entity.ExternalRefs)
         {
             lines.Add($"{externalRef.Store} : uuid (ext -> {externalRef.Target})");
+        }
+
+        // ServiceSpec.MultiTenant true iken CodeGen HER entity'ye bunu otomatik ekler
+        // (bkz. CodeGenerator.BuildEntityModel) — spec'te elle tanımlanmaz.
+        if (multiTenant)
+        {
+            lines.Add("TenantId : uuid");
         }
 
         // Audit alanları (BaseEntity)

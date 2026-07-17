@@ -10,8 +10,8 @@ namespace BaseForge.API.Extensions;
 public static class ApplicationBuilderExtensions
 {
     /// <summary>
-    /// BaseForge middleware'lerini pipeline'a ekler: exception handling, request logging ve
-    /// (AddBaseForge'da JWT etkinleştirildiyse) authentication + authorization.
+    /// BaseForge middleware'lerini pipeline'a ekler: correlation id, exception handling,
+    /// request logging ve (AddBaseForge'da JWT etkinleştirildiyse) authentication + authorization.
     /// Pipeline'ın başında, <c>MapControllers</c>'tan önce çağrılmalıdır.
     /// </summary>
     /// <param name="app">Uygulama pipeline'ı.</param>
@@ -20,6 +20,9 @@ public static class ApplicationBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
+        // En başta: sonraki tüm middleware'lerin (exception handling, request logging) ve
+        // handler'ların logları doğru CorrelationId'yi taşısın diye.
+        app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseMiddleware<RequestLoggingMiddleware>();
 

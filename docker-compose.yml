@@ -35,6 +35,33 @@ services:
       timeout: 10s
       retries: 5
 
+  # Merkezi log toplama: her servis Serilog ile buraya push eder (Serilog:LokiUrl appsettings anahtarı).
+  # Retention (varsayılan 7 gün) grafana/loki-config.yaml'da yapılandırılır.
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: baseforge-loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./grafana/loki-config.yaml:/etc/loki/loki-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yaml
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: baseforge-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+    depends_on:
+      loki:
+        condition: service_started
+
   # Mikroservisler buraya eklenir, örnek:
   # users-service:
   #   build: ./services/Users
@@ -45,3 +72,4 @@ services:
 
 volumes:
   postgres_data:
+  loki_data:

@@ -204,6 +204,15 @@ internal sealed class ProgramFileModel
 
     /// <summary><c>ServiceSpec.MultiTenant</c>'tan türetilir — <c>options.EnableMultiTenancy()</c> bloğu için.</summary>
     public bool HasMultiTenancy { get; set; }
+
+    /// <summary>Serilog "Service" etiketi ve log dosyası için servis anahtarı (küçük harfli).</summary>
+    public string ServiceKey { get; set; } = string.Empty;
+
+    /// <summary><c>ServiceSpec.RabbitMqTuning.OutboxMaxRetries</c> doluysa <c>mq.OutboxMaxRetries</c> override'ı için.</summary>
+    public int? OutboxMaxRetries { get; set; }
+
+    /// <summary><c>ServiceSpec.RabbitMqTuning.OutboxRetentionDays</c> doluysa <c>mq.OutboxRetention</c> override'ı için.</summary>
+    public int? OutboxRetentionDays { get; set; }
 }
 
 /// <summary>appsettings / Dockerfile / docker-compose şablonları için model.</summary>
@@ -327,6 +336,13 @@ internal sealed class GrpcClientResolution
 
     /// <summary>Docker/host adı olarak kullanılabilir küçük harfli sağlayıcı adı (örn. <c>"products"</c>).</summary>
     public string ProviderHost { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Sağlayıcı servisin gerçek gRPC portu — sağlayıcının kendi <c>spec.yaml</c>'inden (kardeş servis)
+    /// veya workspace <c>services.json</c> kaydından (identity) okunur; bulunamazsa varsayılan <c>8081</c>.
+    /// appsettings.json'daki <c>Grpc:{ProviderNamespace}</c> adresinde kullanılır.
+    /// </summary>
+    public int ProviderGrpcPort { get; set; } = 8081;
 
     /// <summary>Rich ise hedef entity'nin gerçek alanları; değilse boş (yalnızca Id).</summary>
     public List<ProtoFieldModel> Fields { get; set; } = [];

@@ -151,10 +151,10 @@ internal static class Templates
         {{~ end ~}}
                 };
                 await _repository.AddAsync(entity, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
         {{~ if PublishCreated ~}}
                 await _eventBus.PublishAsync(new {{ Name }}CreatedEvent { Data = {{ Name }}Dto.From(entity) }, cancellationToken);
         {{~ end ~}}
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
                 return entity.Id;
             }
         }
@@ -204,10 +204,10 @@ internal static class Templates
                 entity.{{ f.Name }} = request.{{ f.Name }};
         {{~ end ~}}
                 await _repository.UpdateAsync(entity, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
         {{~ if PublishUpdated ~}}
                 await _eventBus.PublishAsync(new {{ Name }}UpdatedEvent { Data = {{ Name }}Dto.From(entity) }, cancellationToken);
         {{~ end ~}}
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
         {{~ end ~}}
@@ -247,10 +247,10 @@ internal static class Templates
                 var entity = await _repository.GetByIdAsync(request.Id, cancellationToken)
                     ?? throw new NotFoundException("{{ Name }}", request.Id);
                 await _repository.DeleteAsync(entity, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
         {{~ if PublishDeleted ~}}
                 await _eventBus.PublishAsync(new {{ Name }}DeletedEvent { Data = {{ Name }}Dto.From(entity) }, cancellationToken);
         {{~ end ~}}
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
         {{~ end ~}}
@@ -694,6 +694,10 @@ internal static class Templates
 
         var builder = WebApplication.CreateBuilder(args);
 
+        // Merkezi loglama: Serilog + (yapılandırılmışsa) Grafana Loki. Serilog:LokiUrl boşsa
+        // sadece konsola loglar — Loki'nin ayakta olması bir ön koşul değildir.
+        builder.AddBaseForgeLogging("{{ ServiceKey }}");
+
         // SPA'lardan (farklı origin) çağrılabilmesi için — izinli origin'ler appsettings/env'den
         // gelir, kod değişikliği/regen gerekmez (bkz. appsettings.json "Cors:AllowedOrigins").
         var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -709,7 +713,7 @@ internal static class Templates
         });
 
         builder.Services.AddControllers();
-        builder.Services.AddGrpc();
+        builder.Services.AddGrpc(grpc => grpc.Interceptors.Add<BaseForge.API.Grpc.CorrelationIdServerInterceptor>());
         builder.Services.AddOpenApi(openApi =>
         {
             // Scalar'daki "Introduction" bölümü bu bilgilerden gelir (Markdown desteklenir).
@@ -769,6 +773,12 @@ internal static class Templates
                 mq.Port = int.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672");
                 mq.Username = builder.Configuration["RabbitMq:Username"] ?? "guest";
                 mq.Password = builder.Configuration["RabbitMq:Password"] ?? "guest";
+        {{~ if OutboxMaxRetries ~}}
+                mq.OutboxMaxRetries = {{ OutboxMaxRetries }};
+        {{~ end ~}}
+        {{~ if OutboxRetentionDays ~}}
+                mq.OutboxRetention = TimeSpan.FromDays({{ OutboxRetentionDays }});
+        {{~ end ~}}
         {{~ for s in Subscriptions ~}}
                 mq.Subscribe<{{ Namespace }}.Integration.{{ s.SourceEntity }}{{ s.Kind }}Event>("{{ s.EventType }}", "{{ Namespace | string.downcase }}.{{ s.Handler }}");
         {{~ end ~}}
@@ -780,7 +790,8 @@ internal static class Templates
         // {{ c.Target }} servisine gRPC istemcisi (BaseForge.CodeGen tarafından üretildi).
         builder.Services.AddGrpcClient<{{ c.ProviderNamespace }}.Grpc.{{ c.Entity }}Service.{{ c.Entity }}ServiceClient>(o =>
             o.Address = new Uri(builder.Configuration["Grpc:{{ c.ConfigKey }}"]
-                ?? throw new InvalidOperationException("Grpc:{{ c.ConfigKey }} tanımlı değil.")));
+                ?? throw new InvalidOperationException("Grpc:{{ c.ConfigKey }} tanımlı değil.")))
+            .AddInterceptor<BaseForge.API.Grpc.CorrelationIdClientInterceptor>();
         builder.Services.AddScoped<{{ Namespace }}.Integration.I{{ c.Entity }}Client, {{ Namespace }}.Integration.{{ c.Entity }}Client>();
         {{~ end ~}}
 
@@ -872,7 +883,7 @@ internal static class Templates
         {{~ if GrpcClients.size > 0 ~}}
           "Grpc": {
         {{~ for c in GrpcClients ~}}
-            "{{ c.ConfigKey }}": "http://{{ c.ProviderHost }}:8081"{{ if !for.last }},{{ end }}
+            "{{ c.ConfigKey }}": "http://{{ c.ProviderHost }}:{{ c.ProviderGrpcPort }}"{{ if !for.last }},{{ end }}
         {{~ end ~}}
           },
         {{~ end ~}}
@@ -884,6 +895,9 @@ internal static class Templates
             "Password": "change_me"
           },
         {{~ end ~}}
+          "Serilog": {
+            "LokiUrl": "http://host.docker.internal:3100"
+          },
           "Logging": {
             "LogLevel": {
               "Default": "Information",
@@ -918,6 +932,9 @@ internal static class Templates
         # RabbitMq'ya bağlanır: kökteki docker-compose.yml'daki paylaşılan broker
         # (bir kere 'docker compose up -d rabbitmq' — bu servis kendi RabbitMq container'ını açmaz).
         {{~ end ~}}
+        # Merkezi log toplama (Grafana Loki) da kökteki docker-compose.yml'da paylaşılan bir
+        # container'dır ('docker compose up -d loki grafana') — appsettings.json'daki Serilog:LokiUrl
+        # boşsa/erişilemezse servis sadece konsola loglamaya devam eder, bu bir ön koşul değildir.
         services:
           postgres:
             image: postgres:17-alpine
@@ -974,6 +991,7 @@ internal static class Templates
         {{~ if HasRabbitMq ~}}
         # RabbitMq'ya bağlanır: kökteki docker-compose.yml'daki paylaşılan broker.
         {{~ end ~}}
+        # Merkezi log toplama (Grafana Loki) da kökteki docker-compose.yml'da paylaşılan bir container'dır.
         services:
           {{ ServiceKey }}-service:
             build: .
