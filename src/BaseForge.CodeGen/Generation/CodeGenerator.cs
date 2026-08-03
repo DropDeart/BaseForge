@@ -36,6 +36,9 @@ internal static class CodeGenerator
         var subscriptionResolutions = ResolveSubscriptions(spec, ns, specPath);
         var hasRabbitMq = spec.Entities.Values.Any(e => e.Publishes.Count > 0) || subscriptionResolutions.Count > 0;
 
+        // Gateway hedeflerini (varsa) önceden çözümle — Project/Program/AppSettings render'ları buna bağlı.
+        var gatewayTargets = ResolveGatewayTargets(spec, outputDir);
+
         var project = TemplateEngine.Render(
             Templates.Project,
             new ProjectFileModel
@@ -44,6 +47,7 @@ internal static class CodeGenerator
                 BaseForgeVersion = BaseForgeVersion,
                 ServerProtoFiles = spec.Entities.Keys.Select(k => k.ToLowerInvariant()).ToList(),
                 ClientProtoFiles = richResolutions.Select(r => r.Entity.ToLowerInvariant()).ToList(),
+                HasGateway = gatewayTargets.Count > 0,
             });
         written.Add(WriteFile(Path.Combine(outputDir, ns + ".csproj"), project));
 
@@ -138,6 +142,7 @@ internal static class CodeGenerator
             RequireHttpsMetadata = spec.Auth?.RequireHttpsMetadata ?? false,
             GrpcServerEntities = grpcServerEntities,
             GrpcClients = richResolutions,
+            GatewayTargets = gatewayTargets,
             HasRabbitMq = hasRabbitMq,
             Subscriptions = subscriptionResolutions,
             HasMultiTenancy = spec.MultiTenant,
@@ -154,6 +159,7 @@ internal static class CodeGenerator
             ServiceKey = spec.Service.ToLowerInvariant(),
             Database = spec.Database,
             GrpcClients = richResolutions,
+            GatewayTargets = gatewayTargets,
             RestPort = spec.DockerPorts?.Rest ?? 8080,
             GrpcPort = spec.DockerPorts?.Grpc ?? 8081,
             PostgresPort = spec.DockerPorts?.Postgres ?? 5432,
@@ -341,6 +347,45 @@ internal static class CodeGenerator
         }
 
         return [.. resolutions.Values];
+    }
+
+    /// <summary>
+    /// <c>spec.Gateway.ProxiedServices</c>'teki her kardeş servisin host'a yayınlanmış REST portunu
+    /// workspace kökündeki paylaşılan <c>services.json</c> kaydından (<see cref="ServiceRegistry"/>) çözer
+    /// — kardeş servisin HAM <c>spec.yaml</c>'i (henüz üretilmemiş/farklı bir port ayarlamış olabilir)
+    /// yerine, gerçekten üretilmiş halinin portu kullanılır. Kayıtta bulunamayan bir hedef (henüz hiç
+    /// üretilmemiş) sessizce ATLANIR (sabit 8080'e düşüp yanlış/çakışan bir adres üretmek yerine) — bir
+    /// uyarı yazılır, kullanıcı önce o servisi üretmeye yönlendirilir.
+    /// </summary>
+    private static List<GatewayTargetModel> ResolveGatewayTargets(ServiceSpec spec, string outputDir)
+    {
+        if (spec.Gateway is null || spec.Gateway.ProxiedServices.Count == 0)
+        {
+            return [];
+        }
+
+        var workspaceRoot = Path.GetDirectoryName(Path.GetFullPath(outputDir)) ?? outputDir;
+        var registry = ServiceRegistry.LoadForWorkspace(workspaceRoot);
+
+        var targets = new List<GatewayTargetModel>();
+        foreach (var serviceName in spec.Gateway.ProxiedServices)
+        {
+            var entry = registry.FirstOrDefault(e => string.Equals(e.Name, serviceName, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+            {
+                Console.Error.WriteLine(
+                    $"Uyarı: gateway hedefi '{serviceName}' workspace kaydında (services.json) bulunamadı — önce o servisi üretin/güncelleyin; şimdilik atlanıyor.");
+                continue;
+            }
+
+            targets.Add(new GatewayTargetModel
+            {
+                ServiceName = serviceName.ToLowerInvariant(),
+                RestPort = entry.RestPort ?? 8080,
+            });
+        }
+
+        return targets;
     }
 
     /// <summary><c>identity/User</c> özel durumu — Identity'nin sabit (ApplicationUser) alan şekliyle çözümler.</summary>

@@ -45,6 +45,21 @@ public sealed class ServiceSpec
     /// appsettings.json'da <c>Cors:AllowedOrigins</c> olarak üretilir; boşsa CORS devre dışı kalır.
     /// </summary>
     public List<string> CorsOrigins { get; set; } = [];
+
+    /// <summary>
+    /// Doluysa bu servis bir gateway/BFF'dir: <see cref="GatewaySpec.ProxiedServices"/>'teki her kardeş
+    /// servisin TÜM <c>/api/*</c> yüzeyi, bu serviste <c>/api/gateway/{servis}/...</c> altında YARP ile
+    /// şeffafça iletilir (bkz. docs/ARCH.md §5.8). Entity/route bilgisine gerek yoktur — kardeş serviste
+    /// yeni bir entity eklendiğinde gateway'in yeniden üretilmesi gerekmez.
+    /// </summary>
+    public GatewaySpec? Gateway { get; set; }
+}
+
+/// <summary>Bir gateway servisinin proxy'leyeceği kardeş servislerin adları.</summary>
+public sealed class GatewaySpec
+{
+    /// <summary>Proxy'lenecek kardeş servislerin adları (<c>ServiceSpec.Service</c> ile eşleşir, örn. <c>["core", "its"]</c>).</summary>
+    public List<string> ProxiedServices { get; set; } = [];
 }
 
 /// <summary>

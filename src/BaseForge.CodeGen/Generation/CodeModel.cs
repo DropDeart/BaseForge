@@ -75,6 +75,9 @@ internal sealed class ProjectFileModel
 
     /// <summary>Rich dış referanslar için kopyalanan proto dosya adları (küçük harf, uzantısız) — <c>GrpcServices="Client"</c>.</summary>
     public List<string> ClientProtoFiles { get; set; } = [];
+
+    /// <summary><c>ServiceSpec.Gateway</c> doluysa true — <c>Yarp.ReverseProxy</c> paket referansı koşullu eklenir.</summary>
+    public bool HasGateway { get; set; }
 }
 
 /// <summary>CQRS feature dosyaları (Dto/Commands/Queries/Events) için model.</summary>
@@ -196,6 +199,9 @@ internal sealed class ProgramFileModel
     /// <summary>Rich çözümlenen dış referanslar — her biri için <c>AddGrpcClient&lt;...&gt;()</c> üretilir.</summary>
     public List<GrpcClientResolution> GrpcClients { get; set; } = [];
 
+    /// <summary><c>ServiceSpec.Gateway</c> doluysa proxy'lenen hedefler — <c>AddReverseProxy</c>/<c>MapReverseProxy</c> wiring'i için.</summary>
+    public List<GatewayTargetModel> GatewayTargets { get; set; } = [];
+
     /// <summary>En az bir entity <c>publishes</c> tanımlıyorsa veya <c>subscribes</c> doluysa true — <c>EnableRabbitMq</c> bloğu için.</summary>
     public bool HasRabbitMq { get; set; }
 
@@ -247,6 +253,23 @@ internal sealed class HostFileModel
 
     /// <summary>SPA'lardan çağrılabilmesi için izinli origin'ler — appsettings <c>Cors:AllowedOrigins</c>.</summary>
     public List<string> CorsOrigins { get; set; } = [];
+
+    /// <summary><c>ServiceSpec.Gateway</c> doluysa proxy'lenen hedefler — appsettings <c>ReverseProxy</c> bölümü için.</summary>
+    public List<GatewayTargetModel> GatewayTargets { get; set; } = [];
+}
+
+/// <summary>
+/// Bir gateway'in proxy'lediği tek bir kardeş servis — appsettings <c>ReverseProxy</c> bölümündeki
+/// route+cluster çifti için. Entity bilgisine gerek yok: kardeş servisin TÜM <c>/api/*</c> yüzeyi
+/// tek bir YARP route'uyla iletilir (bkz. docs/ARCH.md §5.8).
+/// </summary>
+internal sealed class GatewayTargetModel
+{
+    /// <summary>Küçük harfli servis adı — route segmenti (<c>/api/gateway/{ServiceName}/...</c>) ve YARP route/cluster id'si olarak kullanılır.</summary>
+    public string ServiceName { get; set; } = string.Empty;
+
+    /// <summary>Hedef servisin host'a yayınlanmış REST portu (workspace <c>services.json</c> kaydından, bkz. <see cref="ServiceRegistry"/>).</summary>
+    public int RestPort { get; set; } = 8080;
 }
 
 /// <summary>gRPC client stub şablonu için model (fallback — kardeş spec bulunamayan durum).</summary>

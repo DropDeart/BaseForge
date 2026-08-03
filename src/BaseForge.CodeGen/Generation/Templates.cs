@@ -795,6 +795,15 @@ internal static class Templates
         builder.Services.AddScoped<{{ Namespace }}.Integration.I{{ c.Entity }}Client, {{ Namespace }}.Integration.{{ c.Entity }}Client>();
         {{~ end ~}}
 
+        {{~ if GatewayTargets.size > 0 ~}}
+        // Gateway: kardeş servislerin TÜM /api/* yüzeyini /api/gateway/{servis}/... altında şeffafça
+        // ileten YARP reverse-proxy — route/cluster tanımları appsettings.json "ReverseProxy" bölümünden
+        // gelir (bkz. docs/ARCH.md §5.8). [Authorize] bu uçlara UYGULANMAZ (MapReverseProxy MVC pipeline
+        // dışında çalışır) — gerçek yetkilendirme sınırı hâlâ Authorization header'ının şeffafça iletildiği
+        // hedef serviste.
+        builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+        {{~ end ~}}
+
         var app = builder.Build();
 
         // Reverse proxy (nginx vb.) arkasında çalışırken gerçek şema/host'u (https, gerçek domain)
@@ -852,6 +861,9 @@ internal static class Templates
         app.UseStaticFiles(); // wwwroot/uploads — MediaController'ın fiziksel olarak kaydettiği dosyalar için
         app.UseBaseForge();
         app.MapControllers();
+        {{~ if GatewayTargets.size > 0 ~}}
+        app.MapReverseProxy();
+        {{~ end ~}}
         {{~ for e in GrpcServerEntities ~}}
         app.MapGrpcService<{{ Namespace }}.Grpc.{{ e }}GrpcService>();
         {{~ end ~}}
@@ -868,6 +880,28 @@ internal static class Templates
           "Cors": {
             "AllowedOrigins": [{{ for o in CorsOrigins }}"{{ o }}"{{ if !for.last }}, {{ end }}{{ end }}]
           },
+        {{~ if GatewayTargets.size > 0 ~}}
+          "ReverseProxy": {
+            "Routes": {
+        {{~ for t in GatewayTargets ~}}
+              "{{ t.ServiceName }}-route": {
+                "ClusterId": "{{ t.ServiceName }}-cluster",
+                "Match": { "Path": "/api/gateway/{{ t.ServiceName }}/{**catch-all}" },
+                "Transforms": [ { "PathPattern": "/api/{catch-all}" } ]
+              }{{ if !for.last }},{{ end }}
+        {{~ end ~}}
+            },
+            "Clusters": {
+        {{~ for t in GatewayTargets ~}}
+              "{{ t.ServiceName }}-cluster": {
+                "Destinations": {
+                  "destination1": { "Address": "http://host.docker.internal:{{ t.RestPort }}/" }
+                }
+              }{{ if !for.last }},{{ end }}
+        {{~ end ~}}
+            }
+          },
+        {{~ end ~}}
           "Kestrel": {
             "Endpoints": {
               "Http": {
@@ -1175,6 +1209,10 @@ internal static class Templates
             <!-- Servisler arası senkron iletişim (gRPC) — sunucu + istemci taraflarını birlikte getirir -->
             <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
             <PackageReference Include="Grpc.Net.ClientFactory" Version="2.71.0" />
+        {{~ if HasGateway ~}}
+            <!-- Gateway: kardeş servislerin REST yüzeyini /api/gateway/{servis}/... altında ileten reverse-proxy -->
+            <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+        {{~ end ~}}
           </ItemGroup>
         {{~ if ServerProtoFiles.size > 0 || ClientProtoFiles.size > 0 ~}}
 

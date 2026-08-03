@@ -11,7 +11,7 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace BaseForge.Identity.Controllers;
 
-/// <summary>OpenIddict token endpoint'i: password, client_credentials ve refresh_token akışları.</summary>
+/// <summary>OpenIddict token endpoint'i: password, client_credentials, authorization_code ve refresh_token akışları.</summary>
 [ApiController]
 public sealed class AuthorizationController : ControllerBase
 {
@@ -70,9 +70,12 @@ public sealed class AuthorizationController : ControllerBase
             return await HandleClientCredentialsAsync(request);
         }
 
-        if (request.IsRefreshTokenGrantType())
+        if (request.IsRefreshTokenGrantType() || request.IsAuthorizationCodeGrantType())
         {
-            return await HandleRefreshAsync();
+            // Her iki grant'ta da OpenIddict, kodun/refresh token'ın arkasındaki principal'ı
+            // AuthenticateAsync ile kendisi çözer (Authorize()'da SignIn edilen ticket'tan) — burada
+            // yalnızca aynı kullanıcı için yeniden SignIn yapılır, akışlar arasında fark yoktur.
+            return await HandleServerManagedGrantAsync();
         }
 
         return Forbidden("Desteklenmeyen grant türü.");
@@ -115,13 +118,13 @@ public sealed class AuthorizationController : ControllerBase
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    private async Task<IActionResult> HandleRefreshAsync()
+    private async Task<IActionResult> HandleServerManagedGrantAsync()
     {
         var result = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         var user = result.Principal is null ? null : await _userManager.GetUserAsync(result.Principal);
         if (user is null)
         {
-            return Forbidden("Refresh token geçersiz.");
+            return Forbidden("Yetkilendirme kodu ya da refresh token geçersiz.");
         }
 
         var principal = await CreateUserPrincipalAsync(user, result.Principal!.GetScopes());

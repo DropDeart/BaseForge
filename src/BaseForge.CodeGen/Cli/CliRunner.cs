@@ -105,6 +105,7 @@ internal static class CliRunner
         }
 
         var output = options.GetValueOrDefault("output", $"./{spec.Service}");
+        YamlSpecWriter.Write(spec, output, "auth.yaml");
         var files = IdentityGenerator.Generate(spec, output);
 
         Console.WriteLine($"{files.Count} dosya üretildi ({Path.GetFullPath(output)}):");
@@ -161,7 +162,8 @@ internal static class CliRunner
             spec.Auth = AskAuth();
         }
 
-        var files = CodeGenerator.Generate(spec, output, options.GetValueOrDefault("spec"));
+        var specPath = YamlSpecWriter.Write(spec, output);
+        var files = CodeGenerator.Generate(spec, output, specPath);
         Console.WriteLine();
         Console.WriteLine($"{files.Count} dosya üretildi ({Path.GetFullPath(output)}):");
         foreach (var file in files)

@@ -226,6 +226,19 @@ bazı servisler dashboard'da görünmezdi.
 - Yerel (`dotnet run`, container dışı) çalıştırmada `host.docker.internal` çözümlemesi garanti değil —
   mevcut gRPC cross-service deseninin de paylaştığı bilinen bir kısıt, yeni bir risk değil.
 
+### 5.8. Gateway / BFF — YARP Tabanlı Reverse Proxy
+
+Bugüne kadar servisler arası iletişim (§5.1) yalnızca "ID'den tekil kayıt çözümleme" (gRPC, `Integration/{Entity}Client.cs`) sağlıyordu — bir frontend'in birden fazla servisin TÜM CRUD/liste uçlarına tek bir origin üzerinden erişebilmesi için hiçbir mekanizma yoktu (her servis izole bir docker-compose ağında, kendi host portunda). Bu, bir servisin diğerlerinin REST yüzeyini frontend'e tek bir kapı üzerinden sunabilmesini sağlayan, kalıcı bir **gateway/BFF** özelliği ekler.
+
+**Tasarım kararı — entity-agnostik, config-only proxy.** Gateway, kardeş servisin entity'lerini TEK TEK bilmez/proxy'lemez — `ServiceSpec.Gateway.ProxiedServices`'teki her kardeş servisin **tüm** `/api/*` yüzeyi, `/api/gateway/{servis}/{**catch-all}` altında [YARP](https://microsoft.github.io/reverse-proxy/) ile şeffafça iletilir. Bunun avantajı: kardeş serviste yeni bir entity eklendiğinde gateway'in yeniden üretilmesi GEREKMEZ — sadece port/route bilgisi baştan üretilir, entity bilgisi hiç gerekmez.
+
+- **Spec:** `gateway: { proxiedServices: [core, its, netsis] }` (`GatewaySpec`, `ServiceSpec.cs`).
+- **Port çözümleme (`CodeGenerator.ResolveGatewayTargets`):** her proxied servisin host REST portu, workspace kökündeki paylaşılan `services.json` kaydından (`ServiceRegistry.LoadForWorkspace`, §7.1'deki identity gRPC port çözümlemesiyle AYNI desen) okunur — kardeş servisin ham `spec.yaml`'inin `DockerPorts`'u DEĞİL, çünkü henüz üretilmemiş/port ayarlanmamış bir hedefte bu sabit `8080`'e düşer ve birden fazla proxied servis aynı (yanlış) adrese çakışabilirdi. Kayıtta bulunamayan bir hedef sessizce atlanır (uyarı yazılır) — önce o servisin üretilmiş/güncellenmiş olması gerekir.
+- **Üretim:** appsettings.json'a bir `ReverseProxy` bölümü (her proxied servis için bir `Routes`+`Clusters` çifti, `PathPattern` ile `/api/gateway/{servis}` öneki soyulup hedefte `/api/{...}`'e dönüştürülür) ve `Program.cs`'e `builder.Services.AddReverseProxy().LoadFromConfig(...)` + `app.MapReverseProxy()` eklenir (`Templates.cs`). Yalnızca `Gateway` set edilmiş projede `Yarp.ReverseProxy` paket referansı koşullu eklenir (`Templates.Project`, `ProjectFileModel.HasGateway`).
+- **CORS:** proxied servislerin CORS'u tarayıcı açısından önemsizdir (tarayıcı onlara asla doğrudan gitmez) — yalnızca gateway servisinin KENDİ `corsOrigins`'i (mevcut §-genel CORS mekanizması, `Cors:AllowedOrigins`) frontend'in origin'ini içermelidir.
+
+**v1 sınırlaması (bilinçli, dokümante edilen basitlik):** `MapReverseProxy()` uçları MVC pipeline'ının dışında çalışır — `[Authorize]` bunlara UYGULANMAZ, gateway hop'u kendisi kimlik doğrulaması yapmaz. YARP `Authorization` header'ını varsayılan olarak olduğu gibi iletir, gerçek yetkilendirme sınırı hâlâ hedef serviste (`protect: true` + `[Authorize]`) duruyor — bu bir güvenlik açığı değildir (gateway ekstra bir doğrulama katmanı EKLEMİYOR, ama mevcut sınırı da BOZMUYOR), sadece gateway'de bir ön-kontrol yok. Ayrıca: proxied servisin portu üretim anında appsettings.json'a "gömülür" — bir kardeş servisin portu sonradan değişirse gateway'in de yeniden üretilmesi gerekir (mevcut gRPC-client port coupling'iyle aynı bilinen kısıt).
+
 ## 6. Kimlik Doğrulama
 
 - Merkezi tek bir **Identity Service** vardır (JWT / OAuth2).
