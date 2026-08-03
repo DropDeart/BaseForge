@@ -57,6 +57,22 @@ baseforge new orders
 
 > Arayüz React (Vite + TS) ile yazılır ve `dotnet tool`'a gömülür — çalıştırmak için ek kurulum gerekmez. Kaynağı: `src/BaseForge.Designer.Web/`.
 
+### Global `baseforge` CLI'yi güncel tutma (local geliştirme)
+
+`main`'i her `git pull`'da global kurulu `baseforge` tool'u otomatik güncellenmez — repodaki kaynak ile
+kurulu sürüm birbirinden bağımsızdır. Local kurulumu en güncel koda göre yeniden pack'leyip
+güncellemek için:
+
+```powershell
+.\scripts\update-cli.ps1            # tam build (Designer/Identity arayüzleri dahil)
+.\scripts\update-cli.ps1 -SkipWebBuild   # sadece CLI/codegen tarafını hızlıca güncelle
+```
+
+Script, `localpkgs/` altına yerel bir NuGet paketi üretir ve mevcut kurulu local sürümün patch
+numarasını otomatik artırarak (`0.5.1-local` → `0.5.2-local` gibi) global tool'u günceller.
+Bu **resmi bir NuGet release'i değildir** — sadece geliştirme makinesindeki `baseforge` komutunu
+tazeler. Resmi sürümler `.github/workflows/publish.yml` üzerinden GitHub Release ile yayınlanır.
+
 ## Yapı
 
 ```
