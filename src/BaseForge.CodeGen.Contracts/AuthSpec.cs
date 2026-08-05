@@ -103,6 +103,9 @@ public sealed class ProvidersSpec
 
     /// <summary>Facebook OAuth ayarları (opsiyonel).</summary>
     public ProviderSpec? Facebook { get; set; }
+
+    /// <summary>Sign in with Apple ayarları (opsiyonel) — diğerlerinden farklı bir kimlik bilgisi şekli, bkz. <see cref="AppleProviderSpec"/>.</summary>
+    public AppleProviderSpec? Apple { get; set; }
 }
 
 /// <summary>Tek bir harici OAuth sağlayıcısının client kimlik bilgileri.</summary>
@@ -113,4 +116,24 @@ public sealed class ProviderSpec
 
     /// <summary>Sağlayıcıdan alınan client secret.</summary>
     public string ClientSecret { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Sign in with Apple kimlik bilgileri. Apple'da statik bir "client secret" yok — TeamId/KeyId/
+/// PrivateKey'den her seferinde imzalanan bir JWT üretilir (bkz. services/BaseForge.Identity/
+/// Authentication/ExternalProviders.cs).
+/// </summary>
+public sealed class AppleProviderSpec
+{
+    /// <summary>Apple Developer portalındaki "Services ID" (örn. <c>com.hekimburada.web</c>).</summary>
+    public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>Apple Developer hesabının Team ID'si.</summary>
+    public string TeamId { get; set; } = string.Empty;
+
+    /// <summary>İmzalama için kullanılan private key'in Key ID'si.</summary>
+    public string KeyId { get; set; } = string.Empty;
+
+    /// <summary>PKCS#8 formatındaki private key (.p8 dosyasının içeriği, gerçek satır sonu veya <c>\n</c> kaçış dizisiyle).</summary>
+    public string PrivateKey { get; set; } = string.Empty;
 }

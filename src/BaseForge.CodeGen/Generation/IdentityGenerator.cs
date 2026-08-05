@@ -97,6 +97,7 @@ internal static class IdentityGenerator
             <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.9" />
             <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.9" />
             <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" Version="10.0.9" />
+            <PackageReference Include="AspNet.Security.OAuth.Apple" Version="10.0.0" />
             <PackageReference Include="AspNet.Security.OAuth.GitHub" Version="10.0.0" />
             <!-- Merkez kullanıcı (User) entity'sine diğer servislerin gRPC ile salt-okunur erişimi -->
             <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
@@ -174,6 +175,7 @@ internal static class IdentityGenerator
                     ["GitHub"] = Provider(spec.Providers.GitHub),
                     ["Microsoft"] = Provider(spec.Providers.Microsoft),
                     ["Facebook"] = Provider(spec.Providers.Facebook),
+                    ["Apple"] = AppleProvider(spec.Providers.Apple),
                 },
             },
             ["Logging"] = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -196,6 +198,16 @@ internal static class IdentityGenerator
             ["ClientId"] = provider?.ClientId ?? string.Empty,
             // ClientSecret bilerek boş — gerçek değer '.env'de (Auth__Providers__{Name}__ClientSecret).
             ["ClientSecret"] = string.Empty,
+        };
+
+    private static Dictionary<string, object?> AppleProvider(AppleProviderSpec? provider) =>
+        new(StringComparer.Ordinal)
+        {
+            ["ClientId"] = provider?.ClientId ?? string.Empty,
+            ["TeamId"] = provider?.TeamId ?? string.Empty,
+            ["KeyId"] = provider?.KeyId ?? string.Empty,
+            // PrivateKey bilerek boş — gerçek değer '.env'de (Auth__Providers__Apple__PrivateKey).
+            ["PrivateKey"] = string.Empty,
         };
 
     private static string BuildEnvExample(AuthSpec spec)
@@ -224,6 +236,10 @@ internal static class IdentityGenerator
         {
             sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Providers__{name}__ClientSecret=");
         }
+
+        // Apple'da statik bir ClientSecret yok — imzalanan JWT'nin girdisi olan private key burada.
+        sb.AppendLine("# Apple: .p8 dosyasının içeriği (gerçek satır sonu yerine \\n kaçış dizisiyle tek satırda)");
+        sb.AppendLine("Auth__Providers__Apple__PrivateKey=");
 
         return sb.ToString();
     }
@@ -266,6 +282,11 @@ internal static class IdentityGenerator
             {
                 sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Providers__{name}__ClientSecret={provider.ClientSecret}");
             }
+        }
+
+        if (spec.Providers.Apple is { } apple && !string.IsNullOrWhiteSpace(apple.PrivateKey))
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Providers__Apple__PrivateKey={apple.PrivateKey}");
         }
 
         return sb.ToString();

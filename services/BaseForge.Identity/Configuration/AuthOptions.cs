@@ -26,7 +26,7 @@ public sealed class AuthOptions
     /// <summary>İlk açılışta oluşturulacak admin kullanıcı.</summary>
     public SeedAdminOptions? SeedAdmin { get; set; }
 
-    /// <summary>Dış kimlik sağlayıcıları (Google/GitHub/Microsoft/Facebook). Faz P3'te devreye girer.</summary>
+    /// <summary>Dış kimlik sağlayıcıları (Google/GitHub/Microsoft/Facebook/Apple).</summary>
     public ProvidersOptions Providers { get; set; } = new();
 }
 
@@ -77,6 +77,9 @@ public sealed class ProvidersOptions
     public ExternalProviderOptions? Microsoft { get; set; }
 
     public ExternalProviderOptions? Facebook { get; set; }
+
+    /// <summary>Sign in with Apple — diğerlerinden farklı bir kimlik bilgisi şekli (bkz. <see cref="AppleProviderOptions"/>).</summary>
+    public AppleProviderOptions? Apple { get; set; }
 }
 
 /// <summary>Bir dış sağlayıcının client kimlik bilgileri (secret'lar env'den gelmeli).</summary>
@@ -85,4 +88,28 @@ public sealed class ExternalProviderOptions
     public string ClientId { get; set; } = string.Empty;
 
     public string ClientSecret { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Sign in with Apple kimlik bilgileri. Diğer sağlayıcılar gibi tek bir ClientId/ClientSecret çifti
+/// değil — Apple'da "client secret" statik değil, TeamId/KeyId/PrivateKey ile her seferinde imzalanan
+/// bir JWT'dir (bkz. AspNet.Security.OAuth.Apple paketinin GenerateClientSecret'ı).
+/// </summary>
+public sealed class AppleProviderOptions
+{
+    /// <summary>Apple Developer portalındaki "Services ID" (örn. <c>com.hekimburada.web</c>).</summary>
+    public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>Apple Developer hesabının Team ID'si.</summary>
+    public string TeamId { get; set; } = string.Empty;
+
+    /// <summary>İmzalama için kullanılan private key'in Key ID'si.</summary>
+    public string KeyId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// PKCS#8 formatındaki private key (.p8 dosyasının içeriği). env'de tek satıra sığdırmak için
+    /// gerçek satır sonları yerine <c>\n</c> kaçış dizisi kullanılabilir — <c>ExternalProviders</c>
+    /// bunu okurken geri çevirir.
+    /// </summary>
+    public string PrivateKey { get; set; } = string.Empty;
 }

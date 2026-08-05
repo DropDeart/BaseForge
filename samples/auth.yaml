@@ -34,8 +34,11 @@ seedAdmin:
   email: admin@baseforge.local
   password: Admin!2345         # prod: .env'e taşı (Auth__SeedAdmin__Password)
 
-providers:                     # P3'te interaktif login devreye girer; secret'lar .env'den
+providers:                     # secret'lar .env'den (Auth__Providers__{Name}__ClientSecret)
   google:    { clientId: "", clientSecret: "" }
   github:    { clientId: "", clientSecret: "" }
   microsoft: { clientId: "", clientSecret: "" }
   facebook:  { clientId: "", clientSecret: "" }
+  # Apple: statik ClientSecret yok — TeamId/KeyId/PrivateKey'den imzalanan JWT üretilir.
+  # PrivateKey .env'de (Auth__Providers__Apple__PrivateKey, \n kaçış diziliyle tek satır).
+  apple:     { clientId: "", teamId: "", keyId: "" }
