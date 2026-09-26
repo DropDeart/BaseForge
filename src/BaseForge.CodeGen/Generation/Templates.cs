@@ -1017,7 +1017,7 @@ internal static class Templates
               "{{ t.ServiceName }}-route": {
                 "ClusterId": "{{ t.ServiceName }}-cluster",
                 "Match": { "Path": "/api/gateway/{{ t.ServiceName }}/{**catch-all}" },
-                "Transforms": [ { "PathPattern": "/api/{catch-all}" } ]
+                "Transforms": [ { "PathRemovePrefix": "/api/gateway/{{ t.ServiceName }}" }, { "PathPrefix": "/api" } ]
               }{{ if !for.last }},{{ end }}
         {{~ end ~}}
             },
