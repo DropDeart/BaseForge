@@ -371,6 +371,16 @@ export function App() {
                 <div className="hint" style={{ marginTop: 4 }}>
                   Yalnızca <code>publishes</code>/<code>subscribes</code> kullanan servislerde anlamlıdır. Boş = kütüphane varsayılanı (10 deneme / 7 gün).
                 </div>
+                <div className="field" style={{ marginTop: 14 }}>
+                  <span className="field-label">Loglama</span>
+                  <div className="hint">
+                    Loglar her zaman konsola, ayrıca <code>Serilog:LokiUrl</code> adresindeki Grafana Loki'ye gönderilir
+                    (varsayılan <code>http://host.docker.internal:3100</code>; ortamda <code>Serilog__LokiUrl</code> ile değişir).
+                    Loki erişilemezse servis sessizce yalnızca konsola loglar. Loki + Grafana bu workspace'e üretilmez —
+                    çalıştırmak için BaseForge deposunun kökünde <code>docker compose up -d loki grafana</code>
+                    (Grafana: <code>http://localhost:3000</code>).
+                  </div>
+                </div>
               </div>
 
               {selected && entities[selected] ? (
