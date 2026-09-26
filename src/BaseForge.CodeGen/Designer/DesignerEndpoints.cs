@@ -101,10 +101,17 @@ internal static class DesignerEndpoints
             Results.Ok(new StopResponse(await RunRunner.StopAsync(req.Output, ct))));
 
         // UI "Kapat" butonu.
-        api.MapPost("/shutdown", async (IHostApplicationLifetime lifetime) =>
+        // Yanıt hemen döner (UI "kapatıldı" ekranına geçebilsin); başlatılan container'lar ve süreç yanıttan sonra kapanır.
+        api.MapPost("/shutdown", (HttpContext http, IHostApplicationLifetime lifetime) =>
         {
-            await RunRunner.StopAllAsync();
-            lifetime.StopApplication();
+            http.Response.OnCompleted(() => DesignerHeartbeat.ShutdownAsync(lifetime));
+            return Results.Ok();
+        });
+
+        // Açık sekmenin nabzı: sekme kapatılırsa (Kapat'a basılmadan) sunucu bir süre sonra kendini kapatır.
+        api.MapPost("/heartbeat", (DesignerHeartbeat heartbeat) =>
+        {
+            heartbeat.Touch();
             return Results.Ok();
         });
 

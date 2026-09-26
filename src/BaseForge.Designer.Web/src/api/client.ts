@@ -59,6 +59,8 @@ export const api = {
     }).then((r) => json<StopResponse>(r)),
 
   shutdown: () => fetch("/api/shutdown", { method: "POST" }),
+  /** Sekmenin açık olduğunu bildirir; kesilirse sunucu birkaç dakika sonra kendini kapatır. */
+  heartbeat: () => fetch("/api/heartbeat", { method: "POST" }).catch(() => undefined),
 
   launchUiDesign: (services: string[]) =>
     fetch("/api/ui-design/launch", {

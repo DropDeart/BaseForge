@@ -47,6 +47,7 @@ export function App() {
   const [includeInSolution, setIncludeInSolution] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceEntry[]>([]);
   const [suggested, setSuggested] = useState<{ ports: DockerPortsSpec; authority: string } | null>(null);
+  const [closing, setClosing] = useState<"open" | "closing" | "closed">("open");
 
   useEffect(() => {
     Promise.all([api.meta(), api.spec(), api.workspace()]).then(([m, s, ws]) => {
@@ -73,6 +74,42 @@ export function App() {
       setSelected(Object.keys(service.entities ?? {})[0] ?? null);
     });
   }, []);
+
+  // Sekme açıkken nabız: sekme Kapat'a basılmadan kapatılırsa sunucu birkaç dakika sonra kendini kapatır.
+  useEffect(() => {
+    if (closing !== "open") return;
+    api.heartbeat();
+    const timer = window.setInterval(() => api.heartbeat(), 20_000);
+    return () => window.clearInterval(timer);
+  }, [closing]);
+
+  const closeDesigner = async () => {
+    setClosing("closing");
+    try {
+      await api.shutdown();
+    } catch {
+      // Sunucu zaten kapanmış olabilir — sonuç aynı.
+    }
+    setClosing("closed");
+    // Tarayıcı yalnızca izin verdiği durumlarda (örn. Designer'ın açtığı tek sayfalık sekme) kapatır; aksi halde mesaj kalır.
+    window.close();
+  };
+
+  if (closing !== "open") {
+    return (
+      <div className="closed-screen">
+        <div className="closed-card">
+          <div className="closed-title">{closing === "closing" ? "Designer kapatılıyor…" : "Designer kapatıldı"}</div>
+          {closing === "closed" && (
+            <div className="hint">
+              Sunucu ve port kapandı; başlattığın container'lar durduruldu. Bu sekmeyi kapatabilirsin — tekrar açmak için{" "}
+              <code>baseforge new</code> / <code>baseforge update</code>.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!meta || !spec || !auth) {
     return <div className="empty">Yükleniyor…</div>;
@@ -186,7 +223,7 @@ export function App() {
         {railItem("identity", "I", "Identity")}
         {railItem("er", "E", "ER diyagramı")}
         <div className="rail-spacer" />
-        <button className="rail-item" title="Kapat" onClick={() => api.shutdown()}>
+        <button className="rail-item" title="Kapat" onClick={closeDesigner}>
           ⏻
         </button>
       </div>
@@ -218,7 +255,7 @@ export function App() {
                   {meta.solutionFound ? `Solution'a ekle (${meta.solutionName})` : "Solution bulunamadı — ayrı kalacak"}
                 </span>
               </div>
-              <button className="btn" onClick={() => api.shutdown()}>Kapat</button>
+              <button className="btn" onClick={closeDesigner}>Kapat</button>
               <button className="btn btn-primary" disabled={busy} onClick={generate}>
                 {busy ? "Üretiliyor…" : view === "identity" ? "Identity Üret + Derle" : "Üret + Derle"}
               </button>

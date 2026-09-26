@@ -19,12 +19,16 @@ internal static class DesignerServer
 {
     public static int Run(string serviceName, int port, bool loadExisting = false, bool openBrowser = true)
     {
+        port = ResolveFreePort(port);
+
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls($"http://localhost:{port}");
 
         // Tek oturumluk çalışma dizinini (çıktı kökü) ve seed servis adını paylaş.
         builder.Services.AddSingleton(new DesignerContext(serviceName, Directory.GetCurrentDirectory(), loadExisting));
+        builder.Services.AddSingleton<DesignerHeartbeat>();
+        builder.Services.AddHostedService<DesignerHeartbeatWatcher>();
 
         // Spec sınıfları PascalCase property'li; React tarafıyla camelCase üzerinden konuşulur.
         builder.Services.ConfigureHttpJsonOptions(o =>
@@ -82,6 +86,44 @@ internal static class DesignerServer
 
         app.Run();
         return 0;
+    }
+
+    /// <summary>
+    /// İstenen port doluysa (çoğunlukla kapatılmamış eski bir Designer) sıradaki boş portu seçer; Kestrel'in
+    /// "address already in use" istisnasıyla çökmek yerine ne olduğunu açıklar.
+    /// </summary>
+    private static int ResolveFreePort(int requested)
+    {
+        for (var candidate = requested; candidate < requested + 20; candidate++)
+        {
+            if (IsPortFree(candidate))
+            {
+                if (candidate != requested)
+                {
+                    Console.WriteLine($"Port {requested} kullanımda (muhtemelen açık kalmış başka bir Designer: http://localhost:{requested}). " +
+                                      $"{candidate} kullanılıyor.");
+                }
+
+                return candidate;
+            }
+        }
+
+        return requested; // Hepsi doluysa Kestrel'in kendi hatası görünsün.
+    }
+
+    private static bool IsPortFree(int port)
+    {
+        try
+        {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return true;
+        }
+        catch (System.Net.Sockets.SocketException)
+        {
+            return false;
+        }
     }
 
     private static void OpenBrowser(string url)

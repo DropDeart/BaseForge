@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { EntitySpec, Meta, PropSpec, ServiceAuthSpec } from "../types";
 import { removeKey, renameKey, setKey, typeClass, uniqueKey } from "../util";
 import { EntityAccessEditor } from "./AccessEditor";
@@ -25,6 +25,16 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
   const counters = entity.counters ?? [];
   const others = allEntities.filter((e) => e !== name);
   const [expandedProp, setExpandedProp] = useState<string | null>(null);
+
+  // Ad girişi yerel taslak tutar: boş veya çakışan ad (geçici olarak) yazılabilsin, yalnızca geçerliyse uygulansın.
+  // (Önceden input doğrudan spec'e bağlıydı; boş ad reddedildiği için son harf silinemiyordu.)
+  const [nameDraft, setNameDraft] = useState(name);
+  useEffect(() => setNameDraft(name), [name]);
+  const nameProblem = !nameDraft.trim() ? "Entity adı boş olamaz." : others.includes(nameDraft) ? "Bu adda bir entity zaten var." : null;
+  const changeName = (value: string) => {
+    setNameDraft(value);
+    if (value.trim() && !others.includes(value)) onRename(value);
+  };
 
   // Backend'de varsayılan true — alan yoksa (yeni entity) açık kabul edilir.
   const paginated = entity.paginated !== false;
@@ -88,7 +98,15 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
         <div className="field-row" style={{ alignItems: "flex-end" }}>
           <div className="field">
             <span className="field-label">Entity adı</span>
-            <input className="uinput mono" value={name} onChange={(e) => onRename(e.target.value)} />
+            <input
+              className="uinput mono"
+              value={nameDraft}
+              onChange={(e) => changeName(e.target.value)}
+              // Geçersiz bir taslakla çıkılırsa son geçerli ada dön.
+              onBlur={() => nameProblem && setNameDraft(name)}
+              style={nameProblem ? { borderBottomColor: "var(--red)" } : undefined}
+            />
+            {nameProblem && <span className="hint" style={{ color: "var(--red)" }}>{nameProblem}</span>}
           </div>
           <div style={{ flex: 0 }}>
             <button className="btn" onClick={onRemove}>Entity'yi sil</button>

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { EntitySpec } from "../types";
 import { RoleChips } from "./AccessEditor";
 
@@ -45,127 +46,156 @@ export function ListOptionsEditor({
     return p.type === "bool" ? "true" : p.type === "enum" ? (p.values?.[0] ?? "") : "";
   };
 
-  return (
-    <div>
-      <div className="group-label">Liste filtreleri</div>
-      {!paginated ? (
-        <div className="hint">Filtreler yalnızca sayfalı listelerde kullanılabilir.</div>
-      ) : candidates.length === 0 ? (
-        <div className="hint">Filtrelenebilir alan yok (string, sayı, bool, guid, tarih, enum veya ilişki alanı ekleyin).</div>
-      ) : (
-        <>
-          <div className="chips">
-            {candidates.map((f) => (
-              <button key={f.name} type="button" className={`chip ${filterable.includes(f.name) ? "on" : ""}`} onClick={() => toggleFilter(f.name)}>
-                {f.name}
-              </button>
-            ))}
-          </div>
-          <div className="hint" style={{ marginTop: 4 }}>
-            Seçilenler liste ucunda eşitlik filtresi olur
-            {filterable.length > 0 && <> (örn. <code>?{filterable[0][0].toLowerCase() + filterable[0].slice(1)}=…</code>)</>}.
-          </div>
-        </>
-      )}
+  const camel = (s: string) => s[0].toLowerCase() + s.slice(1);
+  const exampleQuery = filterable.map((f) => `${camel(f)}=…`).join("&");
+  const whereCount = rf ? Object.keys(rf.where).length : 0;
 
-      <div className="toggle-row" style={{ marginTop: 16 }}>
-        <button
-          className={`toggle ${rf ? "on" : ""}`}
-          disabled={!rf && whereProps.length === 0}
-          onClick={() =>
-            onChange({
-              ...entity,
-              readFilter: rf ? null : { where: { [pascal(whereProps[0][0])]: defaultValueFor(whereProps[0][0]) }, bypassRoles: ["Admin"] },
-            })
-          }
-        >
-          <span className="knob" />
-        </button>
-        <span className="group-label" style={{ margin: 0 }}>Görünürlük filtresi</span>
-      </div>
-      {!rf ? (
-        <div className="hint" style={{ marginTop: 4 }}>
-          {whereProps.length === 0
-            ? "Bool, enum, string veya sayı tipinde bir alan gerekir (örn. IsPublished)."
-            : "Açılırsa list/getById yalnızca koşula uyan kayıtları gösterir (örn. taslakları gizler); gRPC etkilenmez."}
-        </div>
-      ) : (
-        <div style={{ marginTop: 8 }}>
-          {Object.entries(rf.where).map(([field, value]) => {
-            const [propName, prop] = whereProps.find(([n]) => pascal(n) === pascal(field)) ?? [field, undefined];
-            return (
-              <div className="rel-row" key={field}>
-                <select
-                  className="uselect"
-                  value={pascal(propName)}
-                  onChange={(e) => {
-                    const next = { ...rf.where };
-                    delete next[field];
-                    next[e.target.value] = defaultValueFor(whereProps.find(([n]) => pascal(n) === e.target.value)![0]);
-                    setWhere(next);
-                  }}
-                >
-                  {whereProps.map(([n]) => (
-                    <option key={n} value={pascal(n)}>{pascal(n)}</option>
-                  ))}
-                </select>
-                <span className="hint">=</span>
-                {prop?.type === "bool" || prop?.type === "enum" ? (
-                  <select className="uselect grow" value={value} onChange={(e) => setWhere({ ...rf.where, [field]: e.target.value })}>
-                    {(prop.type === "bool" ? ["true", "false"] : prop.values ?? []).map((v) => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input className="uinput grow mono" value={value} onChange={(e) => setWhere({ ...rf.where, [field]: e.target.value })} />
-                )}
-                <button
-                  className="icon-btn"
-                  disabled={Object.keys(rf.where).length === 1}
-                  title={Object.keys(rf.where).length === 1 ? "En az bir koşul gerekir" : "Koşulu kaldır"}
-                  onClick={() => {
-                    const next = { ...rf.where };
-                    delete next[field];
-                    setWhere(next);
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })}
-          {whereProps.some(([n]) => !(pascal(n) in rf.where)) && (
-            <button
-              className="btn-link"
-              onClick={() => {
-                const [n] = whereProps.find(([p]) => !(pascal(p) in rf.where))!;
-                setWhere({ ...rf.where, [pascal(n)]: defaultValueFor(n) });
-              }}
-            >
-              + koşul (VE)
-            </button>
-          )}
-          <div className="field" style={{ marginTop: 10 }}>
-            <span className="field-label">Filtreye takılmadan her şeyi görenler</span>
-            <RoleChips
-              roles={knownRoles}
-              // "sahibi" çipi spec'te ayrı bir bayrak (bypassOwner); rol listesine karışmaz.
-              selected={[...(rf.bypassRoles ?? []), ...(rf.bypassOwner ? ["owner"] : [])]}
-              onChange={(next) =>
-                onChange({
-                  ...entity,
-                  readFilter: { ...rf, bypassRoles: next.filter((r) => r !== "owner"), bypassOwner: next.includes("owner") },
-                })
-              }
-              owner={{
-                enabled: !!entity.ownerField,
-                title: entity.ownerField ? "Sahibi kendi kayıtlarını her zaman görür" : "Önce Erişim bölümünden bir sahip alanı seçin",
-              }}
-            />
-            <div className="hint" style={{ marginTop: 4 }}>Servisin süper rolleri otomatik dahildir.</div>
+  return (
+    <div className="opt-stack">
+      {/* Liste filtreleri */}
+      <section className="opt-card">
+        <div className="opt-head">
+          <div>
+            <div className="opt-title">Liste filtreleri</div>
+            <div className="opt-desc">Seçilen alanlar liste ucunda <b>eşitlik filtresi</b> olur; istemci yalnızca istediği kayıtları çeker.</div>
           </div>
+          {paginated && candidates.length > 0 && <span className="opt-count">{filterable.length} / {candidates.length} seçili</span>}
         </div>
-      )}
+
+        {!paginated ? (
+          <div className="opt-empty">Filtreler yalnızca sayfalı listelerde kullanılabilir — yukarıdan "Sayfalama"yı açın.</div>
+        ) : candidates.length === 0 ? (
+          <div className="opt-empty">Filtrelenebilir alan yok (string, sayı, bool, guid, tarih, enum veya ilişki alanı ekleyin).</div>
+        ) : (
+          <>
+            <div className="chips roomy">
+              {candidates.map((f) => (
+                <button key={f.name} type="button" className={`chip ${filterable.includes(f.name) ? "on" : ""}`} onClick={() => toggleFilter(f.name)}>
+                  {f.name}
+                  <span className="chip-type">{f.type}</span>
+                </button>
+              ))}
+            </div>
+            <div className="opt-example">
+              GET /api/…?{filterable.length > 0 ? exampleQuery : <span className="opt-muted">alan seçin</span>}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Görünürlük filtresi */}
+      <section className="opt-card">
+        <div className="opt-head">
+          <div>
+            <div className="opt-title">Görünürlük filtresi</div>
+            <div className="opt-desc">
+              list ve getById yalnızca koşula uyan kayıtları döndürür (örn. taslakları gizler). Uymayan kayıt getById'de 404 olur; servisler arası gRPC etkilenmez.
+            </div>
+          </div>
+          <button
+            className={`toggle ${rf ? "on" : ""}`}
+            disabled={!rf && whereProps.length === 0}
+            title={rf ? "Kapat" : "Aç"}
+            onClick={() =>
+              onChange({
+                ...entity,
+                readFilter: rf ? null : { where: { [pascal(whereProps[0][0])]: defaultValueFor(whereProps[0][0]) }, bypassRoles: ["Admin"] },
+              })
+            }
+          >
+            <span className="knob" />
+          </button>
+        </div>
+
+        {!rf ? (
+          whereProps.length === 0 && <div className="opt-empty">Bool, enum, string veya sayı tipinde bir alan gerekir (örn. IsPublished).</div>
+        ) : (
+          <>
+            <div className="opt-sub-title">Görünür olma koşulu {whereCount > 1 && <span className="opt-muted">— hepsi sağlanmalı (VE)</span>}</div>
+            <div className="where-grid">
+              <span className="field-label">Alan</span>
+              <span />
+              <span className="field-label">Değer</span>
+              <span />
+              {Object.entries(rf.where).map(([field, value]) => {
+                const [propName, prop] = whereProps.find(([n]) => pascal(n) === pascal(field)) ?? [field, undefined];
+                return (
+                  <Fragment key={field}>
+                    <select
+                      className="uselect"
+                      value={pascal(propName)}
+                      onChange={(e) => {
+                        const next = { ...rf.where };
+                        delete next[field];
+                        next[e.target.value] = defaultValueFor(whereProps.find(([n]) => pascal(n) === e.target.value)![0]);
+                        setWhere(next);
+                      }}
+                    >
+                      {whereProps.map(([n]) => (
+                        <option key={n} value={pascal(n)}>{pascal(n)}</option>
+                      ))}
+                    </select>
+                    <span className="where-eq">=</span>
+                    {prop?.type === "bool" || prop?.type === "enum" ? (
+                      <select className="uselect" value={value} onChange={(e) => setWhere({ ...rf.where, [field]: e.target.value })}>
+                        {(prop.type === "bool" ? ["true", "false"] : prop.values ?? []).map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input className="uinput mono" value={value} onChange={(e) => setWhere({ ...rf.where, [field]: e.target.value })} />
+                    )}
+                    <button
+                      className="icon-btn"
+                      disabled={whereCount === 1}
+                      title={whereCount === 1 ? "En az bir koşul gerekir" : "Koşulu kaldır"}
+                      onClick={() => {
+                        const next = { ...rf.where };
+                        delete next[field];
+                        setWhere(next);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </Fragment>
+                );
+              })}
+            </div>
+            {whereProps.some(([n]) => !(pascal(n) in rf.where)) && (
+              <button
+                className="btn-link"
+                style={{ alignSelf: "flex-start" }}
+                onClick={() => {
+                  const [n] = whereProps.find(([p]) => !(pascal(p) in rf.where))!;
+                  setWhere({ ...rf.where, [pascal(n)]: defaultValueFor(n) });
+                }}
+              >
+                + koşul ekle (VE)
+              </button>
+            )}
+
+            <div className="opt-sub">
+              <div className="opt-sub-title">Filtreye takılmadan her şeyi görenler</div>
+              <RoleChips
+                roles={knownRoles}
+                // "sahibi" çipi spec'te ayrı bir bayrak (bypassOwner); rol listesine karışmaz.
+                selected={[...(rf.bypassRoles ?? []), ...(rf.bypassOwner ? ["owner"] : [])]}
+                onChange={(next) =>
+                  onChange({
+                    ...entity,
+                    readFilter: { ...rf, bypassRoles: next.filter((r) => r !== "owner"), bypassOwner: next.includes("owner") },
+                  })
+                }
+                owner={{
+                  enabled: !!entity.ownerField,
+                  title: entity.ownerField ? "Sahibi kendi kayıtlarını her zaman görür" : "Önce Erişim bölümünden bir sahip alanı seçin",
+                }}
+              />
+              <div className="opt-desc">Servisin süper rolleri otomatik dahildir.</div>
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }

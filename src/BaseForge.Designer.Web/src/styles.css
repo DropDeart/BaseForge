@@ -310,3 +310,43 @@ pre.build { margin: 10px 0 0; padding: 10px; background: oklch(96% 0.006 75); bo
 }
 .access-row:last-child { border-bottom: none; }
 .access-action { font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+/* Liste filtreleri / görünürlük filtresi: ferah kartlar (ListOptionsEditor) */
+.opt-stack { display: flex; flex-direction: column; gap: 14px; }
+.opt-card {
+  display: flex; flex-direction: column; gap: 14px;
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 18px; background: var(--panel);
+}
+.opt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.opt-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.opt-desc { color: var(--muted); font-size: 12px; line-height: 1.55; max-width: 620px; }
+.opt-count { color: var(--muted); font-size: 11.5px; white-space: nowrap; padding-top: 2px; }
+.opt-empty {
+  color: var(--muted); font-size: 12px;
+  background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px;
+}
+.opt-example {
+  font-family: var(--mono); font-size: 12px;
+  background: var(--bg); border: 1px solid var(--divider); border-radius: 6px;
+  padding: 8px 10px; overflow-x: auto; white-space: nowrap;
+}
+.opt-muted { color: var(--muted); font-weight: 400; }
+.opt-sub-title { font-size: 12px; font-weight: 600; }
+.opt-sub { display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed var(--divider); padding-top: 14px; }
+.chips.roomy { gap: 8px; }
+.chips.roomy .chip { padding: 6px 12px; font-size: 12px; }
+.chip .chip-type { margin-left: 6px; font-weight: 400; font-size: 10.5px; opacity: 0.65; }
+.where-grid {
+  display: grid; grid-template-columns: minmax(150px, 1fr) 16px minmax(170px, 1.3fr) 28px;
+  gap: 8px 12px; align-items: center;
+}
+.where-eq { color: var(--muted); text-align: center; }
+
+/* Designer kapatıldı ekranı */
+.closed-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+.closed-card {
+  display: flex; flex-direction: column; gap: 10px; max-width: 440px; text-align: center;
+  border: 1px solid var(--border); border-radius: 12px; padding: 28px 32px; background: var(--panel);
+}
+.closed-title { font-size: 15px; font-weight: 600; }
