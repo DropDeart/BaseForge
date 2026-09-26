@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import type { AuthSpec, ProviderSpec, ProvidersSpec } from "../types";
+import { BUILT_IN_ROLES, type AuthSpec, type ProviderSpec, type ProvidersSpec } from "../types";
 
 interface Props {
   meta: { providers: string[] };
@@ -167,8 +167,91 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
           )}
         </div>
 
+        <RolesAndRegistration auth={auth} onChange={onChange} />
+
         {children}
       </div>
+    </div>
+  );
+}
+
+const ROLE_NAME = /^[A-Za-z0-9_-]+$/;
+
+/** Ek roller + kendi kendine kayıt ayarı (bkz. docs/ARCH.md §6.1). */
+function RolesAndRegistration({ auth, onChange }: { auth: AuthSpec; onChange: (auth: AuthSpec) => void }) {
+  const [draft, setDraft] = useState("");
+  const roles = auth.roles ?? [];
+  const registration = auth.registration ?? { enabled: false, defaultRole: "User" };
+  const allRoles = [...new Set<string>([...BUILT_IN_ROLES, ...roles])];
+  const draftValid = ROLE_NAME.test(draft) && !allRoles.includes(draft);
+
+  const addRole = () => {
+    if (!draftValid) return;
+    onChange({ ...auth, roles: [...roles, draft] });
+    setDraft("");
+  };
+
+  const removeRole = (role: string) =>
+    onChange({
+      ...auth,
+      roles: roles.filter((r) => r !== role),
+      // Silinen rol kayıt varsayılanıysa User'a dön (aksi halde AuthSpecValidator hata verir).
+      registration: registration.defaultRole === role ? { ...registration, defaultRole: "User" } : registration,
+    });
+
+  return (
+    <div className="divider">
+      <div className="group-label">Roller</div>
+      <div className="chips">
+        {BUILT_IN_ROLES.map((r) => (
+          <span key={r} className="chip on" title="Her zaman var">{r}</span>
+        ))}
+        {roles.map((r) => (
+          <button key={r} type="button" className="chip on" title="Kaldır" onClick={() => removeRole(r)}>
+            {r}<span className="x">×</span>
+          </button>
+        ))}
+        <input
+          className="uinput mono"
+          style={{ width: 130 }}
+          placeholder="yeni rol (örn. Editor)"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.trim())}
+          onKeyDown={(e) => e.key === "Enter" && addRole()}
+        />
+        <button className="btn-link" disabled={!draftValid} onClick={addRole}>+ ekle</button>
+      </div>
+      <div className="hint" style={{ marginTop: 4 }}>
+        Servislerde erişim kurallarında seçilebilir. SaaS'ta platform sahibi için SuperAdmin ekleyip servis ayarlarında "süper rol" yapın.
+      </div>
+
+      <div className="toggle-row" style={{ marginTop: 16 }}>
+        <button
+          className={`toggle ${registration.enabled ? "on" : ""}`}
+          onClick={() => onChange({ ...auth, registration: { ...registration, enabled: !registration.enabled } })}
+        >
+          <span className="knob" />
+        </button>
+        <span className="group-label" style={{ margin: 0 }}>Kendi kendine kayıt</span>
+      </div>
+      {registration.enabled ? (
+        <div className="field" style={{ marginTop: 8, maxWidth: 240 }}>
+          <span className="field-label">Kayıt olana verilecek rol</span>
+          <select
+            className="uselect"
+            value={registration.defaultRole}
+            onChange={(e) => onChange({ ...auth, registration: { ...registration, defaultRole: e.target.value } })}
+          >
+            {allRoles.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="hint" style={{ marginTop: 4 }}>
+          Kapalı: kayıt ucu 404 döner ve Google vb. ile ilk kez gelenlere hesap açılmaz. Kullanıcıları admin panelinden ekleyin.
+        </div>
+      )}
     </div>
   );
 }

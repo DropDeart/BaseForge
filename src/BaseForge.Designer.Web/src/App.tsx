@@ -4,7 +4,8 @@ import { EntityEditor } from "./components/EntityEditor";
 import { IdentityPanel } from "./components/IdentityPanel";
 import { ErDiagram } from "./components/ErDiagram";
 import { UiDesignLauncher } from "./components/UiDesignLauncher";
-import type { AuthSpec, DockerPortsSpec, GenerateResponse, Meta, ServiceSpec, WorkspaceEntry } from "./types";
+import { ServiceAccessEditor } from "./components/AccessEditor";
+import { BUILT_IN_ROLES, type AuthSpec, type DockerPortsSpec, type GenerateResponse, type Meta, type ServiceSpec, type WorkspaceEntry } from "./types";
 import { removeKey, renameKey, setKey, uniqueKey } from "./util";
 
 type View = "service" | "identity" | "er";
@@ -79,6 +80,8 @@ export function App() {
 
   const entities = spec.entities ?? {};
   const entityNames = Object.keys(entities);
+  // Rol seçicilerinde gösterilecek roller: Identity'de her zaman var olanlar + Identity sekmesinde tanımlananlar.
+  const knownRoles = [...new Set([...BUILT_IN_ROLES, ...(auth.roles ?? [])])];
 
   const addEntity = () => {
     const name = uniqueKey(entities, "Entity");
@@ -290,6 +293,13 @@ export function App() {
                     </div>
                   </div>
                 )}
+                {spec.auth && (
+                  <ServiceAccessEditor
+                    auth={spec.auth}
+                    knownRoles={knownRoles}
+                    onChange={(a) => setSpec({ ...spec, auth: a })}
+                  />
+                )}
                 <div className="toggle-row" style={{ marginTop: 14 }}>
                   <button
                     className={`toggle ${spec.multiTenant ? "on" : ""}`}
@@ -369,6 +379,8 @@ export function App() {
                   entity={entities[selected]}
                   meta={meta}
                   allEntities={entityNames}
+                  auth={spec.auth}
+                  knownRoles={knownRoles}
                   onRename={(n) => renameEntity(selected, n)}
                   onRemove={() => removeEntity(selected)}
                   onChange={(en) => setSpec({ ...spec, entities: setKey(entities, selected, en) })}

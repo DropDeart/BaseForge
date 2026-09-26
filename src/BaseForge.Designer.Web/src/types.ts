@@ -32,13 +32,26 @@ export interface EntitySpec {
   appendOnly?: boolean;
   /** Sayaç olarak işaretlenmiş int alanların adları — her biri için herkese açık bir increment ucu üretilir. */
   counters?: string[];
+  /** Eski (geriye dönük) biçim: [AllowAnonymous] olacak action'lar. Designer düzenlemede 'access'e taşır. */
+  anonymousActions?: string[];
+  /** Action başına erişim kuralı (bkz. docs/ARCH.md §6.1). Belirtilmeyen action servis varsayılanını kullanır. */
+  access?: Record<string, AccessRule>;
+  /** Kaydın sahibini tutan guid alan; create'te token'dan damgalanır, 'owner' kuralı buna bakar. */
+  ownerField?: string | null;
 }
+
+/** "anonymous" | "authenticated" | rol listesi (listede "owner" = kaydın sahibi). */
+export type AccessRule = string | string[];
 
 export interface ServiceAuthSpec {
   authority: string;
   audience: string;
   requireHttpsMetadata: boolean;
   protect: boolean;
+  /** access'te belirtilmeyen action'lar için kural (varsayılan: authenticated). */
+  defaultAccess?: AccessRule | null;
+  /** Tüm rol ve sahiplik kurallarını otomatik geçen roller (örn. SuperAdmin). */
+  superRoles?: string[];
 }
 
 export interface DockerPortsSpec {
@@ -107,7 +120,14 @@ export interface AuthSpec {
   seedAdmin?: SeedAdminSpec | null;
   providers: ProvidersSpec;
   dockerPorts?: DockerPortsSpec | null;
+  /** Seed edilecek ek roller — Admin ve User her zaman var. */
+  roles?: string[];
+  /** Kendi kendine kayıt (varsayılan kapalı). Kapalıyken dış sağlayıcıyla da yeni hesap açılmaz. */
+  registration?: { enabled: boolean; defaultRole: string };
 }
+
+/** Identity'de her zaman var olan roller (AuthSpecValidator.AllRoles ile aynı). */
+export const BUILT_IN_ROLES = ["Admin", "User"] as const;
 
 export interface Meta {
   types: string[];

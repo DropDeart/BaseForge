@@ -286,3 +286,24 @@ pre.build { margin: 10px 0 0; padding: 10px; background: oklch(96% 0.006 75); bo
 .er-conn .name { font-size: 10px; color: var(--muted); margin-top: 2px; }
 .er-col { display: flex; flex-direction: column; gap: 22px; flex-shrink: 0; }
 .er-cluster { display: flex; align-items: center; }
+
+/* yetki: rol chip'leri ve erişim tablosu (bkz. docs/ARCH.md §6.1) */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip {
+  font: inherit; font-size: 11.5px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+}
+.chip:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); }
+.chip.on { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-tint-text); }
+.chip.owner.on { background: var(--green-bg); border-color: var(--green-text); color: var(--green-text); }
+.chip:disabled { opacity: 0.35; cursor: not-allowed; }
+.chip .x { margin-left: 6px; opacity: 0.6; }
+.access-row {
+  display: grid;
+  grid-template-columns: 70px 170px 1fr;
+  gap: 12px; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--divider);
+}
+.access-row:last-child { border-bottom: none; }
+.access-action { font-family: var(--mono); font-size: 12px; color: var(--text); }

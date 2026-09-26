@@ -1,18 +1,23 @@
 import { useState } from "react";
-import type { EntitySpec, Meta, PropSpec } from "../types";
+import type { EntitySpec, Meta, PropSpec, ServiceAuthSpec } from "../types";
 import { removeKey, renameKey, setKey, typeClass, uniqueKey } from "../util";
+import { EntityAccessEditor } from "./AccessEditor";
 
 interface Props {
   name: string;
   entity: EntitySpec;
   meta: Meta;
   allEntities: string[];
+  /** Servisin JWT ayarı; yoksa erişim bölümü "herkese açık" uyarısı gösterir. */
+  auth?: ServiceAuthSpec | null;
+  /** Identity'de tanımlı roller (rol seçicilerinde gösterilir). */
+  knownRoles: string[];
   onRename: (newName: string) => void;
   onRemove: () => void;
   onChange: (entity: EntitySpec) => void;
 }
 
-export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemove, onChange }: Props) {
+export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles, onRename, onRemove, onChange }: Props) {
   const props = entity.props ?? {};
   const relations = entity.relations ?? {};
   const externalRefs = entity.externalRefs ?? {};
@@ -49,6 +54,7 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
       ...entity,
       props: renameKey(props, pName, newName),
       counters: counters.map((c) => (c === pName ? newName : c)),
+      ownerField: entity.ownerField === pName ? newName : entity.ownerField,
     });
 
   const removeProp = (pName: string) =>
@@ -56,6 +62,8 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
       ...entity,
       props: removeKey(props, pName),
       counters: counters.filter((c) => c !== pName),
+      // Sahip alanı silinirse bağlantıyı kopar (aksi halde SpecValidator "bu adda bir prop değil" hatası verir).
+      ownerField: entity.ownerField === pName ? null : entity.ownerField,
     });
 
   const toggleCounter = (pName: string) =>
@@ -175,6 +183,11 @@ export function EntityEditor({ name, entity, meta, allEntities, onRename, onRemo
           );
         })}
         {Object.keys(props).length === 0 && <div className="hint">Henüz alan yok.</div>}
+      </div>
+
+      {/* Erişim: sahip alanı + action başına kural (docs/ARCH.md §6.1) */}
+      <div className="divider">
+        <EntityAccessEditor entity={entity} auth={auth} knownRoles={knownRoles} onChange={onChange} />
       </div>
 
       {/* Relations + External refs side by side */}
