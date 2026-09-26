@@ -1334,7 +1334,7 @@ internal static class Templates
 
           <ItemGroup>
             <PackageReference Include="BaseForge.API" Version="{{ BaseForgeVersion }}" />
-            <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+            <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
             <PackageReference Include="Scalar.AspNetCore" Version="2.16.5" />
             <!-- Servisler arası senkron iletişim (gRPC) — sunucu + istemci taraflarını birlikte getirir -->
             <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
