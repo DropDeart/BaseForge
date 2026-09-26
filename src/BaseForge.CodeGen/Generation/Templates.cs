@@ -658,7 +658,10 @@ internal static class Templates
                     ? "misc"
                     : category;
 
-                var uploadsDir = Path.Combine(_env.WebRootPath, "uploads", safeCategory);
+                // WebRootPath yalnızca wwwroot klasörü başlangıçta varsa dolu gelir (üretici wwwroot/uploads'ı oluşturur);
+                // yine de silinmişse içerik köküne düş — aksi halde Path.Combine null ile 500 fırlatır.
+                var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+                var uploadsDir = Path.Combine(webRoot, "uploads", safeCategory);
                 Directory.CreateDirectory(uploadsDir);
 
                 var fileName = $"{Guid.NewGuid():N}{extension}";

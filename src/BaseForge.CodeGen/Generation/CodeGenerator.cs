@@ -129,6 +129,10 @@ internal static class CodeGenerator
             new ControllerFileModel { Namespace = ns, Protect = spec.Auth?.Protect == true });
         written.Add(WriteFile(Path.Combine(outputDir, "Controllers", "MediaController.cs"), mediaController));
 
+        // wwwroot başlangıçta yoksa ASP.NET Core WebRootPath'i null bırakır ve UseStaticFiles yüklenen dosyaları
+        // (yeniden başlatılana kadar) sunmaz — yerel 'dotnet run'da yükleme 500 veriyordu. Klasörü baştan oluştur.
+        written.Add(WriteFile(Path.Combine(outputDir, "wwwroot", "uploads", ".gitkeep"), string.Empty));
+
         // Program.cs + host dosyaları
         var programModel = new ProgramFileModel
         {
