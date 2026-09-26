@@ -18,6 +18,8 @@ export interface PropSpec {
   nullable?: boolean;
   maxLength?: number | null; // yalnızca string/text tipinde anlamlı
   default?: string | null; // yalnızca C# tarafı (in-memory initializer); datetime/date/guid'de desteklenmez
+  /** Yalnızca enum tipinde: izinli değerler (C# tanımlayıcısı, örn. Draft, InReview). */
+  values?: string[];
 }
 
 export interface EntitySpec {

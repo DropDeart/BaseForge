@@ -59,6 +59,43 @@ internal static class Templates
             /// <summary>{{ e.Name }} tablosu.</summary>
             public DbSet<{{ e.Name }}> {{ e.Plural }} => Set<{{ e.Name }}>();
         {{~ end ~}}
+        {{~ if EnumTypes.size > 0 ~}}
+
+            /// <summary>
+            /// Enum alanlar veritabanında sayı değil, değer adıyla (string) saklanır — enum'a değer eklenip sırası
+            /// değişse de var olan kayıtlar bozulmaz ve DB okunabilir kalır.
+            /// </summary>
+            protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+            {
+                ArgumentNullException.ThrowIfNull(configurationBuilder);
+                base.ConfigureConventions(configurationBuilder);
+        {{~ for t in EnumTypes ~}}
+                configurationBuilder.Properties<{{ t }}>().HaveConversion<string>();
+        {{~ end ~}}
+            }
+        {{~ end ~}}
+        }
+
+        """;
+
+    public const string Enum =
+        """
+        using System.Text.Json.Serialization;
+        using BaseForge.Core.Serialization;
+
+        namespace {{ Namespace }}.Entities;
+
+        /// <summary>
+        /// {{ Source }} alanının izinli değerleri (BaseForge.CodeGen tarafından üretildi). JSON'da (API, olaylar) ve
+        /// veritabanında sayı değil, değer adıyla taşınır; sayısal değerler reddedilir.
+        /// </summary>
+        [JsonConverter(typeof(StrictStringEnumConverter<{{ Name }}>))]
+        public enum {{ Name }}
+        {
+        {{~ for v in Values ~}}
+            /// <summary>{{ v }}.</summary>
+            {{ v }},
+        {{~ end ~}}
         }
 
         """;

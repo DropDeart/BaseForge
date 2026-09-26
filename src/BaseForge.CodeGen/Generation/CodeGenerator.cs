@@ -31,6 +31,7 @@ internal static class CodeGenerator
         var externalRefResolutions = ResolveExternalRefs(spec, ns, specPath, outputDir);
         var richResolutions = externalRefResolutions.Where(r => r.IsRich).ToList();
         var grpcServerEntities = new List<string>();
+        var enumTypes = new List<string>();
 
         // Olay abonelikleri (subscribes) önceden çözümle — Program.cs render'ı buna bağlı.
         var subscriptionResolutions = ResolveSubscriptions(spec, ns, specPath);
@@ -58,8 +59,21 @@ internal static class CodeGenerator
             var code = TemplateEngine.Render(Templates.Entity, BuildEntityModel(ns, name, entity, spec.MultiTenant));
             written.Add(WriteFile(Path.Combine(outputDir, "Entities", name + ".cs"), code));
 
+            foreach (var (propName, prop) in entity.Props.Where(p => TypeMap.IsEnum(p.Value.Type)))
+            {
+                var enumModel = new EnumFileModel
+                {
+                    Namespace = ns,
+                    Name = TypeMap.EnumTypeName(name, propName),
+                    Source = $"{name}.{NameUtil.Pascal(propName)}",
+                    Values = prop.Values,
+                };
+                enumTypes.Add(enumModel.Name);
+                written.Add(WriteFile(Path.Combine(outputDir, "Entities", enumModel.Name + ".cs"), TemplateEngine.Render(Templates.Enum, enumModel)));
+            }
+
             var counters = BuildCounterNames(entity);
-            var fields = BuildScalars(entity);
+            var fields = BuildScalars(entity, name);
             var feature = new FeatureFileModel
             {
                 Namespace = ns,
@@ -236,6 +250,7 @@ internal static class CodeGenerator
             Entities = spec.Entities.Keys
                 .Select(k => new EntityRef { Name = k, Plural = NameUtil.Pluralize(k) })
                 .ToList(),
+            EnumTypes = enumTypes,
         };
         written.Add(WriteFile(
             Path.Combine(outputDir, "Data", contextName + ".cs"),
@@ -366,7 +381,7 @@ internal static class CodeGenerator
         {
             Namespace = ns,
             Name = name,
-            Scalars = BuildScalars(entity),
+            Scalars = BuildScalars(entity, name),
             IsMultiTenant = multiTenant,
         };
 
@@ -781,13 +796,30 @@ internal static class CodeGenerator
         return sb.ToString();
     }
 
-    /// <summary>Entity'nin yazılabilir skaler alanları: props + (many/one-to-one) FK id + dış ref id.</summary>
-    private static List<ScalarModel> BuildScalars(EntitySpec entity)
+    /// <summary>
+    /// Entity'nin yazılabilir skaler alanları: props + (many/one-to-one) FK id + dış ref id.
+    /// <paramref name="enumOwner"/> verilirse <c>enum</c> alanlar o entity'nin üretilen C# enum tipiyle
+    /// (<see cref="TypeMap.EnumTypeName"/>) temsil edilir; verilmezse (başka servisin olay/gRPC kopyası — enum
+    /// tipi o serviste tanımlı değil) değer adıyla <c>string</c> olarak.
+    /// </summary>
+    private static List<ScalarModel> BuildScalars(EntitySpec entity, string? enumOwner = null)
     {
         var scalars = new List<ScalarModel>();
 
         foreach (var (propName, prop) in entity.Props)
         {
+            if (TypeMap.IsEnum(prop.Type) && enumOwner is not null)
+            {
+                var enumType = TypeMap.EnumTypeName(enumOwner, propName);
+                scalars.Add(new ScalarModel
+                {
+                    Name = NameUtil.Pascal(propName),
+                    Type = enumType + (prop.Nullable ? "?" : string.Empty),
+                    Init = prop.Default is null ? string.Empty : $" = {enumType}.{prop.Default};",
+                });
+                continue;
+            }
+
             var csharpBase = TypeMap.ToCSharp(prop.Type);
             scalars.Add(new ScalarModel
             {

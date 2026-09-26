@@ -61,6 +61,23 @@ internal sealed class ContextFileModel
     public string ContextName { get; set; } = string.Empty;
 
     public List<EntityRef> Entities { get; set; } = [];
+
+    /// <summary>Servisteki enum tiplerinin adları — her biri DB'de string olarak saklanır (ConfigureConventions).</summary>
+    public List<string> EnumTypes { get; set; } = [];
+}
+
+/// <summary>Bir <c>enum</c> alanı için üretilen C# enum dosyasının modeli.</summary>
+internal sealed class EnumFileModel
+{
+    public string Namespace { get; set; } = string.Empty;
+
+    /// <summary>Enum tipinin adı (örn. <c>ListingStatus</c>).</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Hangi entity alanı için üretildiği (belgeleme).</summary>
+    public string Source { get; set; } = string.Empty;
+
+    public List<string> Values { get; set; } = [];
 }
 
 /// <summary>.csproj şablonu için model.</summary>

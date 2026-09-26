@@ -42,6 +42,14 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
                 case "default":
                     spec.Default = parser.Consume<Scalar>().Value;
                     break;
+                case "values":
+                    parser.Consume<SequenceStart>();
+                    while (!parser.TryConsume<SequenceEnd>(out _))
+                    {
+                        spec.Values.Add(parser.Consume<Scalar>().Value);
+                    }
+
+                    break;
                 default:
                     // Bilinmeyen anahtar — değerini (skaler veya iç içe yapı olabilir) atla.
                     parser.SkipThisAndNestedEvents();
@@ -57,7 +65,7 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
     {
         var spec = (PropSpec)value!;
 
-        if (!spec.Nullable && spec.MaxLength is null && spec.Default is null)
+        if (!spec.Nullable && spec.MaxLength is null && spec.Default is null && spec.Values.Count == 0)
         {
             emitter.Emit(new Scalar(spec.Type));
             return;
@@ -84,6 +92,18 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
         {
             emitter.Emit(new Scalar("default"));
             emitter.Emit(new Scalar(spec.Default));
+        }
+
+        if (spec.Values.Count > 0)
+        {
+            emitter.Emit(new Scalar("values"));
+            emitter.Emit(new SequenceStart(null, null, isImplicit: true, SequenceStyle.Flow));
+            foreach (var v in spec.Values)
+            {
+                emitter.Emit(new Scalar(v));
+            }
+
+            emitter.Emit(new SequenceEnd());
         }
 
         emitter.Emit(new MappingEnd());

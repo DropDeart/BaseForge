@@ -261,6 +261,13 @@ public sealed class PropSpec
     /// string/int/long/short/decimal/double/float/bool için desteklenir; datetime/date/guid'de geçersizdir.
     /// </summary>
     public string? Default { get; set; }
+
+    /// <summary>
+    /// Yalnızca <c>enum</c> tipinde: izinli değerler (geçerli C# tanımlayıcıları, örn. <c>[Draft, Active]</c>).
+    /// Kodda <c>{Entity}{Alan}</c> adlı bir C# enum üretilir; veritabanında ve API'de değer yazıldığı haliyle
+    /// string olarak taşınır (sıra değişse de eski kayıtlar bozulmaz).
+    /// </summary>
+    public List<string> Values { get; set; } = [];
 }
 
 /// <summary>Başka bir servise ait kayda yapılan dış referans. FK/navigation üretilmez; yalnızca ID tutulur.</summary>

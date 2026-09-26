@@ -68,6 +68,17 @@ public static class SpecValidator
                     }
                 }
 
+                if (TypeMap.IsEnum(prop.Type))
+                {
+                    ValidateEnumProp(entityName, propName, prop, errors);
+                    continue;
+                }
+
+                if (prop.Values.Count > 0)
+                {
+                    errors.Add($"'{entityName}.{propName}' — 'values' yalnızca 'enum' tipinde kullanılabilir.");
+                }
+
                 if (prop.Default is not null && !IsValidDefault(prop.Type, prop.Default))
                 {
                     errors.Add($"'{entityName}.{propName}' — 'default' değeri ('{prop.Default}') '{prop.Type}' tipi için geçersiz " +
@@ -323,6 +334,31 @@ public static class SpecValidator
         if (rule.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count() != rule.Values.Count)
         {
             errors.Add($"'{label}' içinde aynı değer birden fazla kez geçiyor.");
+        }
+    }
+
+    private static void ValidateEnumProp(string entityName, string propName, PropSpec prop, List<string> errors)
+    {
+        var label = $"{entityName}.{propName}";
+        if (prop.Values.Count == 0)
+        {
+            errors.Add($"'{label}' — 'enum' tipi en az bir değer içeren bir 'values' listesi gerektirir (örn. [Draft, Active]).");
+            return;
+        }
+
+        foreach (var value in prop.Values.Where(v => !IsValidIdentifier(v)))
+        {
+            errors.Add($"'{label}' — enum değeri '{value}' geçerli bir C# tanımlayıcısı değil (harf/rakam/'_', harfle başlamalı; örn. 'InReview').");
+        }
+
+        if (prop.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count() != prop.Values.Count)
+        {
+            errors.Add($"'{label}' — 'values' içinde tekrar eden değer var (büyük/küçük harf farkı da çakışır).");
+        }
+
+        if (prop.Default is not null && !prop.Values.Contains(prop.Default, StringComparer.Ordinal))
+        {
+            errors.Add($"'{label}' — 'default' ('{prop.Default}') 'values' içinde yok (tanımlı: {string.Join(", ", prop.Values)}).");
         }
     }
 

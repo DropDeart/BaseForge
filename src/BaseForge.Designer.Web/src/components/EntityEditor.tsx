@@ -43,7 +43,12 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
   const updateProp = (pName: string, patch: Partial<PropSpec>) =>
     onChange({
       ...entity,
-      props: setKey(props, pName, { ...props[pName], ...patch }),
+      // 'values' yalnızca enum'da geçerli — tip enum'dan çıkarsa listeyi bırakma (SpecValidator hatası olurdu).
+      props: setKey(props, pName, {
+        ...props[pName],
+        ...patch,
+        ...(patch.type && patch.type !== "enum" ? { values: undefined } : {}),
+      }),
       // counter yalnızca int alanlarda anlamlı — tip int'ten başka bir şeye değişirse geçersiz
       // bir spec'e (SpecValidator hatası) düşmemek için işaret otomatik kaldırılır.
       counters: patch.type && patch.type !== "int" ? counters.filter((c) => c !== pName) : counters,
@@ -116,6 +121,7 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
           const isOpen = expandedProp === pName;
           const isStringLike = pSpec.type === "string" || pSpec.type === "text";
           const isInt = pSpec.type === "int";
+          const isEnum = pSpec.type === "enum";
           const isCounter = counters.includes(pName);
           return (
             <div className="prop-row-wrap" key={index}>
@@ -159,6 +165,18 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                       placeholder="maxLength"
                       value={pSpec.maxLength ?? ""}
                       onChange={(e) => updateProp(pName, { maxLength: e.target.value === "" ? null : Number(e.target.value) })}
+                    />
+                  ) : isEnum ? (
+                    <input
+                      className="uinput mono"
+                      placeholder="değerler: Draft, Active, Sold"
+                      title="Virgülle ayırın. Her değer bir C# tanımlayıcısı olmalı (örn. InReview). DB ve API'de bu adla saklanır."
+                      value={(pSpec.values ?? []).join(", ")}
+                      onChange={(e) =>
+                        updateProp(pName, {
+                          values: e.target.value.split(",").map((v) => v.trim()).filter((v, i, all) => v !== "" || i === all.length - 1),
+                        })
+                      }
                     />
                   ) : (
                     <span />
