@@ -276,6 +276,9 @@ internal sealed class HostFileModel
     /// <summary>SPA'lardan çağrılabilmesi için izinli origin'ler — appsettings <c>Cors:AllowedOrigins</c>.</summary>
     public List<string> CorsOrigins { get; set; } = [];
 
+    /// <summary>Servis JWT ile Identity'ye bağlı mı (compose'a Auth__Authority/Auth__Issuer ipuçları için).</summary>
+    public bool HasAuth { get; set; }
+
     /// <summary><c>ServiceSpec.Gateway</c> doluysa proxy'lenen hedefler — appsettings <c>ReverseProxy</c> bölümü için.</summary>
     public List<GatewayTargetModel> GatewayTargets { get; set; } = [];
 }

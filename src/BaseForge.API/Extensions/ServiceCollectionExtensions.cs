@@ -128,6 +128,12 @@ public static class ServiceCollectionExtensions
                         ValidateAudience = true,
                         ValidAudience = jwt.Audience,
                         ValidateIssuer = true,
+                        // Issuer verilmişse yedek olarak tanımla. JwtBearer discovery'deki issuer'ı bunun yerine değil
+                        // YANINA ekler (ValidIssuers birleşimi) — yani bu değer kısıtlamaz, ama Identity container'ı
+                        // yeniden başlarken discovery boş/eksik dönerse geçerli issuer hiç kalmıyor ve tüm istekler
+                        // "IDX10204: ValidIssuer is null" ile 401'e düşüyordu (HekimBurada prod olayı). İmza her
+                        // durumda Authority'nin JWKS anahtarlarıyla doğrulanır.
+                        ValidIssuer = string.IsNullOrWhiteSpace(jwt.Issuer) ? null : jwt.Issuer,
                         ValidateLifetime = true,
                     };
                 }

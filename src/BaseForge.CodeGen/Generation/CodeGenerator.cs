@@ -181,6 +181,7 @@ internal static class CodeGenerator
             PostgresPort = spec.DockerPorts?.Postgres ?? 5432,
             HasRabbitMq = hasRabbitMq,
             CorsOrigins = spec.CorsOrigins,
+            HasAuth = spec.Auth is not null,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), TemplateEngine.Render(Templates.LaunchSettings, host)));

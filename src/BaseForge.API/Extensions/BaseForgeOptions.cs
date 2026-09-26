@@ -135,7 +135,11 @@ public sealed class JwtOptions
     /// <summary>Beklenen token audience (aud) değeri.</summary>
     public string Audience { get; set; } = string.Empty;
 
-    /// <summary>Beklenen token issuer (iss) değeri. Yalnızca simetrik modda gereklidir.</summary>
+    /// <summary>
+    /// Beklenen token issuer (iss) değeri. Simetrik modda zorunludur. Authority (JWKS) modunda opsiyoneldir —
+    /// verilirse discovery'deki issuer'a EK olarak kabul edilir; Identity yeniden başlarken discovery geçici
+    /// olarak boş dönse bile doğrulanacak bir issuer kalır ve istekler "IDX10204" ile 401'e düşmez.
+    /// </summary>
     public string Issuer { get; set; } = string.Empty;
 
     /// <summary>Simetrik (HMAC) imza anahtarı. Yalnızca <see cref="Authority"/> verilmediğinde kullanılır.</summary>

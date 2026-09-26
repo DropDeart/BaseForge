@@ -891,7 +891,12 @@ internal static class Templates
         {{~ if HasAuth ~}}
             options.EnableJwt(jwt =>
             {
-                jwt.Authority = "{{ Authority }}";          // merkez Identity (discovery/JWKS)
+                // Merkez Identity (discovery/JWKS). Ortama göre Auth__Authority ile ezilebilir (prod'da
+                // host.docker.internal genelde geçerli değildir).
+                jwt.Authority = builder.Configuration["Auth:Authority"] ?? "{{ Authority }}";
+                // Identity'nin kendi Auth:Issuer'ı ile aynı olmalı. Discovery'deki issuer'a ek olarak kabul edilir;
+                // Identity yeniden başlarken discovery geçici olarak boş dönse bile istekler 401'e düşmez.
+                jwt.Issuer = builder.Configuration["Auth:Issuer"] ?? string.Empty;
                 jwt.Audience = "{{ Audience }}";
                 jwt.RequireHttpsMetadata = {{ if RequireHttpsMetadata }}true{{ else }}false{{ end }};
             });
@@ -939,7 +944,7 @@ internal static class Templates
         // Reverse proxy (nginx vb.) arkasında çalışırken gerçek şema/host'u (https, gerçek domain)
         // Kestrel'e bildirir — aksi halde OpenAPI/discovery gibi üretilen mutlak URL'ler yanlış (http,
         // proxy'nin iç adresi) görünür. Docker port publish NAT'i yüzünden istek, proxy'nin gerçek IP'si
-        // yerine değişken bir docker gateway IP'sinden gelir; bu yüzden KnownNetworks/KnownProxies temizlenir
+        // yerine değişken bir docker gateway IP'sinden gelir; bu yüzden KnownIPNetworks/KnownProxies temizlenir
         // (herkesten gelen X-Forwarded-* güvenilir sayılır). Güvenlik, container portunun yalnızca
         // 127.0.0.1'e (host loopback) publish edilmesinden gelir — dışarıdan bu porta doğrudan erişilemez,
         // yalnızca aynı host'taki nginx erişebilir.
@@ -947,24 +952,26 @@ internal static class Templates
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
         };
-        forwardedHeadersOptions.KnownNetworks.Clear();
+        forwardedHeadersOptions.KnownIPNetworks.Clear();
         forwardedHeadersOptions.KnownProxies.Clear();
         app.UseForwardedHeaders(forwardedHeadersOptions);
 
+        // Şemayı her ortamda oluştur — önceden yalnızca Development'ta yapılıyordu ve üretilen projede EF
+        // migration olmadığı için production'da tablolar hiç oluşmuyordu. Postgres erişilemezse uygulama yine
+        // de açılır. DİKKAT: EnsureCreated var olan bir veritabanını güncellemez; spec'e alan/entity eklendiğinde
+        // mevcut bir veritabanı için EF Core migration gerekir (bkz. docs/ARCH.md §4).
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<{{ ContextName }}>().Database.EnsureCreated();
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogWarning(ex, "Veritabanı şeması oluşturulamadı (Postgres çalışıyor mu?). API arayüzü yine de açık.");
+        }
+
         if (app.Environment.IsDevelopment())
         {
-            // Hızlı başlangıç: migration yerine şemayı oluştur (yalnızca geliştirme).
-            // Postgres erişilemezse uygulama yine de açılır; API arayüzü görülebilir.
-            try
-            {
-                using var scope = app.Services.CreateScope();
-                scope.ServiceProvider.GetRequiredService<{{ ContextName }}>().Database.EnsureCreated();
-            }
-            catch (Exception ex)
-            {
-                app.Logger.LogWarning(ex, "Veritabanı şeması oluşturulamadı (Postgres çalışıyor mu?). API arayüzü yine de açık.");
-            }
-
             // API arayüzü: /scalar/v1 (OpenAPI: /openapi/v1.json)
             app.MapOpenApi();
             app.MapScalarApiReference(options =>
@@ -1122,6 +1129,12 @@ internal static class Templates
             environment:
               ASPNETCORE_ENVIRONMENT: Development
               ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+        {{~ if HasAuth ~}}
+              # Prod'da: Identity'nin gerçek adresi ve onun Auth__Issuer değeri (yedek issuer — Identity yeniden
+              # başlarken oluşabilecek 401'leri önler). Boşsa Program.cs'deki varsayılan/metadata kullanılır.
+              # Auth__Authority: "https://identity.ornek.com"
+              # Auth__Issuer: "https://identity.ornek.com/"
+        {{~ end ~}}
             ports:
               - "{{ RestPort }}:8080"   # REST (HTTP/1.1) — appsettings.json Kestrel:Endpoints:Http
               - "{{ GrpcPort }}:8081"   # gRPC (h2c, TLS'siz HTTP/2)  — Kestrel:Endpoints:Grpc

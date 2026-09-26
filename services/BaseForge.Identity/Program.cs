@@ -175,13 +175,13 @@ var app = builder.Build();
 // Reverse proxy (nginx vb.) arkasında çalışırken gerçek şema/host'u (https, gerçek domain) Kestrel'e
 // bildirir — aksi halde OpenIddict discovery/authorization/token URL'leri yanlış (http, proxy'nin iç
 // adresi) görünür. Docker port publish NAT'i yüzünden istek değişken bir gateway IP'sinden geldiği için
-// KnownNetworks/KnownProxies temizlenir; güvenlik, container portunun yalnızca 127.0.0.1'e publish
+// KnownIPNetworks/KnownProxies temizlenir; güvenlik, container portunun yalnızca 127.0.0.1'e publish
 // edilmesinden gelir (dışarıdan doğrudan erişilemez, yalnızca aynı host'taki nginx erişebilir).
 var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
 };
-forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
