@@ -292,6 +292,14 @@ public sealed class AccountApiController : ControllerBase
 
             await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
         }
+        else if (await _userManager.HasPasswordAsync(user))
+        {
+            // Parolalı bir hesaba dış girişi e-posta eşleşmesiyle otomatik BAĞLAMA: sağlayıcı e-postayı doğrulamadan
+            // kabul ediyorsa (bazıları ediyor), saldırgan kurbanın e-postasıyla orada hesap açıp buradaki hesabı ele
+            // geçirebilirdi. Parolalı hesabın sahibi zaten parolasıyla girebilir. Parolasız hesaplar (admin panelinden
+            // eklenen, ilk girişini dış sağlayıcıyla yapacak kullanıcılar) bağlanmaya devam eder.
+            return Redirect("/Account/Login?error=account-exists");
+        }
 
         await _userManager.AddLoginAsync(user, info);
         await _signInManager.SignInAsync(user, isPersistent: false);

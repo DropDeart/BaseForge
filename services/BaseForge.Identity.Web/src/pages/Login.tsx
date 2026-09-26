@@ -16,6 +16,7 @@ const PROVIDER_META: Record<string, { label: string; icon: typeof FaGoogle; bg: 
 const EXTERNAL_ERRORS: Record<string, string> = {
   external: "Dış sağlayıcıyla giriş yapılamadı. Lütfen tekrar deneyin.",
   "registration-closed": "Bu hesapla kayıtlı bir kullanıcı yok ve yeni kayıt kapalı. Yöneticinizden hesap açmasını isteyin.",
+  "account-exists": "Bu e-posta adresiyle parolalı bir hesap zaten var. Güvenlik için lütfen e-posta ve parolanızla giriş yapın.",
 };
 
 export function Login({ returnUrl, registrationEnabled, onSwitchToRegister, onLoggedIn }: {
