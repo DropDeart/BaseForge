@@ -93,12 +93,23 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>OpenIddict'in rol claim'inin adı (kısa form; <c>MapInboundClaims = false</c> ile korunur).</summary>
+    private const string RoleClaimType = "role";
+
+    /// <summary>OpenIddict'in kullanıcı kimliği claim'inin adı.</summary>
+    private const string NameClaimType = "sub";
+
     private static void AddJwtAuthentication(IServiceCollection services, JwtOptions jwt)
     {
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
+                // OpenIddict'in kısa claim adlarını ("role", "sub") olduğu gibi bırak — varsayılan eşleme
+                // bunları uzun ClaimTypes.* URI'lerine çevirir ve RoleClaimType'la tutarsızlık yüzünden
+                // [Authorize(Roles = ...)] / User.IsInRole sessizce hep false döner (bkz. docs/ARCH.md §6.1).
+                options.MapInboundClaims = false;
+
                 if (!string.IsNullOrWhiteSpace(jwt.Authority))
                 {
                     // Asimetrik/JWKS: imza + issuer, Authority'nin discovery/JWKS'inden otomatik.
@@ -106,6 +117,8 @@ public static class ServiceCollectionExtensions
                     options.RequireHttpsMetadata = jwt.RequireHttpsMetadata;
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
+                        RoleClaimType = RoleClaimType,
+                        NameClaimType = NameClaimType,
                         ValidateAudience = true,
                         ValidAudience = jwt.Audience,
                         ValidateIssuer = true,
@@ -117,6 +130,8 @@ public static class ServiceCollectionExtensions
                     // Simetrik (HMAC).
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
+                        RoleClaimType = RoleClaimType,
+                        NameClaimType = NameClaimType,
                         ValidateIssuer = true,
                         ValidIssuer = jwt.Issuer,
                         ValidateAudience = true,

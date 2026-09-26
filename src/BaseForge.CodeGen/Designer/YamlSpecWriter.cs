@@ -13,6 +13,7 @@ internal static class YamlSpecWriter
     private static readonly ISerializer Serializer = new SerializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .WithTypeConverter(new PropSpecYamlConverter())
+        .WithTypeConverter(new AccessRuleYamlConverter())
         .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull | DefaultValuesHandling.OmitEmptyCollections)
         .Build();
 

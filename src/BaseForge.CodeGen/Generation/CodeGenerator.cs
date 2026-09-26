@@ -73,6 +73,9 @@ internal static class CodeGenerator
                 SearchPredicate = entity.Searchable ? BuildSearchPredicate(fields) : null,
                 Paginated = entity.Paginated,
                 Sortable = entity.Sortable,
+                OwnerField = string.IsNullOrWhiteSpace(entity.OwnerField)
+                    ? null
+                    : NameUtil.Pascal(entity.Props.Keys.First(p => string.Equals(p, entity.OwnerField, StringComparison.OrdinalIgnoreCase))),
             };
             var featureDir = Path.Combine(outputDir, "Features", name + "s");
             written.Add(WriteFile(Path.Combine(featureDir, name + "Dto.cs"), TemplateEngine.Render(Templates.Dto, feature)));
@@ -89,16 +92,20 @@ internal static class CodeGenerator
                 Namespace = ns,
                 Name = name,
                 Protect = isProtected,
-                AnonymousList = isProtected && HasAnonymousAction(entity, "list"),
-                AnonymousGetById = isProtected && HasAnonymousAction(entity, "getById"),
-                AnonymousCreate = isProtected && HasAnonymousAction(entity, "create"),
-                AnonymousUpdate = isProtected && HasAnonymousAction(entity, "update"),
-                AnonymousDelete = isProtected && HasAnonymousAction(entity, "delete"),
+                ListAccess = BuildActionAccess(spec, entity, "list"),
+                GetByIdAccess = BuildActionAccess(spec, entity, "getById"),
+                CreateAccess = BuildActionAccess(spec, entity, "create"),
+                UpdateAccess = BuildActionAccess(spec, entity, "update"),
+                DeleteAccess = BuildActionAccess(spec, entity, "delete"),
+                OwnerField = feature.OwnerField,
                 IncludeUpdate = !entity.AppendOnly,
                 IncludeDelete = !entity.AppendOnly,
                 Counters = counters,
                 Paginated = entity.Paginated,
             };
+            controllerModel.UsesAuthorization = isProtected
+                || new[] { controllerModel.ListAccess, controllerModel.GetByIdAccess, controllerModel.CreateAccess, controllerModel.UpdateAccess, controllerModel.DeleteAccess }
+                    .Any(a => a.Attribute is not null);
             var controller = TemplateEngine.Render(Templates.Controller, controllerModel);
             written.Add(WriteFile(Path.Combine(outputDir, "Controllers", name + "sController.cs"), controller));
 
@@ -124,9 +131,12 @@ internal static class CodeGenerator
         }
 
         // Genel görsel yükleme ucu (entity'den bağımsız) — her servis için bir kere üretilir.
+        // Yükleme yetkisi servisin varsayılan kuralını izler (örn. defaultAccess: [Admin] → yalnızca admin yükler).
+        // Varsayılan kural anonymous olamaz (protect=true), dolayısıyla [AllowAnonymous] burada hiç üretilmez.
+        var mediaAccess = spec.Auth is { Protect: true } ? BuildActionAccess(spec, new EntitySpec(), "create") : new ActionAccessModel();
         var mediaController = TemplateEngine.Render(
             Templates.MediaController,
-            new ControllerFileModel { Namespace = ns, Protect = spec.Auth?.Protect == true });
+            new ControllerFileModel { Namespace = ns, Protect = spec.Auth?.Protect == true, CreateAccess = mediaAccess });
         written.Add(WriteFile(Path.Combine(outputDir, "Controllers", "MediaController.cs"), mediaController));
 
         // wwwroot başlangıçta yoksa ASP.NET Core WebRootPath'i null bırakır ve UseStaticFiles yüklenen dosyaları
@@ -234,9 +244,63 @@ internal static class CodeGenerator
         return written;
     }
 
-    /// <summary>Entity'nin 'anonymousActions' listesinde verilen action adı geçiyor mu (büyük/küçük harf duyarsız)?</summary>
-    private static bool HasAnonymousAction(EntitySpec entity, string action)
-        => entity.AnonymousActions.Contains(action, StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Bir action için geçerli erişim kuralını çözer (bkz. docs/ARCH.md §6.1): önce entity'nin
+    /// <c>access</c>'i, sonra geriye dönük <c>anonymousActions</c>, sonra servis varsayılanı
+    /// (<c>protect: false</c> → anonymous, aksi halde <c>defaultAccess</c> ?? authenticated).
+    /// </summary>
+    internal static AccessRule ResolveAccess(ServiceSpec spec, EntitySpec entity, string action)
+    {
+        var explicitRule = entity.Access.FirstOrDefault(a => string.Equals(a.Key, action, StringComparison.OrdinalIgnoreCase)).Value;
+        if (explicitRule is not null)
+        {
+            return explicitRule;
+        }
+
+        if (entity.AnonymousActions.Contains(action, StringComparer.OrdinalIgnoreCase) || spec.Auth is not { Protect: true })
+        {
+            return AccessRule.Keyword(AccessRule.Anonymous);
+        }
+
+        return spec.Auth.DefaultAccess ?? AccessRule.Keyword(AccessRule.Authenticated);
+    }
+
+    /// <summary>Bir action'ın kuralını controller şablonunun anlayacağı attribute/sahiplik modeline çevirir.</summary>
+    private static ActionAccessModel BuildActionAccess(ServiceSpec spec, EntitySpec entity, string action)
+    {
+        if (spec.Auth is null)
+        {
+            // Auth bloğu yok: JWT yapılandırılmadı, hiçbir yetki attribute'u üretilmez (eski davranış).
+            return new ActionAccessModel();
+        }
+
+        var rule = ResolveAccess(spec, entity, action);
+        var classProtected = spec.Auth.Protect;
+        var superRoles = spec.Auth.SuperRoles;
+
+        if (rule.IsAnonymous)
+        {
+            return new ActionAccessModel { Attribute = classProtected ? "[AllowAnonymous]" : null };
+        }
+
+        if (rule.IsAuthenticated)
+        {
+            return new ActionAccessModel { Attribute = classProtected ? null : "[Authorize]" };
+        }
+
+        var roles = rule.Roles.Concat(superRoles).Distinct(StringComparer.Ordinal).ToList();
+        if (rule.IncludesOwner)
+        {
+            return new ActionAccessModel
+            {
+                Attribute = classProtected ? null : "[Authorize]",
+                OwnerCheck = true,
+                BypassRoles = string.Join(", ", roles.Select(r => $"\"{r}\"")),
+            };
+        }
+
+        return new ActionAccessModel { Attribute = $"[Authorize(Roles = \"{string.Join(",", roles)}\")]" };
+    }
 
     /// <summary>Entity'nin 'counters' listesindeki alan adlarını, prop'taki gerçek yazımıyla (PascalCase) çözümler.</summary>
     private static List<string> BuildCounterNames(EntitySpec entity)

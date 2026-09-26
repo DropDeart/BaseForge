@@ -21,6 +21,7 @@ public static class SpecLoader
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .WithTypeConverter(new PropSpecYamlConverter())
+            .WithTypeConverter(new AccessRuleYamlConverter())
             .IgnoreUnmatchedProperties()
             .Build();
 

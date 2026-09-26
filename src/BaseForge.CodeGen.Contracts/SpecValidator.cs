@@ -131,6 +131,8 @@ public static class SpecValidator
                 }
             }
 
+            ValidateAccess(spec, entityName, entity, errors);
+
             var seenCounters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var counter in entity.Counters)
             {
@@ -146,6 +148,27 @@ public static class SpecValidator
                 else if (!seenCounters.Add(counter))
                 {
                     errors.Add($"'{entityName}.counters' içinde '{counter}' birden fazla kez geçiyor.");
+                }
+            }
+        }
+
+        if (spec.Auth is not null)
+        {
+            if (spec.Auth.DefaultAccess is not null)
+            {
+                if (!spec.Auth.Protect)
+                {
+                    errors.Add("'auth.defaultAccess' ile 'auth.protect: false' birlikte kullanılamaz — protect=false zaten varsayılanı 'anonymous' yapar.");
+                }
+
+                ValidateRule(spec.Auth.DefaultAccess, "auth.defaultAccess", ownerAllowed: false, ownerFieldSet: false, errors);
+            }
+
+            foreach (var role in spec.Auth.SuperRoles)
+            {
+                if (!IsValidRoleName(role))
+                {
+                    errors.Add($"'auth.superRoles' geçersiz rol adı: '{role}' (harf, rakam, '_' veya '-').");
                 }
             }
         }
@@ -194,6 +217,112 @@ public static class SpecValidator
         "datetime" or "date" or "guid" or "uuid" => false,
         _ => false,
     };
+
+    /// <summary>Bir entity'nin <c>access</c>/<c>ownerField</c> tanımını doğrular (bkz. docs/ARCH.md §6.1).</summary>
+    private static void ValidateAccess(ServiceSpec spec, string entityName, EntitySpec entity, List<string> errors)
+    {
+        var ownerFieldSet = !string.IsNullOrWhiteSpace(entity.OwnerField);
+        if (ownerFieldSet)
+        {
+            var prop = entity.Props.FirstOrDefault(p => string.Equals(p.Key, entity.OwnerField, StringComparison.OrdinalIgnoreCase));
+            if (prop.Key is null)
+            {
+                errors.Add($"'{entityName}.ownerField' ('{entity.OwnerField}') bu adda bir prop değil.");
+            }
+            else if (prop.Value.Type.Trim().ToLowerInvariant() is not ("guid" or "uuid") || prop.Value.Nullable)
+            {
+                errors.Add($"'{entityName}.ownerField' ('{entity.OwnerField}') nullable olmayan 'guid' tipinde bir prop olmalı (bulunan: '{prop.Value.Type}'{(prop.Value.Nullable ? ", nullable" : string.Empty)}).");
+            }
+
+            // Create'te sahip token'dan damgalanır — anonim create'te damgalanacak kullanıcı yoktur.
+            var createRule = entity.Access.FirstOrDefault(a => string.Equals(a.Key, "create", StringComparison.OrdinalIgnoreCase)).Value;
+            var createIsAnonymous = createRule?.IsAnonymous
+                ?? (entity.AnonymousActions.Contains("create", StringComparer.OrdinalIgnoreCase) || spec.Auth is not { Protect: true });
+            if (createIsAnonymous)
+            {
+                errors.Add($"'{entityName}.ownerField' tanımlıyken 'create' giriş gerektirmeli (sahip, çağıranın token'ından damgalanır); create şu an herkese açık.");
+            }
+        }
+
+        if (entity.Access.Count == 0)
+        {
+            return;
+        }
+
+        if (entity.AnonymousActions.Count > 0)
+        {
+            errors.Add($"'{entityName}' — 'anonymousActions' ve 'access' birlikte kullanılamaz; 'anonymousActions' yerine 'access' içinde 'anonymous' yazın.");
+        }
+
+        if (spec.Auth is null)
+        {
+            errors.Add($"'{entityName}.access' için servis seviyesinde bir 'auth' bloğu gerekir (JWT doğrulaması olmadan rol/giriş kontrolü yapılamaz).");
+        }
+
+        foreach (var (action, rule) in entity.Access)
+        {
+            var label = $"{entityName}.access.{action}";
+            if (!AllowedActions.Contains(action, StringComparer.OrdinalIgnoreCase))
+            {
+                errors.Add($"'{label}' geçersiz action: '{action}' (izinli: {string.Join(", ", AllowedActions)}).");
+                continue;
+            }
+
+            if (entity.AppendOnly && action.ToLowerInvariant() is "update" or "delete")
+            {
+                errors.Add($"'{entityName}' appendOnly=true iken 'access' içinde '{action}' olamaz — bu action hiç üretilmiyor.");
+                continue;
+            }
+
+            ValidateRule(rule, label, ownerAllowed: !string.Equals(action, "create", StringComparison.OrdinalIgnoreCase), ownerFieldSet, errors);
+        }
+    }
+
+    private static void ValidateRule(AccessRule rule, string label, bool ownerAllowed, bool ownerFieldSet, List<string> errors)
+    {
+        if (rule.Values.Count == 0)
+        {
+            errors.Add($"'{label}' boş olamaz ('anonymous', 'authenticated' veya rol listesi).");
+            return;
+        }
+
+        if (!rule.IsRoleList)
+        {
+            return;
+        }
+
+        foreach (var value in rule.Values)
+        {
+            if (string.Equals(value, AccessRule.Anonymous, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, AccessRule.Authenticated, StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"'{label}' — '{value}' rol listesi içinde kullanılamaz; tek başına yazılmalı.");
+            }
+            else if (string.Equals(value, AccessRule.Owner, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!ownerAllowed)
+                {
+                    errors.Add($"'{label}' — 'owner' burada kullanılamaz (create'te henüz bir sahip yoktur; varsayılan kuralda kayıt bağlamı yoktur).");
+                }
+                else if (!ownerFieldSet)
+                {
+                    errors.Add($"'{label}' — 'owner' kullanmak için entity'de 'ownerField' tanımlanmalı.");
+                }
+            }
+            else if (!IsValidRoleName(value))
+            {
+                errors.Add($"'{label}' geçersiz rol adı: '{value}' (harf, rakam, '_' veya '-').");
+            }
+        }
+
+        if (rule.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count() != rule.Values.Count)
+        {
+            errors.Add($"'{label}' içinde aynı değer birden fazla kez geçiyor.");
+        }
+    }
+
+    private static bool IsValidRoleName(string value) =>
+        !string.IsNullOrWhiteSpace(value) && value.All(c => char.IsLetterOrDigit(c) || c is '_' or '-');
 
     private static bool IsValidIdentifier(string value)
     {

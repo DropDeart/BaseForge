@@ -172,6 +172,16 @@ internal static class Templates
         {{~ end ~}}
             public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
         {{~ end ~}}
+        {{~ if OwnerField ~}}
+
+            /// <summary>
+            /// Doluysa yalnızca {{ OwnerField }}'ı bu kullanıcı olan kayıt güncellenebilir (aksi halde 403). İstemciden
+            /// bağlanmaz; controller rol/sahiplik kuralına göre doldurur (bkz. docs/ARCH.md §6.1).
+            /// </summary>
+            [System.Text.Json.Serialization.JsonIgnore]
+            [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+            public Guid? RestrictToOwnerId { get; set; }
+        {{~ end ~}}
         }
 
         internal sealed class Update{{ Name }}Handler : ICommandHandler<Update{{ Name }}Command>
@@ -200,8 +210,17 @@ internal static class Templates
                 ArgumentNullException.ThrowIfNull(request);
                 var entity = await _repository.GetByIdAsync(request.Id, cancellationToken)
                     ?? throw new NotFoundException("{{ Name }}", request.Id);
+        {{~ if OwnerField ~}}
+                if (request.RestrictToOwnerId is { } ownerId && entity.{{ OwnerField }} != ownerId)
+                {
+                    throw new ForbiddenException("{{ Name }}", request.Id);
+                }
+
+        {{~ end ~}}
         {{~ for f in Fields ~}}
+        {{~ if f.Name != OwnerField ~}}
                 entity.{{ f.Name }} = request.{{ f.Name }};
+        {{~ end ~}}
         {{~ end ~}}
                 await _repository.UpdateAsync(entity, cancellationToken);
         {{~ if PublishUpdated ~}}
@@ -218,6 +237,13 @@ internal static class Templates
         {
             /// <summary>Silinecek kaydın kimliği.</summary>
             public Guid Id { get; set; }
+        {{~ if OwnerField ~}}
+
+            /// <summary>Doluysa yalnızca {{ OwnerField }}'ı bu kullanıcı olan kayıt silinebilir (aksi halde 403). Controller doldurur.</summary>
+            [System.Text.Json.Serialization.JsonIgnore]
+            [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+            public Guid? RestrictToOwnerId { get; set; }
+        {{~ end ~}}
         }
 
         internal sealed class Delete{{ Name }}Handler : ICommandHandler<Delete{{ Name }}Command>
@@ -246,6 +272,12 @@ internal static class Templates
                 ArgumentNullException.ThrowIfNull(request);
                 var entity = await _repository.GetByIdAsync(request.Id, cancellationToken)
                     ?? throw new NotFoundException("{{ Name }}", request.Id);
+        {{~ if OwnerField ~}}
+                if (request.RestrictToOwnerId is { } ownerId && entity.{{ OwnerField }} != ownerId)
+                {
+                    throw new ForbiddenException("{{ Name }}", request.Id);
+                }
+        {{~ end ~}}
                 await _repository.DeleteAsync(entity, cancellationToken);
         {{~ if PublishDeleted ~}}
                 await _eventBus.PublishAsync(new {{ Name }}DeletedEvent { Data = {{ Name }}Dto.From(entity) }, cancellationToken);
@@ -303,6 +335,14 @@ internal static class Templates
         {
             /// <summary>Aranan kaydın kimliği.</summary>
             public Guid Id { get; set; }
+        {{~ if OwnerField ~}}
+
+            /// <summary>
+            /// Doluysa yalnızca {{ OwnerField }}'ı bu kullanıcı olan kayıt döner (başkasınınki bulunamadı sayılır).
+            /// Controller doldurur; gRPC gibi servisler arası çağrılarda boş kalır (bkz. docs/ARCH.md §6.1).
+            /// </summary>
+            public Guid? RestrictToOwnerId { get; set; }
+        {{~ end ~}}
         }
 
         internal sealed class Get{{ Name }}ByIdHandler : IQueryHandler<Get{{ Name }}ByIdQuery, {{ Name }}Dto?>
@@ -315,13 +355,31 @@ internal static class Templates
             {
                 ArgumentNullException.ThrowIfNull(request);
                 var entity = await _repository.GetByIdAsync(request.Id, cancellationToken);
+        {{~ if OwnerField ~}}
+                if (entity is null || (request.RestrictToOwnerId is { } ownerId && entity.{{ OwnerField }} != ownerId))
+                {
+                    return null;
+                }
+
+                return {{ Name }}Dto.From(entity);
+        {{~ else ~}}
                 return entity is null ? null : {{ Name }}Dto.From(entity);
+        {{~ end ~}}
             }
         }
 
         {{~ if Paginated ~}}
         /// <summary>{{ Name }} kayıtlarını sayfalı{{ if Sortable }}, sıralı{{ end }}{{ if SearchPredicate }} ve aranabilir{{ end }} biçimde listeler.</summary>
+        {{~ if OwnerField ~}}
+        public sealed class List{{ Name }}Query : PagedRequest, IQuery<PagedResult<{{ Name }}Dto>>
+        {
+            /// <summary>Doluysa yalnızca {{ OwnerField }}'ı bu kullanıcı olan kayıtlar döner. İstemciden bağlanmaz; controller doldurur.</summary>
+            [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+            public Guid? RestrictToOwnerId { get; set; }
+        }
+        {{~ else ~}}
         public sealed class List{{ Name }}Query : PagedRequest, IQuery<PagedResult<{{ Name }}Dto>>;
+        {{~ end ~}}
 
         internal sealed class List{{ Name }}Handler : IQueryHandler<List{{ Name }}Query, PagedResult<{{ Name }}Dto>>
         {
@@ -340,7 +398,22 @@ internal static class Templates
         {{~ else ~}}
                     null,
         {{~ end ~}}
+        {{~ if OwnerField ~}}
+                    query =>
+                    {
+                        if (request.RestrictToOwnerId is { } ownerId)
+                        {
+                            query = query.Where(x => x.{{ OwnerField }} == ownerId);
+                        }
         {{~ if SearchPredicate ~}}
+
+                        return string.IsNullOrWhiteSpace(request.Search) ? query : query.Where(x => {{ SearchPredicate }});
+        {{~ else ~}}
+
+                        return query;
+        {{~ end ~}}
+                    },
+        {{~ else if SearchPredicate ~}}
                     query => string.IsNullOrWhiteSpace(request.Search) ? query : query.Where(x => {{ SearchPredicate }}),
         {{~ else ~}}
                     null,
@@ -358,7 +431,15 @@ internal static class Templates
         }
         {{~ else ~}}
         /// <summary>Tüm {{ Name }} kayıtlarını getirir.</summary>
+        {{~ if OwnerField ~}}
+        public sealed class List{{ Name }}Query : IQuery<IReadOnlyList<{{ Name }}Dto>>
+        {
+            /// <summary>Doluysa yalnızca {{ OwnerField }}'ı bu kullanıcı olan kayıtlar döner. Controller doldurur.</summary>
+            public Guid? RestrictToOwnerId { get; set; }
+        }
+        {{~ else ~}}
         public sealed class List{{ Name }}Query : IQuery<IReadOnlyList<{{ Name }}Dto>>;
+        {{~ end ~}}
 
         internal sealed class List{{ Name }}Handler : IQueryHandler<List{{ Name }}Query, IReadOnlyList<{{ Name }}Dto>>
         {
@@ -368,8 +449,19 @@ internal static class Templates
 
             public async Task<IReadOnlyList<{{ Name }}Dto>> Handle(List{{ Name }}Query request, CancellationToken cancellationToken)
             {
+        {{~ if OwnerField ~}}
+                ArgumentNullException.ThrowIfNull(request);
+        {{~ end ~}}
                 var items = await _repository.ListAllAsync(cancellationToken);
+        {{~ if OwnerField ~}}
+                // Sayfalamasız liste küçük veri içindir; sahiplik filtresi bellekte uygulanır.
+                return items
+                    .Where(x => request.RestrictToOwnerId is not { } ownerId || x.{{ OwnerField }} == ownerId)
+                    .Select({{ Name }}Dto.From)
+                    .ToList();
+        {{~ else ~}}
                 return items.Select({{ Name }}Dto.From).ToList();
+        {{~ end ~}}
             }
         }
         {{~ end ~}}
@@ -498,7 +590,10 @@ internal static class Templates
         {{~ if Paginated ~}}
         using BaseForge.Core.CQRS;
         {{~ end ~}}
-        {{~ if Protect ~}}
+        {{~ if OwnerField ~}}
+        using BaseForge.Core.Exceptions;
+        {{~ end ~}}
+        {{~ if UsesAuthorization ~}}
         using Microsoft.AspNetCore.Authorization;
         {{~ end ~}}
         using Microsoft.AspNetCore.Mvc;
@@ -513,70 +608,99 @@ internal static class Templates
         [Route("api/[controller]")]
         public sealed class {{ Name }}sController : BaseController
         {
-            /// <summary>Kimliğe göre tek bir {{ Name }} getirir.</summary>
-            {{~ if AnonymousGetById ~}}
-            [AllowAnonymous]
+            /// <summary>Kimliğe göre tek bir {{ Name }} getirir.{{ if GetByIdAccess.OwnerCheck }} Sahibi olmayanlara başkasının kaydı 404 döner.{{ end }}</summary>
+            {{~ if GetByIdAccess.Attribute ~}}
+            {{ GetByIdAccess.Attribute }}
             {{~ end ~}}
             [HttpGet("{id:guid}")]
             public async Task<ActionResult<{{ Name }}Dto>> GetById(Guid id, CancellationToken cancellationToken)
             {
+            {{~ if GetByIdAccess.OwnerCheck ~}}
+                var query = new Get{{ Name }}ByIdQuery { Id = id, RestrictToOwnerId = OwnerRestriction({{ GetByIdAccess.BypassRoles }}) };
+                var result = await Mediator.Send(query, cancellationToken);
+            {{~ else ~}}
                 var result = await Mediator.Send(new Get{{ Name }}ByIdQuery { Id = id }, cancellationToken);
+            {{~ end ~}}
                 return result is null ? NotFound() : Ok(result);
             }
 
         {{~ if Paginated ~}}
-            /// <summary>{{ Name }} kayıtlarını sayfalı listeler (query string: page, pageSize, sortBy, search).</summary>
-            {{~ if AnonymousList ~}}
-            [AllowAnonymous]
+            /// <summary>{{ Name }} kayıtlarını sayfalı listeler (query string: page, pageSize, sortBy, search).{{ if ListAccess.OwnerCheck }} Sahibi olmayanlar yalnızca kendi kayıtlarını görür.{{ end }}</summary>
+            {{~ if ListAccess.Attribute ~}}
+            {{ ListAccess.Attribute }}
             {{~ end ~}}
             [HttpGet]
+            {{~ if ListAccess.OwnerCheck ~}}
+            public async Task<ActionResult<PagedResult<{{ Name }}Dto>>> List([FromQuery] List{{ Name }}Query query, CancellationToken cancellationToken)
+            {
+                ArgumentNullException.ThrowIfNull(query);
+                query.RestrictToOwnerId = OwnerRestriction({{ ListAccess.BypassRoles }});
+                return Ok(await Mediator.Send(query, cancellationToken));
+            }
+            {{~ else ~}}
             public async Task<ActionResult<PagedResult<{{ Name }}Dto>>> List([FromQuery] List{{ Name }}Query query, CancellationToken cancellationToken)
                 => Ok(await Mediator.Send(query, cancellationToken));
+            {{~ end ~}}
         {{~ else ~}}
-            /// <summary>Tüm {{ Name }} kayıtlarını listeler.</summary>
-            {{~ if AnonymousList ~}}
-            [AllowAnonymous]
+            /// <summary>Tüm {{ Name }} kayıtlarını listeler.{{ if ListAccess.OwnerCheck }} Sahibi olmayanlar yalnızca kendi kayıtlarını görür.{{ end }}</summary>
+            {{~ if ListAccess.Attribute ~}}
+            {{ ListAccess.Attribute }}
             {{~ end ~}}
             [HttpGet]
             public async Task<ActionResult<IReadOnlyList<{{ Name }}Dto>>> List(CancellationToken cancellationToken)
+            {{~ if ListAccess.OwnerCheck ~}}
+                => Ok(await Mediator.Send(new List{{ Name }}Query { RestrictToOwnerId = OwnerRestriction({{ ListAccess.BypassRoles }}) }, cancellationToken));
+            {{~ else ~}}
                 => Ok(await Mediator.Send(new List{{ Name }}Query(), cancellationToken));
+            {{~ end ~}}
         {{~ end ~}}
 
-            /// <summary>Yeni bir {{ Name }} oluşturur.</summary>
-            {{~ if AnonymousCreate ~}}
-            [AllowAnonymous]
+            /// <summary>Yeni bir {{ Name }} oluşturur.{{ if OwnerField }} {{ OwnerField }} istekten okunmaz, çağıranın kimliğiyle doldurulur.{{ end }}</summary>
+            {{~ if CreateAccess.Attribute ~}}
+            {{ CreateAccess.Attribute }}
             {{~ end ~}}
             [HttpPost]
             public async Task<ActionResult<Guid>> Create(Create{{ Name }}Command command, CancellationToken cancellationToken)
             {
+            {{~ if OwnerField ~}}
+                ArgumentNullException.ThrowIfNull(command);
+                command.{{ OwnerField }} = CurrentUserId ?? throw new ForbiddenException("Kullanıcı kimliği (sub) token'da bulunamadı.");
+            {{~ end ~}}
                 var id = await Mediator.Send(command, cancellationToken);
                 return CreatedAtAction(nameof(GetById), new { id }, id);
             }
 
         {{~ if IncludeUpdate ~}}
-            /// <summary>Var olan bir {{ Name }} kaydını günceller.</summary>
-            {{~ if AnonymousUpdate ~}}
-            [AllowAnonymous]
+            /// <summary>Var olan bir {{ Name }} kaydını günceller.{{ if UpdateAccess.OwnerCheck }} Sahibi olmayanlara 403 döner.{{ end }}</summary>
+            {{~ if UpdateAccess.Attribute ~}}
+            {{ UpdateAccess.Attribute }}
             {{~ end ~}}
             [HttpPut("{id:guid}")]
             public async Task<IActionResult> Update(Guid id, Update{{ Name }}Command command, CancellationToken cancellationToken)
             {
                 ArgumentNullException.ThrowIfNull(command);
                 command.Id = id;
+            {{~ if UpdateAccess.OwnerCheck ~}}
+                command.RestrictToOwnerId = OwnerRestriction({{ UpdateAccess.BypassRoles }});
+            {{~ end ~}}
                 await Mediator.Send(command, cancellationToken);
                 return NoContent();
             }
         {{~ end ~}}
 
         {{~ if IncludeDelete ~}}
-            /// <summary>Bir {{ Name }} kaydını siler.</summary>
-            {{~ if AnonymousDelete ~}}
-            [AllowAnonymous]
+            /// <summary>Bir {{ Name }} kaydını siler.{{ if DeleteAccess.OwnerCheck }} Sahibi olmayanlara 403 döner.{{ end }}</summary>
+            {{~ if DeleteAccess.Attribute ~}}
+            {{ DeleteAccess.Attribute }}
             {{~ end ~}}
             [HttpDelete("{id:guid}")]
             public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
             {
+            {{~ if DeleteAccess.OwnerCheck ~}}
+                await Mediator.Send(new Delete{{ Name }}Command { Id = id, RestrictToOwnerId = OwnerRestriction({{ DeleteAccess.BypassRoles }}) }, cancellationToken);
+            {{~ else ~}}
                 await Mediator.Send(new Delete{{ Name }}Command { Id = id }, cancellationToken);
+            {{~ end ~}}
                 return NoContent();
             }
         {{~ end ~}}
@@ -610,6 +734,9 @@ internal static class Templates
         /// <summary>Genel görsel yükleme ucu — dosyayı wwwroot/uploads altına fiziksel olarak kaydeder (URL/base64 değil).</summary>
         {{~ if Protect ~}}
         [Authorize]
+        {{~ end ~}}
+        {{~ if CreateAccess.Attribute ~}}
+        {{ CreateAccess.Attribute }}
         {{~ end ~}}
         [Route("api/media")]
         public sealed class MediaController : BaseController

@@ -119,6 +119,18 @@ public sealed class ServiceAuthSpec
 
     /// <summary>Controller'lar [Authorize] ile korunsun mu? (varsayılan: evet).</summary>
     public bool Protect { get; set; } = true;
+
+    /// <summary>
+    /// Bir entity'nin <see cref="EntitySpec.Access"/>'inde belirtilmeyen action'lar için kural
+    /// (varsayılan: <c>authenticated</c> — giriş yapmış herkes). Bkz. docs/ARCH.md §6.1.
+    /// </summary>
+    public AccessRule? DefaultAccess { get; set; }
+
+    /// <summary>
+    /// Bu rollerdeki kullanıcılar tüm rol ve sahiplik kurallarını otomatik geçer (örn. SaaS'ta platform
+    /// sahibi <c>SuperAdmin</c>). Boşsa hiçbir rol kuralları otomatik geçmez.
+    /// </summary>
+    public List<string> SuperRoles { get; set; } = [];
 }
 
 /// <summary>Servise ait bir entity tanımı.</summary>
@@ -153,6 +165,21 @@ public sealed class EntitySpec
     /// <c>auth.protect: false</c> ise bu liste no-op'tur (zaten hepsi açık).
     /// </summary>
     public List<string> AnonymousActions { get; set; } = [];
+
+    /// <summary>
+    /// Action başına erişim kuralı: anahtar <c>list</c>/<c>getById</c>/<c>create</c>/<c>update</c>/<c>delete</c>,
+    /// değer <c>anonymous</c>, <c>authenticated</c> veya rol listesi (<c>[Admin, owner]</c>). Belirtilmeyen
+    /// action'lar <see cref="ServiceAuthSpec.DefaultAccess"/>'i kullanır. <see cref="AnonymousActions"/> ile
+    /// aynı entity'de birlikte kullanılamaz. Bkz. docs/ARCH.md §6.1.
+    /// </summary>
+    public Dictionary<string, AccessRule> Access { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Kaydın sahibini tutan <c>guid</c> alanın adı (örn. <c>AuthorId</c>). Doluysa create'te token'daki
+    /// kullanıcı ile damgalanır, update'te değiştirilemez ve <see cref="Access"/>'teki <c>owner</c> kuralı bu
+    /// alana bakar.
+    /// </summary>
+    public string? OwnerField { get; set; }
 
     /// <summary>
     /// <see langword="true"/> ise bu entity için Update/Delete komutu, handler'ı ve controller

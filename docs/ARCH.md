@@ -244,6 +244,53 @@ Bugüne kadar servisler arası iletişim (§5.1) yalnızca "ID'den tekil kayıt 
 - Merkezi tek bir **Identity Service** vardır (JWT / OAuth2).
 - Her servis JWT token'ı kendi middleware'inde **lokal olarak** validate eder; her istekte merkezi DB'ye çağrı yapılmaz.
 
+### 6.1. Yetkilendirme Modeli (roller + sahiplik)
+
+Kimlik doğrulama ("giriş yapmış mı?") ile yetkilendirme ("bunu yapmaya hakkı var mı?") ayrıdır. `auth.protect` + `anonymousActions` yalnızca ilkini ifade ediyordu; Identity `Admin`/`User` rollerini token'a koyuyor ama servisler bunu okumuyordu — kayıt olan her kullanıcı her yazma ucunu çağırabiliyordu. HekimBurada'da bu boşluk ~60 elle yazılmış "sahip/admin şartı" ve her serviste kopyalanan `AdminAuth.cs` ile kapatılmıştı.
+
+**Spec (servis):**
+
+```yaml
+auth:
+  protect: true
+  defaultAccess: authenticated   # access'te belirtilmeyen action'lar için (varsayılan: authenticated)
+  superRoles: [SuperAdmin]       # opsiyonel — bu roller her kuralı (roller + owner) otomatik geçer
+entities:
+  Post:
+    ownerField: AuthorId         # opsiyonel, guid prop
+    access:
+      list: anonymous
+      getById: anonymous
+      create: [Admin, Editor]
+      update: [Admin, owner]
+      delete: [Admin]
+```
+
+Action başına değer: `anonymous` → `[AllowAnonymous]`; `authenticated` → `[Authorize]`; rol listesi → `[Authorize(Roles = "...")]`; listede `owner` varsa → `[Authorize]` + sahiplik kontrolü (listelenen roller ve `superRoles` kontrolü geçer). `anonymousActions` geriye dönük uyumluluk için korunur (`access: { x: anonymous }` ile aynı); aynı entity'de ikisi birlikte kullanılamaz.
+
+**Sahiplik (`ownerField`):**
+- `create`: sahip alanı istekten okunmaz, token'daki `sub` ile damgalanır (başkası adına kayıt açılamaz).
+- `update`: sahip alanı hiçbir zaman değiştirilmez (sahiplik devri API'den yapılamaz).
+- `update`/`delete` kuralında `owner` varsa: çağıran sahibi değilse ve rollerinden hiçbiri kuralda/`superRoles`'ta yoksa `ForbiddenException` → 403.
+- `list`/`getById` kuralında `owner` varsa: aynı durumda yalnızca kendi kayıtları döner (getById'de başkasınınki 404 — varlığı sızdırılmaz).
+
+**Kararı controller verir, handler uygular.** Controller rol/sahiplik durumunu hesaplayıp komut/sorguya `[BindNever]`/`[JsonIgnore]` bir alan olarak geçirir (`RestrictToOwnerId`); handler yalnızca bu alan doluysa filtre/kontrol uygular. Gerekçe: gRPC sunucu servisleri aynı handler'ları kullanıcı bağlamı olmadan (servisler arası, güvenilir çağrı) çağırır — kontrol doğrudan handler'da `ICurrentUser` ile yapılsaydı servisler arası okumalar boş dönerdi. Alan istemciden bağlanamadığı için (model binding'e kapalı) istek ile atlatılamaz.
+
+**Rol claim'i (`EnableJwt`):** `MapInboundClaims = false`, `RoleClaimType = "role"`, `NameClaimType = "sub"` — OpenIddict'in kısa claim adları olduğu gibi kalır, `[Authorize(Roles = ...)]` ve `User.IsInRole` ek kod olmadan çalışır. Kırıcı değişiklik: servis kodunda `ClaimTypes.Role`/`ClaimTypes.NameIdentifier` ile claim arayan yerler artık kısa adları (`role`/`sub`) aramalı (`CurrentUser.UserId` ikisine de bakar).
+
+**Identity (auth.yaml):**
+
+```yaml
+roles: [Admin, User, Editor]     # seed edilir; Admin ve User her zaman eklenir
+registration:
+  enabled: false                 # varsayılan: kapalı
+  defaultRole: User
+```
+
+Kayıt kapalıyken: `/api/account/register` 404 döner, SPA kayıt bağlantısını gizler ve **dış sağlayıcı (Google vb.) ile ilk kez gelen kullanıcı için hesap oluşturulmaz** — dış giriş de bir kayıt yoludur; yalnızca önceden var olan (admin panelinden eklenmiş) kullanıcılar dış sağlayıcıyla girebilir. Varsayılanın kapalı olmasının gerekçesi: halka açık bir generator'da güvenli varsayılan; kayıt gerektiren projeler (örn. HekimBurada) spec'te açıkça `enabled: true` yazar.
+
+**Bilinen kısıtlar:** `superRoles` multi-tenant servislerde (§5.5) kiracı filtresini atlamaz — SuperAdmin de yalnızca kendi `tenant_id`'sinin verisini görür; platform genelinde (cross-tenant) okuma ayrı bir özellik. Sayaç (`counters`) uçları `access`'ten bağımsız olarak herkese açık kalır. Servis spec'indeki rol adları, kardeş `identity/auth.yaml` bulunursa onun `roles` listesiyle karşılaştırılır (bulunamazsa uyarı), bulunamazsa kontrol atlanır.
+
 ## 7. Containerization
 
 - Her servis için ayrı `Dockerfile`.

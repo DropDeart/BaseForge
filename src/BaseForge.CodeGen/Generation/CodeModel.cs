@@ -133,6 +133,13 @@ internal sealed class FeatureFileModel
 
     /// <summary><see cref="Paginated"/>=true iken <c>SortBy</c> dikkate alınsın mı.</summary>
     public bool Sortable { get; set; } = true;
+
+    /// <summary>
+    /// Sahip alanının adı (PascalCase); yoksa <see langword="null"/>. Doluysa Update/Delete komutları ve
+    /// GetById/List sorguları controller'ın doldurduğu <c>RestrictToOwnerId</c> alanını taşır ve Update
+    /// sahip alanını hiçbir zaman değiştirmez.
+    /// </summary>
+    public string? OwnerField { get; set; }
 }
 
 /// <summary>Controller şablonu için model.</summary>
@@ -145,20 +152,22 @@ internal sealed class ControllerFileModel
     /// <summary>Controller [Authorize] ile korunsun mu?</summary>
     public bool Protect { get; set; }
 
-    /// <summary>Protect=true iken bile List action'ı [AllowAnonymous] olsun mu?</summary>
-    public bool AnonymousList { get; set; }
+    /// <summary>Herhangi bir action'da yetki attribute'u veya sahiplik kontrolü var mı (Authorization using'i için).</summary>
+    public bool UsesAuthorization { get; set; }
 
-    /// <summary>Protect=true iken bile GetById action'ı [AllowAnonymous] olsun mu?</summary>
-    public bool AnonymousGetById { get; set; }
+    /// <summary>Action erişim kuralları (bkz. docs/ARCH.md §6.1).</summary>
+    public ActionAccessModel ListAccess { get; set; } = new();
 
-    /// <summary>Protect=true iken bile Create action'ı [AllowAnonymous] olsun mu?</summary>
-    public bool AnonymousCreate { get; set; }
+    public ActionAccessModel GetByIdAccess { get; set; } = new();
 
-    /// <summary>Protect=true iken bile Update action'ı [AllowAnonymous] olsun mu?</summary>
-    public bool AnonymousUpdate { get; set; }
+    public ActionAccessModel CreateAccess { get; set; } = new();
 
-    /// <summary>Protect=true iken bile Delete action'ı [AllowAnonymous] olsun mu?</summary>
-    public bool AnonymousDelete { get; set; }
+    public ActionAccessModel UpdateAccess { get; set; } = new();
+
+    public ActionAccessModel DeleteAccess { get; set; } = new();
+
+    /// <summary>Sahip alanının adı (PascalCase); yoksa <see langword="null"/>. Create'te token'daki kullanıcıyla damgalanır.</summary>
+    public string? OwnerField { get; set; }
 
     /// <summary>Update action'ı üretilsin mi? <c>AppendOnly</c> entity'lerde <see langword="false"/>.</summary>
     public bool IncludeUpdate { get; set; } = true;
@@ -171,6 +180,19 @@ internal sealed class ControllerFileModel
 
     /// <summary>List action'ı sayfalı mı (<c>[FromQuery] List{Name}Query</c> + <c>PagedResult&lt;Dto&gt;</c>) yoksa eski bare-liste mi.</summary>
     public bool Paginated { get; set; } = true;
+}
+
+/// <summary>Bir controller action'ının üretilecek erişim kuralı (bkz. docs/ARCH.md §6.1).</summary>
+internal sealed class ActionAccessModel
+{
+    /// <summary>Action'a eklenecek attribute (örn. <c>[AllowAnonymous]</c>); gerekmiyorsa <see langword="null"/>.</summary>
+    public string? Attribute { get; set; }
+
+    /// <summary>Sahiplik kontrolü üretilsin mi (kuralda <c>owner</c> var)?</summary>
+    public bool OwnerCheck { get; set; }
+
+    /// <summary>Sahiplik kontrolünü geçen rollerin C# literal listesi (örn. <c>"Admin", "SuperAdmin"</c>).</summary>
+    public string BypassRoles { get; set; } = string.Empty;
 }
 
 /// <summary>Program.cs şablonu için model.</summary>

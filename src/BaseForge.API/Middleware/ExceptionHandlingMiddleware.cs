@@ -46,6 +46,7 @@ public sealed class ExceptionHandlingMiddleware
         var (status, title, errorCode) = exception switch
         {
             NotFoundException ex => (HttpStatusCode.NotFound, ex.Message, ex.ErrorCode),
+            ForbiddenException ex => (HttpStatusCode.Forbidden, ex.Message, ex.ErrorCode),
             ValidationException ex => (HttpStatusCode.BadRequest, ex.Message, ex.ErrorCode),
             BaseException ex => (HttpStatusCode.BadRequest, ex.Message, ex.ErrorCode),
             _ => (HttpStatusCode.InternalServerError, "Beklenmeyen bir hata oluştu.", "internal_error"),
