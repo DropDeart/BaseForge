@@ -26,8 +26,11 @@ public static class ApplicationBuilderExtensions
         // En başta: sonraki tüm middleware'lerin (exception handling, request logging) ve
         // handler'ların logları doğru CorrelationId'yi taşısın diye.
         app.UseMiddleware<CorrelationIdMiddleware>();
-        app.UseMiddleware<ExceptionHandlingMiddleware>();
+        // Request logging, exception handling'in DIŞINDA olmalı: içeride kalınca istisna fırladığı anda
+        // yanıt kodu henüz varsayılan 200'dü ve hatalı istekler "-> 200" olarak loglanıyordu; 500/404'e
+        // dönüşüm ancak sonra, dış katmanda yapılıyordu.
         app.UseMiddleware<RequestLoggingMiddleware>();
+        app.UseMiddleware<ExceptionHandlingMiddleware>();
 
         var features = app.Services.GetService<BaseForgeFeatures>();
         if (features?.JwtEnabled == true)
