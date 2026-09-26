@@ -1,3 +1,4 @@
+using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -12,17 +13,19 @@ namespace BaseForge.Identity.Controllers;
 [Authorize(Roles = SeedData.AdminRole)]
 public sealed class AdminUsersApiController : ControllerBase
 {
-    private static readonly string[] KnownRoles = [SeedData.AdminRole, SeedData.UserRole];
-
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public AdminUsersApiController(UserManager<ApplicationUser> userManager)
+    /// <summary>Atanabilir roller: her zaman var olan Admin/User + auth.yaml'daki <c>roles</c> (SeedData ile aynı küme).</summary>
+    private readonly string[] _knownRoles;
+
+    public AdminUsersApiController(UserManager<ApplicationUser> userManager, AuthOptions authOptions)
     {
         _userManager = userManager;
+        _knownRoles = new[] { SeedData.AdminRole, SeedData.UserRole }.Concat(authOptions.Roles).Distinct(StringComparer.Ordinal).ToArray();
     }
 
     [HttpGet("roles")]
-    public IActionResult Roles() => Ok(KnownRoles);
+    public IActionResult Roles() => Ok(_knownRoles);
 
     [HttpGet("users")]
     public async Task<IActionResult> List()
@@ -85,7 +88,7 @@ public sealed class AdminUsersApiController : ControllerBase
             return NotFound();
         }
 
-        if (!KnownRoles.Contains(request.Role, StringComparer.Ordinal))
+        if (!_knownRoles.Contains(request.Role, StringComparer.Ordinal))
         {
             return BadRequest(new ErrorResponse("Geçersiz rol."));
         }

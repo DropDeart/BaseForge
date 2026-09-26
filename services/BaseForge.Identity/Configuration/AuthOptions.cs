@@ -26,8 +26,27 @@ public sealed class AuthOptions
     /// <summary>İlk açılışta oluşturulacak admin kullanıcı.</summary>
     public SeedAdminOptions? SeedAdmin { get; set; }
 
+    /// <summary>Seed edilecek roller. <c>Admin</c> ve <c>User</c> listede olmasa da her zaman oluşturulur.</summary>
+    public List<string> Roles { get; set; } = [];
+
+    /// <summary>Kendi kendine kayıt ayarları (varsayılan: kapalı).</summary>
+    public RegistrationOptions Registration { get; set; } = new();
+
     /// <summary>Dış kimlik sağlayıcıları (Google/GitHub/Microsoft/Facebook/Apple).</summary>
     public ProvidersOptions Providers { get; set; } = new();
+}
+
+/// <summary>Kendi kendine kayıt ayarları (bkz. BaseForge docs/ARCH.md §6.1).</summary>
+public sealed class RegistrationOptions
+{
+    /// <summary>
+    /// Kayıt açık mı? Kapalıyken <c>/api/account/register</c> 404 döner ve dış sağlayıcıyla ilk kez gelen
+    /// kullanıcı için hesap oluşturulmaz — yalnızca önceden var olan kullanıcılar giriş yapabilir.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Kayıt olan (veya dış sağlayıcıyla ilk kez gelen) kullanıcıya verilecek rol.</summary>
+    public string DefaultRole { get; set; } = "User";
 }
 
 /// <summary>Bir API scope'u ve eşlendiği kaynak (audience).</summary>

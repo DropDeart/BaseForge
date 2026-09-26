@@ -12,14 +12,21 @@ const PROVIDER_META: Record<string, { label: string; icon: typeof FaGoogle; bg: 
   Facebook: { label: "Facebook", icon: FaFacebookF, bg: "bg-indigo-50", text: "text-indigo-600" },
 };
 
-export function Login({ returnUrl, onSwitchToRegister, onLoggedIn }: {
+/** Dış giriş akışının /Account/Login?error=... ile döndürdüğü hata kodlarının mesajları. */
+const EXTERNAL_ERRORS: Record<string, string> = {
+  external: "Dış sağlayıcıyla giriş yapılamadı. Lütfen tekrar deneyin.",
+  "registration-closed": "Bu hesapla kayıtlı bir kullanıcı yok ve yeni kayıt kapalı. Yöneticinizden hesap açmasını isteyin.",
+};
+
+export function Login({ returnUrl, registrationEnabled, onSwitchToRegister, onLoggedIn }: {
   returnUrl: string | null;
+  registrationEnabled: boolean;
   onSwitchToRegister: () => void;
   onLoggedIn: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => EXTERNAL_ERRORS[new URLSearchParams(window.location.search).get("error") ?? ""] ?? "");
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
 
@@ -108,12 +115,14 @@ export function Login({ returnUrl, onSwitchToRegister, onLoggedIn }: {
         </>
       )}
 
-      <p className="mt-6 text-center text-xs text-slate-500">
-        Hesabın yok mu?{" "}
-        <button type="button" onClick={onSwitchToRegister} className="cursor-pointer font-medium text-emerald-700 hover:text-emerald-800">
-          Kayıt ol
-        </button>
-      </p>
+      {registrationEnabled && (
+        <p className="mt-6 text-center text-xs text-slate-500">
+          Hesabın yok mu?{" "}
+          <button type="button" onClick={onSwitchToRegister} className="cursor-pointer font-medium text-emerald-700 hover:text-emerald-800">
+            Kayıt ol
+          </button>
+        </p>
+      )}
     </AuthLayout>
   );
 }

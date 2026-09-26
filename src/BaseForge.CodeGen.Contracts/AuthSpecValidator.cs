@@ -29,7 +29,28 @@ public static class AuthSpecValidator
             }
         }
 
+        foreach (var role in spec.Roles)
+        {
+            if (string.IsNullOrWhiteSpace(role) || !role.All(c => char.IsLetterOrDigit(c) || c is '_' or '-'))
+            {
+                errors.Add($"'roles' geçersiz rol adı: '{role}' (harf, rakam, '_' veya '-').");
+            }
+        }
+
+        var defaultRole = spec.Registration.DefaultRole;
+        if (!AllRoles(spec).Contains(defaultRole, StringComparer.Ordinal))
+        {
+            errors.Add($"'registration.defaultRole' ('{defaultRole}') tanımlı bir rol değil (tanımlı: {string.Join(", ", AllRoles(spec))}).");
+        }
+
         return errors;
+    }
+
+    /// <summary>Identity'nin seed edeceği tüm roller: her zaman var olan Admin/User + <see cref="AuthSpec.Roles"/>.</summary>
+    public static IReadOnlyList<string> AllRoles(AuthSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        return new[] { "Admin", RegistrationSpec.DefaultUserRole }.Concat(spec.Roles).Distinct(StringComparer.Ordinal).ToList();
     }
 
     /// <summary>

@@ -39,6 +39,8 @@ internal static class CodeGenerator
         // Gateway hedeflerini (varsa) önceden çözümle — Project/Program/AppSettings render'ları buna bağlı.
         var gatewayTargets = ResolveGatewayTargets(spec, outputDir);
 
+        WarnUnknownRoles(spec, outputDir);
+
         var project = TemplateEngine.Render(
             Templates.Project,
             new ProjectFileModel
@@ -242,6 +244,54 @@ internal static class CodeGenerator
         ServiceRegistry.UpsertService(outputDir, spec);
 
         return written;
+    }
+
+    /// <summary>
+    /// Spec'te kullanılan rolleri (access, defaultAccess, superRoles) aynı workspace'teki Identity'nin
+    /// <c>auth.yaml</c> rolleriyle karşılaştırır; tanımsız bir rol (örn. yazım hatası) için uyarı verir —
+    /// o rol hiçbir token'da olmayacağı için ilgili uç kimseye açılmaz. Identity bulunamazsa kontrol atlanır.
+    /// </summary>
+    private static void WarnUnknownRoles(ServiceSpec spec, string outputDir)
+    {
+        if (spec.Auth is null)
+        {
+            return;
+        }
+
+        var usedRoles = spec.Entities.Values
+            .SelectMany(e => e.Access.Values)
+            .Append(spec.Auth.DefaultAccess ?? AccessRule.Keyword(AccessRule.Authenticated))
+            .SelectMany(r => r.Roles)
+            .Concat(spec.Auth.SuperRoles)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (usedRoles.Count == 0)
+        {
+            return;
+        }
+
+        var workspaceRoot = Path.GetDirectoryName(Path.GetFullPath(outputDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+        var identity = workspaceRoot is null ? null : ServiceRegistry.LoadForWorkspace(workspaceRoot).FirstOrDefault(s => s.IsIdentity);
+        var authPath = identity is null ? null : Path.Combine(workspaceRoot!, identity.Name, "auth.yaml");
+        if (authPath is null || !File.Exists(authPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var known = AuthSpecValidator.AllRoles(SpecLoader.Load<AuthSpec>(authPath));
+            foreach (var role in usedRoles.Where(r => !known.Contains(r, StringComparer.Ordinal)))
+            {
+                Console.Error.WriteLine(
+                    $"Uyarı: '{role}' rolü '{authPath}' içinde tanımlı değil (tanımlı: {string.Join(", ", known)}) — " +
+                    "bu rol hiçbir kullanıcıya atanamayacağı için ilgili uçlar yalnızca diğer rollere açık kalır. auth.yaml 'roles' listesine ekleyin.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Uyarı: '{authPath}' okunamadı ({ex.Message}); rol kontrolü atlanıyor.");
+        }
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using Microsoft.AspNetCore.Authentication;
@@ -32,12 +33,18 @@ public sealed class AccountApiController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IWebHostEnvironment _env;
+    private readonly RegistrationOptions _registration;
 
-    public AccountApiController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, IWebHostEnvironment env)
+    public AccountApiController(
+        SignInManager<ApplicationUser> signInManager,
+        UserManager<ApplicationUser> userManager,
+        IWebHostEnvironment env,
+        AuthOptions authOptions)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _env = env;
+        _registration = authOptions.Registration;
     }
 
     [HttpGet("me")]
@@ -166,6 +173,10 @@ public sealed class AccountApiController : ControllerBase
         return Ok(schemes.Select(s => s.Name));
     }
 
+    /// <summary>Giriş SPA'sının "Kayıt ol" bağlantısını gösterip göstermeyeceğine karar vermesi için.</summary>
+    [HttpGet("registration")]
+    public IActionResult Registration() => Ok(new RegistrationStatus(_registration.Enabled));
+
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest request)
     {
@@ -186,6 +197,12 @@ public sealed class AccountApiController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest request)
     {
+        // Kayıt kapalıyken uç yokmuş gibi davran (auth.yaml registration.enabled; varsayılan kapalı).
+        if (!_registration.Enabled)
+        {
+            return NotFound();
+        }
+
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
         {
             return BadRequest(new ErrorResponse("Tüm alanları doldurun."));
@@ -204,7 +221,7 @@ public sealed class AccountApiController : ControllerBase
             return BadRequest(new ErrorResponse(string.Join(" ", result.Errors.Select(e => e.Description))));
         }
 
-        await _userManager.AddToRoleAsync(user, SeedData.UserRole);
+        await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
         await _signInManager.SignInAsync(user, isPersistent: false);
         return Ok();
     }
@@ -251,6 +268,12 @@ public sealed class AccountApiController : ControllerBase
         var user = await _userManager.FindByEmailAsync(email);
         if (user is null)
         {
+            // Dış giriş de bir kayıt yoludur: kayıt kapalıyken sistemde olmayan biri Google vb. ile hesap açamaz.
+            if (!_registration.Enabled)
+            {
+                return Redirect("/Account/Login?error=registration-closed");
+            }
+
             var displayName = info.Principal.FindFirstValue(ClaimTypes.Name);
             var picture = info.Principal.FindFirstValue("picture");
             user = new ApplicationUser
@@ -267,7 +290,7 @@ public sealed class AccountApiController : ControllerBase
                 return Redirect("/Account/Login?error=external");
             }
 
-            await _userManager.AddToRoleAsync(user, SeedData.UserRole);
+            await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
         }
 
         await _userManager.AddLoginAsync(user, info);
@@ -279,6 +302,8 @@ public sealed class AccountApiController : ControllerBase
 public sealed record LoginRequest(string Email, string Password);
 
 public sealed record RegisterRequest(string? FullName, string Email, string Password);
+
+public sealed record RegistrationStatus(bool Enabled);
 
 public sealed record UpdateProfileRequest(string? FullName);
 

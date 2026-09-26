@@ -24,6 +24,16 @@ public sealed class AuthSpec
     /// <summary>Seed edilecek ilk admin kullanıcısı (opsiyonel).</summary>
     public SeedAdminSpec? SeedAdmin { get; set; }
 
+    /// <summary>
+    /// Seed edilecek roller (örn. <c>[Editor, SuperAdmin]</c>). <c>Admin</c> ve <c>User</c> her zaman
+    /// oluşturulur; buraya yazılması gerekmez. Servis spec'lerindeki <c>access</c> rolleri bu listeyle
+    /// karşılaştırılır (bkz. docs/ARCH.md §6.1).
+    /// </summary>
+    public List<string> Roles { get; set; } = [];
+
+    /// <summary>Kullanıcıların kendi kendine kayıt olup olamayacağı (varsayılan: kapalı).</summary>
+    public RegistrationSpec Registration { get; set; } = new();
+
     /// <summary>Harici oturum açma sağlayıcıları (Google/GitHub/Microsoft/Facebook).</summary>
     public ProvidersSpec Providers { get; set; } = new();
 
@@ -35,6 +45,22 @@ public sealed class AuthSpec
     /// appsettings.json'da <c>Cors:AllowedOrigins</c> olarak üretilir; boşsa CORS devre dışı kalır.
     /// </summary>
     public List<string> CorsOrigins { get; set; } = [];
+}
+
+/// <summary>Kendi kendine kayıt ayarları (bkz. docs/ARCH.md §6.1).</summary>
+public sealed class RegistrationSpec
+{
+    /// <summary>Her zaman var olan varsayılan kullanıcı rolü.</summary>
+    public const string DefaultUserRole = "User";
+
+    /// <summary>
+    /// Kayıt açık mı? Kapalıyken <c>/api/account/register</c> 404 döner ve dış sağlayıcıyla (Google vb.)
+    /// ilk kez gelen kullanıcı için hesap oluşturulmaz. Varsayılan <see langword="false"/> (güvenli varsayılan).
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Kayıt olan (veya dış sağlayıcıyla ilk kez gelen) kullanıcıya verilecek rol.</summary>
+    public string DefaultRole { get; set; } = DefaultUserRole;
 }
 
 /// <summary>Token imzalama sertifikası ayarları.</summary>

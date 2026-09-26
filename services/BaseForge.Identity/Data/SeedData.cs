@@ -101,7 +101,7 @@ public static class SeedData
     private static async Task SeedAdminAsync(IServiceProvider services, AuthOptions auth)
     {
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-        foreach (var role in new[] { AdminRole, UserRole })
+        foreach (var role in new[] { AdminRole, UserRole }.Concat(auth.Roles).Distinct(StringComparer.Ordinal))
         {
             if (await roleManager.FindByNameAsync(role) is null)
             {

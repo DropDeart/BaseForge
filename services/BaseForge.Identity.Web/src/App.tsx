@@ -22,10 +22,13 @@ export default function App() {
     window.location.pathname.toLowerCase() === "/account/register" ? "register" : "login",
   );
   const [page, setPage] = useState<Page>("home");
+  // Bilinene kadar kapalı say — "Kayıt ol" bağlantısı bir an görünüp kaybolmasın (güvenli varsayılan).
+  const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const returnUrl = readReturnUrl();
 
   useEffect(() => {
     api.me().then(setMe);
+    api.registration().then((r) => setRegistrationEnabled(r.enabled)).catch(() => setRegistrationEnabled(false));
   }, []);
 
   const switchView = (view: AuthView) => {
@@ -54,10 +57,16 @@ export default function App() {
   }
 
   if (!me) {
-    return authView === "register" ? (
+    // Kayıt kapalıyken /Account/Register adresine doğrudan gelinse bile giriş ekranı gösterilir.
+    return authView === "register" && registrationEnabled ? (
       <Register returnUrl={returnUrl} onSwitchToLogin={() => switchView("login")} onRegistered={refreshMe} />
     ) : (
-      <Login returnUrl={returnUrl} onSwitchToRegister={() => switchView("register")} onLoggedIn={refreshMe} />
+      <Login
+        returnUrl={returnUrl}
+        registrationEnabled={registrationEnabled}
+        onSwitchToRegister={() => switchView("register")}
+        onLoggedIn={refreshMe}
+      />
     );
   }
 

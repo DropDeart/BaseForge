@@ -48,6 +48,9 @@ export const api = {
 
   providers: () => req<string[]>("/api/account/providers"),
 
+  /** Kendi kendine kayıt açık mı (auth.yaml registration.enabled)? */
+  registration: () => req<{ enabled: boolean }>("/api/account/registration"),
+
   externalLoginUrl: (provider: string, returnUrl: string) =>
     `/api/account/external/${provider}?returnUrl=${encodeURIComponent(returnUrl)}`,
 

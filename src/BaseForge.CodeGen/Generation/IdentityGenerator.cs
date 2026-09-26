@@ -164,6 +164,12 @@ internal static class IdentityGenerator
                     ["Scopes"] = c.Scopes,
                     ["RedirectUris"] = c.RedirectUris,
                 }).ToList(),
+                ["Roles"] = AuthSpecValidator.AllRoles(spec),
+                ["Registration"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["Enabled"] = spec.Registration.Enabled,
+                    ["DefaultRole"] = spec.Registration.DefaultRole,
+                },
                 ["SeedAdmin"] = spec.SeedAdmin is null ? null : new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["Email"] = spec.SeedAdmin.Email,
