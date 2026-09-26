@@ -82,6 +82,11 @@ public static class SpecValidator
                     errors.Add($"'{entityName}.{relName}' geçersiz ilişki türü: '{relation.Kind}' (izinli: {string.Join(", ", AllowedKinds)}).");
                 }
 
+                if (relation.Nullable && string.Equals(relation.Kind, "one-to-many", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"'{entityName}.{relName}' — 'nullable' yalnızca many-to-one/one-to-one ilişkilerde anlamlıdır (FK karşı tarafta durur).");
+                }
+
                 if (!spec.Entities.ContainsKey(relation.Target))
                 {
                     errors.Add($"'{entityName}.{relName}' ilişkisinin hedefi '{relation.Target}' aynı serviste tanımlı değil. " +

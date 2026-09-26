@@ -804,7 +804,9 @@ internal static class CodeGenerator
             var kind = relation.Kind.ToUpperInvariant();
             if (kind is "MANY-TO-ONE" or "ONE-TO-ONE")
             {
-                scalars.Add(new ScalarModel { Name = NameUtil.Pascal(relName) + "Id", Type = "Guid" });
+                // Guid? → EF Core kuralı gereği opsiyonel ilişki (hedefsiz kayıt, örn. kök kategori);
+                // Guid → zorunlu (Guid.Empty ile gelen kayıt FK ihlaliyle reddedilir).
+                scalars.Add(new ScalarModel { Name = NameUtil.Pascal(relName) + "Id", Type = relation.Nullable ? "Guid?" : "Guid" });
             }
         }
 

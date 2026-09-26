@@ -3,6 +3,8 @@
 export interface RelationSpec {
   kind: string; // one-to-many | many-to-one | one-to-one
   target: string;
+  /** Opsiyonel ilişki (FK Guid?) — yalnızca many-to-one/one-to-one'da. */
+  nullable?: boolean;
 }
 
 export interface ExternalRefSpec {

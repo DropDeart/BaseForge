@@ -228,6 +228,13 @@ public sealed class RelationSpec
 
     /// <summary>İlişkinin hedef entity'si (aynı servis içinde tanımlı olmalı).</summary>
     public string Target { get; set; } = string.Empty;
+
+    /// <summary>
+    /// İlişki opsiyonel mi? Yalnızca <c>many-to-one</c>/<c>one-to-one</c>'da anlamlıdır: FK <c>Guid?</c> üretilir
+    /// ve kayıt hedefsiz oluşturulabilir (örn. üst kategorisi olmayan kök kategori). Varsayılan
+    /// <see langword="false"/> — FK zorunlu <c>Guid</c>; hedefsiz kayıt FK ihlaliyle reddedilir.
+    /// </summary>
+    public bool Nullable { get; set; }
 }
 
 /// <summary>

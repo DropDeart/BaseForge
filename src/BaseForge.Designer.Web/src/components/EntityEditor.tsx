@@ -212,7 +212,17 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
           {Object.entries(relations).map(([rName, rel], index) => (
             <div className="rel-row" key={index}>
               <input className="uinput mono" style={{ width: 90 }} value={rName} onChange={(e) => onChange({ ...entity, relations: renameKey(relations, rName, e.target.value) })} />
-              <select className="uselect" value={rel.kind} onChange={(e) => onChange({ ...entity, relations: setKey(relations, rName, { ...rel, kind: e.target.value }) })}>
+              <select
+                className="uselect"
+                value={rel.kind}
+                onChange={(e) =>
+                  onChange({
+                    ...entity,
+                    // one-to-many'de FK karşı tarafta durur — opsiyonel işareti orada geçersiz (SpecValidator hatası).
+                    relations: setKey(relations, rName, { ...rel, kind: e.target.value, nullable: e.target.value === "one-to-many" ? false : rel.nullable }),
+                  })
+                }
+              >
                 {meta.relationKinds.map((k) => (
                   <option key={k} value={k}>{k}</option>
                 ))}
@@ -223,6 +233,16 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
+              {rel.kind !== "one-to-many" && (
+                <label className="hint" title="FK Guid? üretilir; kayıt hedefsiz oluşturulabilir (örn. kök kategori)" style={{ whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!rel.nullable}
+                    onChange={(e) => onChange({ ...entity, relations: setKey(relations, rName, { ...rel, nullable: e.target.checked }) })}
+                  />{" "}
+                  opsiyonel
+                </label>
+              )}
               <button className="icon-btn" onClick={() => onChange({ ...entity, relations: removeKey(relations, rName) })}>×</button>
             </div>
           ))}
