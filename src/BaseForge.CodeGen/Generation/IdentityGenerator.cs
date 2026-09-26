@@ -146,7 +146,8 @@ internal static class IdentityGenerator
             {
                 ["Issuer"] = string.IsNullOrWhiteSpace(spec.Issuer) ? "http://localhost:5090/" : spec.Issuer,
                 ["SigningCertificatePath"] = spec.Signing?.CertificatePath ?? string.Empty,
-                ["SigningCertificatePassword"] = spec.Signing?.CertificatePassword ?? string.Empty,
+                // Bilerek boş — gerçek değer '.env'de (Auth__SigningCertificatePassword); appsettings commit edilir.
+                ["SigningCertificatePassword"] = string.Empty,
                 ["Scopes"] = spec.Scopes.Select(s => new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["Name"] = s.Name,
@@ -227,6 +228,11 @@ internal static class IdentityGenerator
             sb.AppendLine("Auth__SeedAdmin__Password=");
         }
 
+        if (!string.IsNullOrWhiteSpace(spec.Signing?.CertificatePath))
+        {
+            sb.AppendLine("Auth__SigningCertificatePassword=");
+        }
+
         for (var i = 0; i < spec.Clients.Count; i++)
         {
             if (!spec.Clients[i].Public)
@@ -265,6 +271,11 @@ internal static class IdentityGenerator
             sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__SeedAdmin__Password={spec.SeedAdmin.Password}");
         }
 
+        if (!string.IsNullOrWhiteSpace(spec.Signing?.CertificatePassword))
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__SigningCertificatePassword={spec.Signing.CertificatePassword}");
+        }
+
         for (var i = 0; i < spec.Clients.Count; i++)
         {
             if (!spec.Clients[i].Public && !string.IsNullOrWhiteSpace(spec.Clients[i].Secret))
@@ -274,15 +285,7 @@ internal static class IdentityGenerator
             }
         }
 
-        var providers = new (string Name, ProviderSpec? Spec)[]
-        {
-            ("Google", spec.Providers.Google),
-            ("GitHub", spec.Providers.GitHub),
-            ("Microsoft", spec.Providers.Microsoft),
-            ("Facebook", spec.Providers.Facebook),
-        };
-
-        foreach (var (name, provider) in providers)
+        foreach (var (name, provider) in IdentitySecrets.Providers(spec))
         {
             if (provider is not null && !string.IsNullOrWhiteSpace(provider.ClientSecret))
             {

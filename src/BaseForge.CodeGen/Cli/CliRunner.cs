@@ -105,7 +105,9 @@ internal static class CliRunner
         }
 
         var output = options.GetValueOrDefault("output", $"./{spec.Service}");
-        YamlSpecWriter.Write(spec, output, "auth.yaml");
+        // Secret'lar yalnızca .env'de tutulur: boş bırakılanları mevcut .env'den geri al, auth.yaml'a secret'sız yaz.
+        IdentitySecrets.RestoreUnchanged(spec, output);
+        YamlSpecWriter.Write(IdentitySecrets.Redacted(spec), output, "auth.yaml");
         var files = IdentityGenerator.Generate(spec, output);
 
         Console.WriteLine($"{files.Count} dosya üretildi ({Path.GetFullPath(output)}):");

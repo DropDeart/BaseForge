@@ -79,8 +79,9 @@ internal static class DesignerEndpoints
             }
 
             var output = ResolveOutput(null, ctx, spec.Service);
-            RestoreUnchangedSecrets(spec, Path.Combine(output, "auth.yaml"));
-            YamlSpecWriter.Write(spec, output, "auth.yaml");
+            // Secret'lar yalnızca .env'de tutulur: boş bırakılanları mevcut .env'den geri al, auth.yaml'a secret'sız yaz.
+            IdentitySecrets.RestoreUnchanged(spec, output);
+            YamlSpecWriter.Write(IdentitySecrets.Redacted(spec), output, "auth.yaml");
             var files = IdentityGenerator.Generate(spec, output);
             var build = await BuildRunner.BuildAsync(output, ct);
             var solutionMessage = await TryAddToSolutionAsync(req.IncludeInSolution, ctx, files, ct);
@@ -191,7 +192,7 @@ internal static class DesignerEndpoints
     /// <summary>'update' ile açıldıysa ve <c>identity/auth.yaml</c> varsa onu yükler; aksi halde boş seed.
     /// Gerçek secret'lar (ClientSecret, SeedAdmin.Password) tarayıcıya ASLA gönderilmez — Network sekmesinden
     /// bile okunabilir olmasınlar diye burada boşaltılır. Formda "..." placeholder'ı gösterilir; kullanıcı
-    /// dokunmazsa <see cref="RestoreUnchangedSecrets"/> kaydederken diskteki gerçek değeri geri kor.</summary>
+    /// dokunmazsa <see cref="IdentitySecrets.RestoreUnchanged"/> kaydederken .env'deki gerçek değeri geri koyar.</summary>
     private static AuthSpec LoadAuthOrSeed(DesignerContext ctx)
     {
         if (ctx.LoadExisting)
@@ -236,63 +237,6 @@ internal static class DesignerEndpoints
             {
                 provider.ClientSecret = string.Empty;
             }
-        }
-    }
-
-    /// <summary>
-    /// Designer formu secret alanlarını her zaman boş gösterir (bkz. <see cref="MaskSecrets"/>). Kullanıcı
-    /// bir secret'ı değiştirmeden kaydederse, buradaki boş değer diskteki gerçek değerin üzerine yazılmasın
-    /// diye — eşleşen kayıt (SeedAdmin e-postası / provider adı / ClientId) diskte varsa ve gelen alan boşsa,
-    /// eski değer geri konur.
-    /// </summary>
-    private static void RestoreUnchangedSecrets(AuthSpec incoming, string existingAuthYamlPath)
-    {
-        if (!File.Exists(existingAuthYamlPath))
-        {
-            return;
-        }
-
-        AuthSpec existing;
-        try
-        {
-            existing = SpecLoader.Load<AuthSpec>(existingAuthYamlPath);
-        }
-        catch
-        {
-            return;
-        }
-
-        if (incoming.SeedAdmin is not null && string.IsNullOrEmpty(incoming.SeedAdmin.Password)
-            && existing.SeedAdmin is not null
-            && string.Equals(existing.SeedAdmin.Email, incoming.SeedAdmin.Email, StringComparison.OrdinalIgnoreCase))
-        {
-            incoming.SeedAdmin.Password = existing.SeedAdmin.Password;
-        }
-
-        RestoreProviderSecret(incoming.Providers.Google, existing.Providers.Google);
-        RestoreProviderSecret(incoming.Providers.GitHub, existing.Providers.GitHub);
-        RestoreProviderSecret(incoming.Providers.Microsoft, existing.Providers.Microsoft);
-        RestoreProviderSecret(incoming.Providers.Facebook, existing.Providers.Facebook);
-
-        foreach (var client in incoming.Clients)
-        {
-            if (string.IsNullOrEmpty(client.Secret))
-            {
-                var match = existing.Clients.Find(c => string.Equals(c.ClientId, client.ClientId, StringComparison.Ordinal));
-                if (match is not null)
-                {
-                    client.Secret = match.Secret;
-                }
-            }
-        }
-    }
-
-    private static void RestoreProviderSecret(ProviderSpec? incoming, ProviderSpec? existing)
-    {
-        if (incoming is not null && string.IsNullOrEmpty(incoming.ClientSecret)
-            && existing is not null && string.Equals(existing.ClientId, incoming.ClientId, StringComparison.Ordinal))
-        {
-            incoming.ClientSecret = existing.ClientSecret;
         }
     }
 
