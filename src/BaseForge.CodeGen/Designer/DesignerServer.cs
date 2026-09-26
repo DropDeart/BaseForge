@@ -17,7 +17,7 @@ namespace BaseForge.CodeGen.Designer;
 /// </summary>
 internal static class DesignerServer
 {
-    public static int Run(string serviceName, int port, bool loadExisting = false)
+    public static int Run(string serviceName, int port, bool loadExisting = false, bool openBrowser = true)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -74,7 +74,10 @@ internal static class DesignerServer
                     "Release build ile React arayüzü gömülür.)");
             }
 
-            OpenBrowser(url);
+            if (openBrowser)
+            {
+                OpenBrowser(url);
+            }
         });
 
         app.Run();

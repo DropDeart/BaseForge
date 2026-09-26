@@ -41,7 +41,7 @@ internal static class CliRunner
     private static int RunNew(List<string> positional, Dictionary<string, string> options)
     {
         var service = positional.FirstOrDefault() ?? options.GetValueOrDefault("service", "service");
-        return DesignerServer.Run(service, ParsePort(options));
+        return DesignerServer.Run(service, ParsePort(options), openBrowser: !options.ContainsKey("no-browser"));
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ internal static class CliRunner
             }
         }
 
-        return DesignerServer.Run(service, ParsePort(options), loadExisting: true);
+        return DesignerServer.Run(service, ParsePort(options), loadExisting: true, openBrowser: !options.ContainsKey("no-browser"));
     }
 
     private static int ParsePort(Dictionary<string, string> options)
@@ -301,8 +301,8 @@ internal static class CliRunner
         Console.WriteLine("BaseForge kod üretici (baseforge)");
         Console.WriteLine();
         Console.WriteLine("Kullanım:");
-        Console.WriteLine("  baseforge new          <servis> [--port 3500]");
-        Console.WriteLine("  baseforge update       <servis> [--port 3500]");
+        Console.WriteLine("  baseforge new          <servis> [--port 3500] [--no-browser]");
+        Console.WriteLine("  baseforge update       <servis> [--port 3500] [--no-browser]");
         Console.WriteLine("  baseforge er           --spec <dosya.yaml> [--output <klasör>]");
         Console.WriteLine("  baseforge new-service  --spec <dosya.yaml> [--output <klasör>] [--yes]");
         Console.WriteLine("  baseforge new-identity --spec <auth.yaml>  [--output <klasör>]");
@@ -319,5 +319,6 @@ internal static class CliRunner
         Console.WriteLine("  --spec    YAML servis spec dosyası (zorunlu).");
         Console.WriteLine("  --output  Çıktı klasörü (er: '.', new-service: './<servis>').");
         Console.WriteLine("  --yes     Onay sormadan devam et.");
+        Console.WriteLine("  --no-browser  new/update: Designer'ı açarken tarayıcıyı otomatik açma (uzak/headless ortamlar).");
     }
 }
