@@ -157,6 +157,40 @@ internal sealed class FeatureFileModel
     /// sahip alanını hiçbir zaman değiştirmez.
     /// </summary>
     public string? OwnerField { get; set; }
+
+    /// <summary>Liste sorgusunda eşitlik filtresi olarak açılan alanlar (<c>filterable</c>).</summary>
+    public List<FilterModel> Filters { get; set; } = [];
+
+    /// <summary>Okuma görünürlük filtresi (<c>readFilter</c>) var mı?</summary>
+    public bool HasReadFilter { get; set; }
+
+    /// <summary>readFilter koşulu IQueryable için (<c>x.IsPublished == true</c>).</summary>
+    public string ReadFilterQueryPredicate { get; set; } = string.Empty;
+
+    /// <summary>readFilter koşulu yüklenmiş entity için (<c>entity.IsPublished == true</c>).</summary>
+    public string ReadFilterEntityPredicate { get; set; } = string.Empty;
+
+    /// <summary>Sahibi kendi kayıtlarını filtreye takılmadan görür mü (<c>readFilter.bypassOwner</c>)?</summary>
+    public bool ReadFilterBypassOwner { get; set; }
+
+    /// <summary>List sorgusunun sınıf gövdesi (ek alanlar) gerekiyor mu?</summary>
+    public bool ListQueryHasBody => OwnerField is not null || Filters.Count > 0 || HasReadFilter;
+
+    /// <summary>ListPagedAsync'e bir filtre fonksiyonu geçilmeli mi?</summary>
+    public bool ListHasConditions => ListQueryHasBody || SearchPredicate is not null;
+}
+
+/// <summary>Liste sorgusundaki bir eşitlik filtresi (<c>?status=Active</c>).</summary>
+internal sealed class FilterModel
+{
+    /// <summary>Alan adı (PascalCase; query string'de camelCase bağlanır).</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Sorgu özelliğinin C# tipi — her zaman nullable (filtre verilmemiş olabilir).</summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>Handler'daki yerel değişken adı (çakışmasız, örn. <c>filterStatus</c>).</summary>
+    public string Var { get; set; } = string.Empty;
 }
 
 /// <summary>Controller şablonu için model.</summary>
@@ -185,6 +219,15 @@ internal sealed class ControllerFileModel
 
     /// <summary>Sahip alanının adı (PascalCase); yoksa <see langword="null"/>. Create'te token'daki kullanıcıyla damgalanır.</summary>
     public string? OwnerField { get; set; }
+
+    /// <summary>Okuma görünürlük filtresi (<c>readFilter</c>) var mı?</summary>
+    public bool HasReadFilter { get; set; }
+
+    /// <summary>Filtreyi geçen rollerin C# literal listesi (bypassRoles + superRoles); boşsa filtre herkese uygulanır.</summary>
+    public string ReadFilterBypassRoles { get; set; } = string.Empty;
+
+    /// <summary>Sahibi kendi kayıtlarını filtreye takılmadan görür mü?</summary>
+    public bool ReadFilterBypassOwner { get; set; }
 
     /// <summary>Update action'ı üretilsin mi? <c>AppendOnly</c> entity'lerde <see langword="false"/>.</summary>
     public bool IncludeUpdate { get; set; } = true;

@@ -175,7 +175,11 @@ export function EntityAccessEditor({
       : Object.fromEntries(
           Object.entries(access).map(([k, r]) => [k, Array.isArray(r) ? r.filter((v) => v !== OWNER) : r]),
         );
-    commit(next, { ownerField: value || null });
+    commit(next, {
+      ownerField: value || null,
+      // Görünürlük filtresindeki "sahibi" istisnası da sahip alanı olmadan geçersiz.
+      readFilter: !value && entity.readFilter ? { ...entity.readFilter, bypassOwner: false } : entity.readFilter,
+    });
   };
 
   const actions = ACTIONS.filter((a) => !entity.appendOnly || (a.key !== "update" && a.key !== "delete"));

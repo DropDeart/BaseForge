@@ -182,6 +182,19 @@ public sealed class EntitySpec
     public string? OwnerField { get; set; }
 
     /// <summary>
+    /// Liste ucunda eşitlik filtresi olarak kullanılabilecek alanlar (örn. <c>[Status, CategoryId]</c> →
+    /// <c>?status=Active&amp;categoryId=...</c>). Prop adları, ilişki FK'leri (<c>{ilişki}Id</c>) ve dış referans
+    /// alanları olabilir. Yalnızca sayfalı listelerde (<see cref="Paginated"/>).
+    /// </summary>
+    public List<string> Filterable { get; set; } = [];
+
+    /// <summary>
+    /// HTTP okumalarında (list/getById) kayıt görünürlük filtresi — örn. taslakları yalnızca yetkililere göstermek.
+    /// gRPC servisler arası okumaları etkilenmez. Bkz. docs/ARCH.md §6.2.
+    /// </summary>
+    public ReadFilterSpec? ReadFilter { get; set; }
+
+    /// <summary>
     /// <see langword="true"/> ise bu entity için Update/Delete komutu, handler'ı ve controller
     /// action'ı hiç üretilmez — yalnızca Create/GetById/List kalır. GMP/21 CFR Part 11 gibi
     /// audit/trace kayıtlarının API üzerinden asla değiştirilememesi/silinememesi gereken
@@ -218,6 +231,22 @@ public sealed class EntitySpec
     /// yoksa zaten etkisizdir). Varsayılan <see langword="true"/>.
     /// </summary>
     public bool Searchable { get; set; } = true;
+}
+
+/// <summary>HTTP okumalarına uygulanan kayıt görünürlük filtresi (bkz. <see cref="EntitySpec.ReadFilter"/>).</summary>
+public sealed class ReadFilterSpec
+{
+    /// <summary>
+    /// Görünür kayıtların koşulu: alan → değer eşitlikleri (VE ile birleşir), örn. <c>{ IsPublished: true }</c>.
+    /// Desteklenen alan tipleri: bool, enum, string, int/long/short.
+    /// </summary>
+    public Dictionary<string, string> Where { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Filtreye takılmadan tüm kayıtları gören roller (servisin <c>superRoles</c>'u otomatik eklenir).</summary>
+    public List<string> BypassRoles { get; set; } = [];
+
+    /// <summary><see langword="true"/> ise kaydın sahibi kendi kayıtlarını filtreye takılmadan görür (<c>ownerField</c> gerekir).</summary>
+    public bool BypassOwner { get; set; }
 }
 
 /// <summary>Servis içi iki entity arasındaki ilişki.</summary>

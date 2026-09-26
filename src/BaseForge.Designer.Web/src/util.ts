@@ -46,6 +46,8 @@ export function typeClass(type: string): string {
     case "guid":
     case "uuid":
       return "type-id";
+    case "enum":
+      return "type-enum";
     default:
       return "";
   }

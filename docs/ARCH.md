@@ -291,6 +291,21 @@ Kayıt kapalıyken: `/api/account/register` 404 döner, SPA kayıt bağlantısı
 
 **Bilinen kısıtlar:** `superRoles` multi-tenant servislerde (§5.5) kiracı filtresini atlamaz — SuperAdmin de yalnızca kendi `tenant_id`'sinin verisini görür; platform genelinde (cross-tenant) okuma ayrı bir özellik. Sayaç (`counters`) uçları `access`'ten bağımsız olarak herkese açık kalır. Servis spec'indeki rol adları, kardeş `identity/auth.yaml` bulunursa onun `roles` listesiyle karşılaştırılır (bulunamazsa uyarı), bulunamazsa kontrol atlanır.
 
+### 6.2. Liste Filtreleri ve Okuma Görünürlüğü
+
+```yaml
+Post:
+  filterable: [Status, AuthorId]      # ?status=Live&authorId=... (eşitlik; yalnızca sayfalı listeler)
+  readFilter:
+    where: { IsPublished: true }      # herkes yalnızca bunları görür (VE)
+    bypassRoles: [Admin]              # + servisin superRoles'u otomatik
+    bypassOwner: true                 # sahibi kendi kayıtlarını (taslaklarını) da görür
+```
+
+- **filterable:** prop'lar, ilişki FK'leri (`{İlişki}Id`) ve dış referans alanları; tipler string/sayı/bool/guid/date/enum. Liste sorgusuna nullable özellik olarak eklenir, verilmeyen filtre uygulanmaz. Sayfalama/arama adlarıyla (`Page`, `Search` …) çakışamaz.
+- **readFilter:** tfbSoft'ta elle yazılan "taslakları anonimden gizle" deseninin genellemesi. list ve getById'ye uygulanır; koşula uymayan kayıt getById'de 404 (varlığı sızdırılmaz). `where` değerleri tipine göre derleme zamanında C# literal'ine çevrilir (bool/enum/string/int). Sahiplik (§6.1) ile aynı ilke: kararı controller verir (`ApplyReadFilter`, `ReadFilterOwnerId` — `[BindNever]`, istemciden bağlanamaz), handler uygular; gRPC servisler arası okumalar etkilenmez. Sayfalamasız listelerde bellekte uygulanır.
+- **Neden erişim kuralından ayrı?** `access` "bu uca kim girebilir"i, `readFilter` "girenin hangi satırları göreceği"ni belirler; blogda liste herkese açıkken (`list: anonymous`) taslakların yalnızca yazara/admin'e görünmesi ikisinin birlikte kullanılmasını gerektirir.
+
 ## 7. Containerization
 
 - Her servis için ayrı `Dockerfile`.

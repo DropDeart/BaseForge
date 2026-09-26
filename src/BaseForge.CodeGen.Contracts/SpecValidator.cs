@@ -148,6 +148,8 @@ public static class SpecValidator
             }
 
             ValidateAccess(spec, entityName, entity, errors);
+            ValidateFilterable(entityName, entity, errors);
+            ValidateReadFilter(entityName, entity, errors);
 
             var seenCounters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var counter in entity.Counters)
@@ -336,6 +338,127 @@ public static class SpecValidator
             errors.Add($"'{label}' içinde aynı değer birden fazla kez geçiyor.");
         }
     }
+
+    /// <summary>Liste sorgusunda zaten var olan (PagedRequest + controller'ın doldurduğu) ve filtre adı olamayacak alanlar.</summary>
+    private static readonly string[] ReservedQueryNames = ["Page", "PageSize", "SortBy", "Search", "Skip", "RestrictToOwnerId", "ApplyReadFilter", "ReadFilterOwnerId"];
+
+    private static readonly string[] FilterableTypes = ["string", "int", "long", "short", "bool", "guid", "uuid", "date", "enum"];
+
+    private static readonly string[] ReadFilterTypes = ["bool", "enum", "string", "int", "long", "short"];
+
+    /// <summary>
+    /// Entity'nin üretilecek skaler alanları → spec tipi (CodeGenerator.BuildScalars ile aynı adlandırma):
+    /// props, many-to-one/one-to-one ilişki FK'leri (<c>{İlişki}Id</c>) ve dış referans alanları.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> ScalarFieldTypes(EntitySpec entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, prop) in entity.Props)
+        {
+            fields[NameUtil.Pascal(name)] = prop.Type.Trim().ToLowerInvariant();
+        }
+
+        foreach (var (name, rel) in entity.Relations.Where(r => r.Value.Kind.ToLowerInvariant() is "many-to-one" or "one-to-one"))
+        {
+            fields[NameUtil.Pascal(name) + "Id"] = "guid";
+        }
+
+        foreach (var ext in entity.ExternalRefs.Values.Where(x => !string.IsNullOrWhiteSpace(x.Store)))
+        {
+            fields[NameUtil.Pascal(ext.Store)] = "guid";
+        }
+
+        return fields;
+    }
+
+    private static void ValidateFilterable(string entityName, EntitySpec entity, List<string> errors)
+    {
+        if (entity.Filterable.Count == 0)
+        {
+            return;
+        }
+
+        if (!entity.Paginated)
+        {
+            errors.Add($"'{entityName}.filterable' yalnızca sayfalı (paginated: true) listelerde kullanılabilir.");
+        }
+
+        var fields = ScalarFieldTypes(entity);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in entity.Filterable)
+        {
+            var label = $"{entityName}.filterable";
+            if (!seen.Add(name))
+            {
+                errors.Add($"'{label}' içinde '{name}' birden fazla kez geçiyor.");
+            }
+            else if (ReservedQueryNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                errors.Add($"'{label}' — '{name}' ayrılmış bir sorgu parametresi adı (sayfalama/arama ile çakışır).");
+            }
+            else if (!fields.TryGetValue(name, out var type))
+            {
+                errors.Add($"'{label}' — '{name}' bu entity'nin bir alanı değil (tanımlı: {string.Join(", ", fields.Keys)}).");
+            }
+            else if (!FilterableTypes.Contains(type))
+            {
+                errors.Add($"'{label}' — '{name}' ({type}) eşitlik filtresi için uygun değil (desteklenen: {string.Join(", ", FilterableTypes)}).");
+            }
+        }
+    }
+
+    private static void ValidateReadFilter(string entityName, EntitySpec entity, List<string> errors)
+    {
+        if (entity.ReadFilter is not { } filter)
+        {
+            return;
+        }
+
+        var label = $"{entityName}.readFilter";
+        if (filter.Where.Count == 0)
+        {
+            errors.Add($"'{label}.where' en az bir koşul içermeli (örn. {{ IsPublished: true }}).");
+        }
+
+        foreach (var (field, value) in filter.Where)
+        {
+            var prop = entity.Props.FirstOrDefault(p => string.Equals(p.Key, field, StringComparison.OrdinalIgnoreCase));
+            if (prop.Key is null)
+            {
+                errors.Add($"'{label}.where' — '{field}' bu entity'nin bir prop'u değil.");
+                continue;
+            }
+
+            var type = prop.Value.Type.Trim().ToLowerInvariant();
+            if (!ReadFilterTypes.Contains(type))
+            {
+                errors.Add($"'{label}.where' — '{field}' ({type}) desteklenmiyor (desteklenen: {string.Join(", ", ReadFilterTypes)}).");
+            }
+            else if (!IsValidWhereValue(prop.Value, value))
+            {
+                errors.Add($"'{label}.where' — '{field}' için değer '{value}' geçersiz ({type}{(type == "enum" ? ": " + string.Join(", ", prop.Value.Values) : string.Empty)}).");
+            }
+        }
+
+        foreach (var role in filter.BypassRoles.Where(r => !IsValidRoleName(r)))
+        {
+            errors.Add($"'{label}.bypassRoles' geçersiz rol adı: '{role}'.");
+        }
+
+        if (filter.BypassOwner && string.IsNullOrWhiteSpace(entity.OwnerField))
+        {
+            errors.Add($"'{label}.bypassOwner' için entity'de 'ownerField' tanımlanmalı.");
+        }
+    }
+
+    private static bool IsValidWhereValue(PropSpec prop, string value) => prop.Type.Trim().ToLowerInvariant() switch
+    {
+        "bool" => bool.TryParse(value, out _),
+        "enum" => prop.Values.Contains(value, StringComparer.Ordinal),
+        "int" or "long" or "short" => long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _),
+        _ => true,
+    };
 
     private static void ValidateEnumProp(string entityName, string propName, PropSpec prop, List<string> errors)
     {

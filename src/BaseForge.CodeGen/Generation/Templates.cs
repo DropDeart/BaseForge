@@ -380,6 +380,19 @@ internal static class Templates
             /// </summary>
             public Guid? RestrictToOwnerId { get; set; }
         {{~ end ~}}
+        {{~ if HasReadFilter ~}}
+
+            /// <summary>
+            /// true ise yalnızca görünür kayıt döner ({{ ReadFilterQueryPredicate | string.replace "x." "" }}); değilse bulunamadı sayılır.
+            /// Controller doldurur; gRPC servisler arası çağrılarda false kalır (bkz. docs/ARCH.md §6.2).
+            /// </summary>
+            public bool ApplyReadFilter { get; set; }
+        {{~ if ReadFilterBypassOwner ~}}
+
+            /// <summary>Doluysa bu kullanıcının kendi kaydı görünürlük filtresine takılmaz. Controller doldurur.</summary>
+            public Guid? ReadFilterOwnerId { get; set; }
+        {{~ end ~}}
+        {{~ end ~}}
         }
 
         internal sealed class Get{{ Name }}ByIdHandler : IQueryHandler<Get{{ Name }}ByIdQuery, {{ Name }}Dto?>
@@ -392,11 +405,25 @@ internal static class Templates
             {
                 ArgumentNullException.ThrowIfNull(request);
                 var entity = await _repository.GetByIdAsync(request.Id, cancellationToken);
-        {{~ if OwnerField ~}}
-                if (entity is null || (request.RestrictToOwnerId is { } ownerId && entity.{{ OwnerField }} != ownerId))
+        {{~ if OwnerField || HasReadFilter ~}}
+                if (entity is null)
                 {
                     return null;
                 }
+        {{~ if OwnerField ~}}
+
+                if (request.RestrictToOwnerId is { } ownerId && entity.{{ OwnerField }} != ownerId)
+                {
+                    return null;
+                }
+        {{~ end ~}}
+        {{~ if HasReadFilter ~}}
+
+                if (request.ApplyReadFilter && !({{ ReadFilterEntityPredicate }}){{ if ReadFilterBypassOwner }} && entity.{{ OwnerField }} != request.ReadFilterOwnerId{{ end }})
+                {
+                    return null;
+                }
+        {{~ end ~}}
 
                 return {{ Name }}Dto.From(entity);
         {{~ else ~}}
@@ -407,12 +434,38 @@ internal static class Templates
 
         {{~ if Paginated ~}}
         /// <summary>{{ Name }} kayıtlarını sayfalı{{ if Sortable }}, sıralı{{ end }}{{ if SearchPredicate }} ve aranabilir{{ end }} biçimde listeler.</summary>
-        {{~ if OwnerField ~}}
+        {{~ if ListQueryHasBody ~}}
         public sealed class List{{ Name }}Query : PagedRequest, IQuery<PagedResult<{{ Name }}Dto>>
         {
+        {{~ for f in Filters ~}}
+        {{~ if !for.first ~}}
+
+        {{~ end ~}}
+            /// <summary>Verilirse yalnızca {{ f.Name }} değeri buna eşit kayıtlar döner (<c>?{{ f.Name | string.downcase }}=...</c>).</summary>
+            public {{ f.Type }} {{ f.Name }} { get; set; }
+        {{~ end ~}}
+        {{~ if OwnerField ~}}
+        {{~ if Filters.size > 0 ~}}
+
+        {{~ end ~}}
             /// <summary>Doluysa yalnızca {{ OwnerField }}'ı bu kullanıcı olan kayıtlar döner. İstemciden bağlanmaz; controller doldurur.</summary>
             [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
             public Guid? RestrictToOwnerId { get; set; }
+        {{~ end ~}}
+        {{~ if HasReadFilter ~}}
+        {{~ if OwnerField || Filters.size > 0 ~}}
+
+        {{~ end ~}}
+            /// <summary>true ise yalnızca görünür kayıtlar döner. İstemciden bağlanmaz; controller doldurur (bkz. docs/ARCH.md §6.2).</summary>
+            [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+            public bool ApplyReadFilter { get; set; }
+        {{~ if ReadFilterBypassOwner ~}}
+
+            /// <summary>Doluysa bu kullanıcının kendi kayıtları görünürlük filtresine takılmaz. Controller doldurur.</summary>
+            [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+            public Guid? ReadFilterOwnerId { get; set; }
+        {{~ end ~}}
+        {{~ end ~}}
         }
         {{~ else ~}}
         public sealed class List{{ Name }}Query : PagedRequest, IQuery<PagedResult<{{ Name }}Dto>>;
@@ -435,18 +488,38 @@ internal static class Templates
         {{~ else ~}}
                     null,
         {{~ end ~}}
-        {{~ if OwnerField ~}}
+        {{~ if ListQueryHasBody ~}}
                     query =>
                     {
+        {{~ if OwnerField ~}}
                         if (request.RestrictToOwnerId is { } ownerId)
                         {
                             query = query.Where(x => x.{{ OwnerField }} == ownerId);
                         }
-        {{~ if SearchPredicate ~}}
 
+        {{~ end ~}}
+        {{~ if HasReadFilter ~}}
+                        if (request.ApplyReadFilter)
+                        {
+        {{~ if ReadFilterBypassOwner ~}}
+                            var readFilterOwnerId = request.ReadFilterOwnerId;
+                            query = query.Where(x => ({{ ReadFilterQueryPredicate }}) || x.{{ OwnerField }} == readFilterOwnerId);
+        {{~ else ~}}
+                            query = query.Where(x => {{ ReadFilterQueryPredicate }});
+        {{~ end ~}}
+                        }
+
+        {{~ end ~}}
+        {{~ for f in Filters ~}}
+                        if (request.{{ f.Name }} is { } {{ f.Var }})
+                        {
+                            query = query.Where(x => x.{{ f.Name }} == {{ f.Var }});
+                        }
+
+        {{~ end ~}}
+        {{~ if SearchPredicate ~}}
                         return string.IsNullOrWhiteSpace(request.Search) ? query : query.Where(x => {{ SearchPredicate }});
         {{~ else ~}}
-
                         return query;
         {{~ end ~}}
                     },
@@ -468,11 +541,25 @@ internal static class Templates
         }
         {{~ else ~}}
         /// <summary>Tüm {{ Name }} kayıtlarını getirir.</summary>
-        {{~ if OwnerField ~}}
+        {{~ if OwnerField || HasReadFilter ~}}
         public sealed class List{{ Name }}Query : IQuery<IReadOnlyList<{{ Name }}Dto>>
         {
+        {{~ if OwnerField ~}}
             /// <summary>Doluysa yalnızca {{ OwnerField }}'ı bu kullanıcı olan kayıtlar döner. Controller doldurur.</summary>
             public Guid? RestrictToOwnerId { get; set; }
+        {{~ end ~}}
+        {{~ if HasReadFilter ~}}
+        {{~ if OwnerField ~}}
+
+        {{~ end ~}}
+            /// <summary>true ise yalnızca görünür kayıtlar döner. Controller doldurur (bkz. docs/ARCH.md §6.2).</summary>
+            public bool ApplyReadFilter { get; set; }
+        {{~ if ReadFilterBypassOwner ~}}
+
+            /// <summary>Doluysa bu kullanıcının kendi kayıtları görünürlük filtresine takılmaz. Controller doldurur.</summary>
+            public Guid? ReadFilterOwnerId { get; set; }
+        {{~ end ~}}
+        {{~ end ~}}
         }
         {{~ else ~}}
         public sealed class List{{ Name }}Query : IQuery<IReadOnlyList<{{ Name }}Dto>>;
@@ -486,14 +573,19 @@ internal static class Templates
 
             public async Task<IReadOnlyList<{{ Name }}Dto>> Handle(List{{ Name }}Query request, CancellationToken cancellationToken)
             {
-        {{~ if OwnerField ~}}
+        {{~ if OwnerField || HasReadFilter ~}}
                 ArgumentNullException.ThrowIfNull(request);
         {{~ end ~}}
                 var items = await _repository.ListAllAsync(cancellationToken);
-        {{~ if OwnerField ~}}
-                // Sayfalamasız liste küçük veri içindir; sahiplik filtresi bellekte uygulanır.
+        {{~ if OwnerField || HasReadFilter ~}}
+                // Sayfalamasız liste küçük veri içindir; sahiplik/görünürlük filtreleri bellekte uygulanır.
                 return items
+        {{~ if OwnerField ~}}
                     .Where(x => request.RestrictToOwnerId is not { } ownerId || x.{{ OwnerField }} == ownerId)
+        {{~ end ~}}
+        {{~ if HasReadFilter ~}}
+                    .Where(x => !request.ApplyReadFilter || ({{ ReadFilterQueryPredicate }}){{ if ReadFilterBypassOwner }} || x.{{ OwnerField }} == request.ReadFilterOwnerId{{ end }})
+        {{~ end ~}}
                     .Select({{ Name }}Dto.From)
                     .ToList();
         {{~ else ~}}
@@ -652,8 +744,20 @@ internal static class Templates
             [HttpGet("{id:guid}")]
             public async Task<ActionResult<{{ Name }}Dto>> GetById(Guid id, CancellationToken cancellationToken)
             {
+            {{~ if GetByIdAccess.OwnerCheck || HasReadFilter ~}}
+                var query = new Get{{ Name }}ByIdQuery
+                {
+                    Id = id,
             {{~ if GetByIdAccess.OwnerCheck ~}}
-                var query = new Get{{ Name }}ByIdQuery { Id = id, RestrictToOwnerId = OwnerRestriction({{ GetByIdAccess.BypassRoles }}) };
+                    RestrictToOwnerId = OwnerRestriction({{ GetByIdAccess.BypassRoles }}),
+            {{~ end ~}}
+            {{~ if HasReadFilter ~}}
+                    ApplyReadFilter = {{ if ReadFilterBypassRoles != "" }}!IsInAnyRole({{ ReadFilterBypassRoles }}){{ else }}true{{ end }},
+            {{~ if ReadFilterBypassOwner ~}}
+                    ReadFilterOwnerId = CurrentUserId,
+            {{~ end ~}}
+            {{~ end ~}}
+                };
                 var result = await Mediator.Send(query, cancellationToken);
             {{~ else ~}}
                 var result = await Mediator.Send(new Get{{ Name }}ByIdQuery { Id = id }, cancellationToken);
@@ -667,11 +771,19 @@ internal static class Templates
             {{ ListAccess.Attribute }}
             {{~ end ~}}
             [HttpGet]
-            {{~ if ListAccess.OwnerCheck ~}}
+            {{~ if ListAccess.OwnerCheck || HasReadFilter ~}}
             public async Task<ActionResult<PagedResult<{{ Name }}Dto>>> List([FromQuery] List{{ Name }}Query query, CancellationToken cancellationToken)
             {
                 ArgumentNullException.ThrowIfNull(query);
+            {{~ if ListAccess.OwnerCheck ~}}
                 query.RestrictToOwnerId = OwnerRestriction({{ ListAccess.BypassRoles }});
+            {{~ end ~}}
+            {{~ if HasReadFilter ~}}
+                query.ApplyReadFilter = {{ if ReadFilterBypassRoles != "" }}!IsInAnyRole({{ ReadFilterBypassRoles }}){{ else }}true{{ end }};
+            {{~ if ReadFilterBypassOwner ~}}
+                query.ReadFilterOwnerId = CurrentUserId;
+            {{~ end ~}}
+            {{~ end ~}}
                 return Ok(await Mediator.Send(query, cancellationToken));
             }
             {{~ else ~}}
@@ -685,8 +797,21 @@ internal static class Templates
             {{~ end ~}}
             [HttpGet]
             public async Task<ActionResult<IReadOnlyList<{{ Name }}Dto>>> List(CancellationToken cancellationToken)
+            {{~ if ListAccess.OwnerCheck || HasReadFilter ~}}
+                => Ok(await Mediator.Send(
+                    new List{{ Name }}Query
+                    {
             {{~ if ListAccess.OwnerCheck ~}}
-                => Ok(await Mediator.Send(new List{{ Name }}Query { RestrictToOwnerId = OwnerRestriction({{ ListAccess.BypassRoles }}) }, cancellationToken));
+                        RestrictToOwnerId = OwnerRestriction({{ ListAccess.BypassRoles }}),
+            {{~ end ~}}
+            {{~ if HasReadFilter ~}}
+                        ApplyReadFilter = {{ if ReadFilterBypassRoles != "" }}!IsInAnyRole({{ ReadFilterBypassRoles }}){{ else }}true{{ end }},
+            {{~ if ReadFilterBypassOwner ~}}
+                        ReadFilterOwnerId = CurrentUserId,
+            {{~ end ~}}
+            {{~ end ~}}
+                    },
+                    cancellationToken));
             {{~ else ~}}
                 => Ok(await Mediator.Send(new List{{ Name }}Query(), cancellationToken));
             {{~ end ~}}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { EntitySpec, Meta, PropSpec, ServiceAuthSpec } from "../types";
 import { removeKey, renameKey, setKey, typeClass, uniqueKey } from "../util";
 import { EntityAccessEditor } from "./AccessEditor";
+import { ListOptionsEditor } from "./ListOptionsEditor";
 
 interface Props {
   name: string;
@@ -69,6 +70,9 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
       counters: counters.filter((c) => c !== pName),
       // Sahip alanı silinirse bağlantıyı kopar (aksi halde SpecValidator "bu adda bir prop değil" hatası verir).
       ownerField: entity.ownerField === pName ? null : entity.ownerField,
+      readFilter:
+        entity.readFilter && entity.ownerField === pName ? { ...entity.readFilter, bypassOwner: false } : entity.readFilter,
+      filterable: (entity.filterable ?? []).filter((f) => f.toLowerCase() !== pName.toLowerCase()),
     });
 
   const toggleCounter = (pName: string) =>
@@ -148,7 +152,7 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                 </div>
               </div>
               {isOpen && (
-                <div className="prop-adv">
+                <div className={`prop-adv ${isEnum ? "enum" : ""}`}>
                   <label>
                     <input
                       type="checkbox"
@@ -181,12 +185,26 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                   ) : (
                     <span />
                   )}
-                  <input
-                    className="uinput"
-                    placeholder="default değer"
-                    value={pSpec.default ?? ""}
-                    onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
-                  />
+                  {isEnum ? (
+                    <select
+                      className="uselect"
+                      title="Varsayılan değer"
+                      value={pSpec.default ?? ""}
+                      onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
+                    >
+                      <option value="">— varsayılan yok —</option>
+                      {(pSpec.values ?? []).filter((v) => v !== "").map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className="uinput"
+                      placeholder="default değer"
+                      value={pSpec.default ?? ""}
+                      onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
+                    />
+                  )}
                   {isInt ? (
                     <label title="Her zaman herkese açık bir POST .../{id}/increment-{alan} ucu üretilir.">
                       <input type="checkbox" checked={isCounter} onChange={() => toggleCounter(pName)} />
@@ -206,6 +224,11 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
       {/* Erişim: sahip alanı + action başına kural (docs/ARCH.md §6.1) */}
       <div className="divider">
         <EntityAccessEditor entity={entity} auth={auth} knownRoles={knownRoles} onChange={onChange} />
+      </div>
+
+      {/* Liste filtreleri + okuma görünürlüğü (docs/ARCH.md §6.2) */}
+      <div className="divider">
+        <ListOptionsEditor entity={entity} knownRoles={knownRoles} onChange={onChange} />
       </div>
 
       {/* Relations + External refs side by side */}

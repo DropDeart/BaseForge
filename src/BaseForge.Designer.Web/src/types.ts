@@ -42,6 +42,17 @@ export interface EntitySpec {
   access?: Record<string, AccessRule>;
   /** Kaydın sahibini tutan guid alan; create'te token'dan damgalanır, 'owner' kuralı buna bakar. */
   ownerField?: string | null;
+  /** Liste ucunda eşitlik filtresi olarak açılan alanlar (?status=Active). Yalnızca sayfalı listelerde. */
+  filterable?: string[];
+  /** HTTP okumalarında görünürlük filtresi (örn. taslakları gizle). Bkz. docs/ARCH.md §6.2. */
+  readFilter?: ReadFilterSpec | null;
+}
+
+export interface ReadFilterSpec {
+  /** alan → değer eşitlikleri (VE), örn. { IsPublished: "true" } */
+  where: Record<string, string>;
+  bypassRoles?: string[];
+  bypassOwner?: boolean;
 }
 
 /** "anonymous" | "authenticated" | rol listesi (listede "owner" = kaydın sahibi). */

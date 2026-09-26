@@ -92,7 +92,15 @@ internal static class CodeGenerator
                 OwnerField = string.IsNullOrWhiteSpace(entity.OwnerField)
                     ? null
                     : NameUtil.Pascal(entity.Props.Keys.First(p => string.Equals(p, entity.OwnerField, StringComparison.OrdinalIgnoreCase))),
+                Filters = BuildFilters(entity, fields),
             };
+            if (entity.ReadFilter is { } readFilter)
+            {
+                feature.HasReadFilter = true;
+                feature.ReadFilterQueryPredicate = BuildReadFilterPredicate(name, entity, readFilter, "x");
+                feature.ReadFilterEntityPredicate = BuildReadFilterPredicate(name, entity, readFilter, "entity");
+                feature.ReadFilterBypassOwner = readFilter.BypassOwner;
+            }
             var featureDir = Path.Combine(outputDir, "Features", name + "s");
             written.Add(WriteFile(Path.Combine(featureDir, name + "Dto.cs"), TemplateEngine.Render(Templates.Dto, feature)));
             written.Add(WriteFile(Path.Combine(featureDir, name + "Commands.cs"), TemplateEngine.Render(Templates.Commands, feature)));
@@ -114,6 +122,11 @@ internal static class CodeGenerator
                 UpdateAccess = BuildActionAccess(spec, entity, "update"),
                 DeleteAccess = BuildActionAccess(spec, entity, "delete"),
                 OwnerField = feature.OwnerField,
+                HasReadFilter = feature.HasReadFilter,
+                ReadFilterBypassOwner = feature.ReadFilterBypassOwner,
+                ReadFilterBypassRoles = entity.ReadFilter is { } rf
+                    ? string.Join(", ", rf.BypassRoles.Concat(spec.Auth?.SuperRoles ?? []).Distinct(StringComparer.Ordinal).Select(r => $"\"{r}\""))
+                    : string.Empty,
                 IncludeUpdate = !entity.AppendOnly,
                 IncludeDelete = !entity.AppendOnly,
                 Counters = counters,
@@ -262,6 +275,36 @@ internal static class CodeGenerator
         return written;
     }
 
+    /// <summary><c>filterable</c> alanlarını, üretilen skaler alan tipleriyle (nullable) sorgu filtrelerine çevirir.</summary>
+    private static List<FilterModel> BuildFilters(EntitySpec entity, List<ScalarModel> fields) =>
+        entity.Filterable
+            .Select(name => fields.First(f => string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)))
+            .Select(f => new FilterModel
+            {
+                Name = f.Name,
+                Type = f.Type.EndsWith('?') ? f.Type : f.Type + "?",
+                Var = "filter" + f.Name,
+            })
+            .ToList();
+
+    /// <summary>
+    /// <c>readFilter.where</c> eşitliklerini tipine uygun C# literal'leriyle <c>&amp;&amp;</c> ile birleştirir
+    /// (örn. <c>x.IsPublished == true &amp;&amp; x.Status == ListingStatus.Active</c>).
+    /// </summary>
+    private static string BuildReadFilterPredicate(string entityName, EntitySpec entity, ReadFilterSpec filter, string variable) =>
+        string.Join(" && ", filter.Where.Select(kv =>
+        {
+            var (propName, prop) = entity.Props.First(p => string.Equals(p.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
+            var literal = prop.Type.Trim().ToLowerInvariant() switch
+            {
+                "bool" => kv.Value.ToLowerInvariant(),
+                "enum" => $"{TypeMap.EnumTypeName(entityName, propName)}.{kv.Value}",
+                "string" or "text" => $"\"{kv.Value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal)}\"",
+                _ => kv.Value,
+            };
+            return $"{variable}.{NameUtil.Pascal(propName)} == {literal}";
+        }));
+
     /// <summary>
     /// Spec'te kullanılan rolleri (access, defaultAccess, superRoles) aynı workspace'teki Identity'nin
     /// <c>auth.yaml</c> rolleriyle karşılaştırır; tanımsız bir rol (örn. yazım hatası) için uyarı verir —
@@ -279,6 +322,7 @@ internal static class CodeGenerator
             .Append(spec.Auth.DefaultAccess ?? AccessRule.Keyword(AccessRule.Authenticated))
             .SelectMany(r => r.Roles)
             .Concat(spec.Auth.SuperRoles)
+            .Concat(spec.Entities.Values.SelectMany(e => e.ReadFilter?.BypassRoles ?? []))
             .Distinct(StringComparer.Ordinal)
             .ToList();
         if (usedRoles.Count == 0)

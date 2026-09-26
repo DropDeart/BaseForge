@@ -203,6 +203,9 @@ body {
 .type-date { color: var(--t-date); }
 .type-bool { color: var(--t-bool); }
 .type-id { color: var(--t-id); }
+.type-enum { color: var(--t-date); }
+/* enum: değer listesi geniş, varsayılan (seçim) dar */
+.prop-adv.enum { grid-template-columns: auto 1fr 140px; }
 
 .rel-row, .ext-row {
   display: flex; align-items: center; gap: 10px;
