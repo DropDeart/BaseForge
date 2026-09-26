@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\BaseForge.Core\BaseForge.Core.csproj" />
     <ProjectReference Include="..\..\src\BaseForge.Infrastructure\BaseForge.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BaseForge.Tools\BaseForge.Tools.csproj" />
+    <ProjectReference Include="..\..\src\BaseForge.API\BaseForge.API.csproj" />
   </ItemGroup>
 
 </Project>

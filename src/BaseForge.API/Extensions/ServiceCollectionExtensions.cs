@@ -8,6 +8,7 @@ using BaseForge.Infrastructure.Logging;
 using BaseForge.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 
 namespace BaseForge.API.Extensions;
@@ -43,6 +44,11 @@ public static class ServiceCollectionExtensions
         // hepsi aynı ambient accessor'ı paylaşır (bkz. CorrelationIdMiddleware, OutboxEventBus,
         // RabbitMqConsumerHostedService). RabbitMq etkin olsun olmasın her zaman gerekli.
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
+
+        // Üretilen Program.cs'in AddGrpcClient<...>().AddInterceptor<CorrelationIdClientInterceptor>() çağrısı
+        // interceptor'ı DI'dan ister; kayıt olmadan build başarılı olur ama ilk gerçek gRPC çağrısında
+        // "No service for type ... has been registered" ile patlar (HekimBurada'da runtime'da bulundu).
+        services.TryAddTransient<Grpc.CorrelationIdClientInterceptor>();
 
         // 1) Veri erişimi (DbContext + repository + UnitOfWork + Dapper)
         options.InfrastructureRegistration?.Invoke(services);
