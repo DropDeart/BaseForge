@@ -2,7 +2,9 @@ using System.Net;
 using BaseForge.Core.Exceptions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace BaseForge.API.Middleware;
 
@@ -47,6 +49,18 @@ public sealed class ExceptionHandlingMiddleware
         {
             NotFoundException ex => (HttpStatusCode.NotFound, ex.Message, ex.ErrorCode),
             ForbiddenException ex => (HttpStatusCode.Forbidden, ex.Message, ex.ErrorCode),
+            // Veritabanı kısıt ihlalleri istemci hatasıdır (500 değil): zorunlu ilişkinin hedefi yok, benzersiz alan
+            // tekrar ediyor vb. Mesaj bilerek genel — tablo/kısıt adları istemciye sızdırılmaz (log'da tam hali var).
+            DbUpdateException { InnerException: PostgresException pg } => pg.SqlState switch
+            {
+                PostgresErrorCodes.ForeignKeyViolation =>
+                    (HttpStatusCode.BadRequest, "İlişkili kayıt bulunamadı ya da bu kayda bağlı başka kayıtlar var.", "db.foreign_key_violation"),
+                PostgresErrorCodes.UniqueViolation =>
+                    (HttpStatusCode.Conflict, "Bu değere sahip bir kayıt zaten var.", "db.unique_violation"),
+                PostgresErrorCodes.NotNullViolation =>
+                    (HttpStatusCode.BadRequest, "Zorunlu bir alan boş bırakıldı.", "db.not_null_violation"),
+                _ => (HttpStatusCode.InternalServerError, "Beklenmeyen bir hata oluştu.", "internal_error"),
+            },
             ValidationException ex => (HttpStatusCode.BadRequest, ex.Message, ex.ErrorCode),
             BaseException ex => (HttpStatusCode.BadRequest, ex.Message, ex.ErrorCode),
             _ => (HttpStatusCode.InternalServerError, "Beklenmeyen bir hata oluştu.", "internal_error"),
