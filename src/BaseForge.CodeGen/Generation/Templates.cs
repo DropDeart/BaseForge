@@ -1266,8 +1266,8 @@ internal static class Templates
         # RabbitMq'ya bağlanır: kökteki docker-compose.yml'daki paylaşılan broker
         # (bir kere 'docker compose up -d rabbitmq' — bu servis kendi RabbitMq container'ını açmaz).
         {{~ end ~}}
-        # Merkezi log toplama (Grafana Loki) da kökteki docker-compose.yml'da paylaşılan bir
-        # container'dır ('docker compose up -d loki grafana') — appsettings.json'daki Serilog:LokiUrl
+        # Merkezi log toplama (Grafana Loki + Grafana) workspace'teki ../observability klasöründedir
+        # (orada 'docker compose up -d'; Grafana: http://localhost:3000) — appsettings.json'daki Serilog:LokiUrl
         # boşsa/erişilemezse servis sadece konsola loglamaya devam eder, bu bir ön koşul değildir.
         services:
           postgres:
@@ -1337,7 +1337,7 @@ internal static class Templates
         {{~ if HasRabbitMq ~}}
         # RabbitMq'ya bağlanır: kökteki docker-compose.yml'daki paylaşılan broker.
         {{~ end ~}}
-        # Merkezi log toplama (Grafana Loki) da kökteki docker-compose.yml'da paylaşılan bir container'dır.
+        # Merkezi log toplama (Grafana Loki + Grafana): workspace'teki ../observability klasörü.
         services:
           {{ ServiceKey }}-service:
             build: .
@@ -1545,7 +1545,11 @@ internal static class Templates
               "launchBrowser": false,
               "applicationUrl": "http://localhost:{{ RestPort }}",
               "environmentVariables": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
+                "ASPNETCORE_ENVIRONMENT": "Development",
+        {{~ if LocalAuthority ~}}
+                "Auth__Authority": "{{ LocalAuthority }}",
+        {{~ end ~}}
+                "Serilog__LokiUrl": "http://localhost:3100"
               }
             }
           }

@@ -29,6 +29,11 @@
   <!-- Identity referans servisi dosyaları: new-identity için gömülü şablon (tek doğru kaynak).
        Üretimde 'BaseForge.Identity' namespace'i kullanıcının servis adıyla değiştirilir. -->
   <ItemGroup>
+    <!-- Workspace'e üretilen Loki + Grafana (observability/): repo kökündeki grafana/ tek kaynak. -->
+    <EmbeddedResource Include="..\..\grafana\loki-config.yaml" LogicalName="observability/grafana/loki-config.yaml" />
+    <EmbeddedResource Include="..\..\grafana\provisioning\datasources\loki.yaml" LogicalName="observability/grafana/provisioning/datasources/loki.yaml" />
+    <EmbeddedResource Include="..\..\grafana\provisioning\dashboards\dashboards.yaml" LogicalName="observability/grafana/provisioning/dashboards/dashboards.yaml" />
+    <EmbeddedResource Include="..\..\grafana\dashboards\baseforge-logs.json" LogicalName="observability/grafana/dashboards/baseforge-logs.json" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Program.cs" LogicalName="identity/Program.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Configuration\AuthOptions.cs" LogicalName="identity/Configuration/AuthOptions.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Entities\ApplicationUser.cs" LogicalName="identity/Entities/ApplicationUser.cs" />

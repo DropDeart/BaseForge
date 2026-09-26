@@ -68,6 +68,9 @@ internal static class IdentityGenerator
         written.Add(WriteFile(Path.Combine(outputDir, ".gitignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n*.user\n\n# Gerçek secret'lar — commit edilmez (bkz. .env.example)\n.env\n"));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.yml"), BuildCompose(spec)));
 
+        // Workspace'te henüz yoksa paylaşılan Loki + Grafana (observability/).
+        written.AddRange(ObservabilityGenerator.EnsureForWorkspace(outputDir));
+
         // Workspace kökündeki paylaşılan servis kaydına kendini ekle, sonra güncel halini kendi
         // wwwroot'una kopyala — dashboard'un "Servisler" bölümü bunu statik dosya olarak okuyacak.
         ServiceRegistry.UpsertIdentity(outputDir, spec);

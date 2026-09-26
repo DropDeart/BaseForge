@@ -209,6 +209,7 @@ internal static class CodeGenerator
             HasRabbitMq = hasRabbitMq,
             CorsOrigins = spec.CorsOrigins,
             HasAuth = spec.Auth is not null,
+            LocalAuthority = spec.Auth?.Authority.Replace(CrossServiceHost, "localhost", StringComparison.OrdinalIgnoreCase),
         };
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), TemplateEngine.Render(Templates.LaunchSettings, host)));
@@ -268,6 +269,9 @@ internal static class CodeGenerator
         written.Add(WriteFile(
             Path.Combine(outputDir, "Data", contextName + ".cs"),
             TemplateEngine.Render(Templates.DbContext, contextModel)));
+
+        // Workspace'te henüz yoksa paylaşılan Loki + Grafana (observability/) — servisin LokiUrl'i buraya bağlanır.
+        written.AddRange(ObservabilityGenerator.EnsureForWorkspace(outputDir));
 
         // Workspace kökündeki paylaşılan kayda ekle — identity dashboard'unun "Servisler" bölümü bunu okur.
         ServiceRegistry.UpsertService(outputDir, spec);

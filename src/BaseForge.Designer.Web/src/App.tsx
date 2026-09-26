@@ -376,9 +376,10 @@ export function App() {
                   <div className="hint">
                     Loglar her zaman konsola, ayrıca <code>Serilog:LokiUrl</code> adresindeki Grafana Loki'ye gönderilir
                     (varsayılan <code>http://host.docker.internal:3100</code>; ortamda <code>Serilog__LokiUrl</code> ile değişir).
-                    Loki erişilemezse servis sessizce yalnızca konsola loglar. Loki + Grafana bu workspace'e üretilmez —
-                    çalıştırmak için BaseForge deposunun kökünde <code>docker compose up -d loki grafana</code>{" "}
-                    (Grafana: <code>http://localhost:3000</code>).
+                    Loki erişilemezse servis sessizce yalnızca konsola loglar. İlk üretimde workspace'e bir{" "}
+                    <code>observability/</code> klasörü (Loki + Grafana, hazır log dashboard'u) eklenir — orada{" "}
+                    <code>docker compose up -d</code>; Grafana: <code>http://localhost:3000</code> (parola{" "}
+                    <code>observability/.env</code> içinde).
                   </div>
                 </div>
               </div>

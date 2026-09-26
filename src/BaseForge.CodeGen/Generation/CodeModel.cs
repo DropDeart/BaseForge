@@ -339,6 +339,12 @@ internal sealed class HostFileModel
     /// <summary>Servis JWT ile Identity'ye bağlı mı (compose'a Auth__Authority/Auth__Issuer ipuçları için).</summary>
     public bool HasAuth { get; set; }
 
+    /// <summary>
+    /// Yerel <c>dotnet run</c> (launchSettings) için Authority: <c>host.docker.internal</c> yalnızca container'ların
+    /// içinden çözülür, host'ta çözülmez — <c>localhost</c> karşılığı. Auth yoksa <see langword="null"/>.
+    /// </summary>
+    public string? LocalAuthority { get; set; }
+
     /// <summary><c>ServiceSpec.Gateway</c> doluysa proxy'lenen hedefler — appsettings <c>ReverseProxy</c> bölümü için.</summary>
     public List<GatewayTargetModel> GatewayTargets { get; set; } = [];
 }
