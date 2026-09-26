@@ -1,6 +1,8 @@
+using System.Text.Json;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Profile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -79,6 +81,26 @@ public sealed class AdminUsersApiController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>auth.yaml <c>userProfile</c> alanlarını düzenler (admin-only alanlar dahil; kısmi güncelleme).</summary>
+    [HttpPut("users/{id:guid}/profile")]
+    public async Task<IActionResult> UpdateProfile(Guid id, Dictionary<string, JsonElement> profile)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        var errors = UserProfile.Apply(user, profile, asAdmin: true);
+        if (errors.Count > 0)
+        {
+            return BadRequest(new ErrorResponse(string.Join(" ", errors)));
+        }
+
+        await _userManager.UpdateAsync(user);
+        return Ok(ToRow(user, await _userManager.GetRolesAsync(user)));
+    }
+
     [HttpPost("users/{id:guid}/roles")]
     public async Task<IActionResult> AddRole(Guid id, AddRoleRequest request)
     {
@@ -115,11 +137,11 @@ public sealed class AdminUsersApiController : ControllerBase
     }
 
     private static AdminUserRow ToRow(ApplicationUser user, IEnumerable<string> roles) =>
-        new(user.Id, user.Email ?? user.UserName ?? string.Empty, user.FullName, user.AvatarUrl, user.EmailConfirmed, roles);
+        new(user.Id, user.Email ?? user.UserName ?? string.Empty, user.FullName, user.AvatarUrl, user.EmailConfirmed, roles, UserProfile.Read(user));
 }
 
 public sealed record AddUserRequest(string? FullName, string Email);
 
 public sealed record AddRoleRequest(string Role);
 
-public sealed record AdminUserRow(Guid Id, string Email, string? FullName, string? AvatarUrl, bool EmailConfirmed, IEnumerable<string> Roles);
+public sealed record AdminUserRow(Guid Id, string Email, string? FullName, string? AvatarUrl, bool EmailConfirmed, IEnumerable<string> Roles, Dictionary<string, object?> Profile);

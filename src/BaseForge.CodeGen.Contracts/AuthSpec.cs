@@ -45,6 +45,34 @@ public sealed class AuthSpec
     /// appsettings.json'da <c>Cors:AllowedOrigins</c> olarak üretilir; boşsa CORS devre dışı kalır.
     /// </summary>
     public List<string> CorsOrigins { get; set; } = [];
+
+    /// <summary>
+    /// Kullanıcıya (<c>ApplicationUser</c>) eklenecek domain'e özgü profil alanları (opsiyonel). Bkz. docs/ARCH.md §6.3.
+    /// </summary>
+    public UserProfileSpec? UserProfile { get; set; }
+}
+
+/// <summary>Kullanıcı profil alanları (bkz. <see cref="AuthSpec.UserProfile"/>).</summary>
+public sealed class UserProfileSpec
+{
+    /// <summary>Yalnızca admin panelinden düzenlenebilen alanlar için <see cref="PropSpec.EditableBy"/> değeri.</summary>
+    public const string EditableByAdmin = "admin";
+
+    /// <summary>Kullanıcının kendi profilinden düzenleyebildiği alanlar için <see cref="PropSpec.EditableBy"/> değeri (varsayılan).</summary>
+    public const string EditableBySelf = "self";
+
+    /// <summary>
+    /// Alanlar: ad → tanım (servis <c>props</c>'uyla aynı biçim) + <c>editableBy</c> (<c>self</c>|<c>admin</c>) ve
+    /// <c>inToken</c>. Alanlar doğrudan <c>ApplicationUser</c>'a eklenir (ayrı tablo yok).
+    /// </summary>
+    public Dictionary<string, PropSpec> Props { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>Alan yalnızca admin tarafından mı düzenlenebilir?</summary>
+    public static bool IsAdminOnly(PropSpec prop)
+    {
+        ArgumentNullException.ThrowIfNull(prop);
+        return string.Equals(prop.EditableBy, EditableByAdmin, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>Kendi kendine kayıt ayarları (bkz. docs/ARCH.md §6.1).</summary>

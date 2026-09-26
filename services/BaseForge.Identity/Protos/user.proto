@@ -5,8 +5,8 @@ option csharp_namespace = "BaseForge.Identity.Grpc";
 package identity;
 
 // Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin salt-okunur gRPC erişimi.
-// BaseForge.CodeGen bu dosyayı "identity/User" dış referansları için sabit/tek kaynak olarak kullanır
-// (bkz. src/BaseForge.CodeGen/Generation/CodeGenerator.cs TryResolveIdentityUser).
+// BaseForge.CodeGen auth.yaml'dan üretir (userProfile alanları 5'ten itibaren); "identity/User" dış
+// referansı olan servisler aynı auth.yaml'dan aynı dosyayı alır (bkz. docs/ARCH.md §6.3).
 service UserService {
   rpc GetById (UserByIdRequest) returns (UserMessage);
 }

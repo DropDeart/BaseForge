@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Profile;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -147,6 +148,12 @@ public sealed class AuthorizationController : ControllerBase
             identity.AddClaim(Claims.Role, role);
         }
 
+        // auth.yaml userProfile 'inToken: true' alanları (token yenilenene kadar eski değeri taşır).
+        foreach (var (type, value) in UserProfile.TokenClaims(user))
+        {
+            identity.AddClaim(type, value);
+        }
+
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(scopes);
         principal.SetResources(await ResolveResourcesAsync(principal.GetScopes()));
@@ -174,7 +181,7 @@ public sealed class AuthorizationController : ControllerBase
             var destinations = new List<string> { Destinations.AccessToken };
 
             // Profil/email/rol claim'leri id_token'a da yazılsın (ilgili scope verildiyse).
-            if (claim.Type is Claims.Name or Claims.Email or Claims.Role)
+            if (claim.Type is Claims.Name or Claims.Email or Claims.Role || UserProfile.Fields.Any(f => f.InToken && f.Name == claim.Type))
             {
                 destinations.Add(Destinations.IdentityToken);
             }

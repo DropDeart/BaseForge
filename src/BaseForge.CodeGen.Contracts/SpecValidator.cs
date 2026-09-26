@@ -41,48 +41,11 @@ public static class SpecValidator
 
             foreach (var (propName, prop) in entity.Props)
             {
-                if (!IsValidIdentifier(propName))
-                {
-                    errors.Add($"'{entityName}.{propName}' geçersiz alan adı.");
-                    continue;
-                }
+                ValidateProp($"{entityName}.{propName}", propName, prop, errors);
 
-                if (!TypeMap.IsKnown(prop.Type))
+                if (prop.EditableBy is not null || prop.InToken)
                 {
-                    errors.Add($"'{entityName}.{propName}' bilinmeyen tip: '{prop.Type}'.");
-                    continue;
-                }
-
-                var isStringLike = string.Equals(prop.Type, "string", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(prop.Type, "text", StringComparison.OrdinalIgnoreCase);
-
-                if (prop.MaxLength is not null)
-                {
-                    if (!isStringLike)
-                    {
-                        errors.Add($"'{entityName}.{propName}' — 'maxLength' yalnızca string/text tipinde kullanılabilir.");
-                    }
-                    else if (prop.MaxLength <= 0)
-                    {
-                        errors.Add($"'{entityName}.{propName}' — 'maxLength' pozitif bir sayı olmalı.");
-                    }
-                }
-
-                if (TypeMap.IsEnum(prop.Type))
-                {
-                    ValidateEnumProp(entityName, propName, prop, errors);
-                    continue;
-                }
-
-                if (prop.Values.Count > 0)
-                {
-                    errors.Add($"'{entityName}.{propName}' — 'values' yalnızca 'enum' tipinde kullanılabilir.");
-                }
-
-                if (prop.Default is not null && !IsValidDefault(prop.Type, prop.Default))
-                {
-                    errors.Add($"'{entityName}.{propName}' — 'default' değeri ('{prop.Default}') '{prop.Type}' tipi için geçersiz " +
-                               "(datetime/date/guid tiplerinde default desteklenmez).");
+                    errors.Add($"'{entityName}.{propName}' — 'editableBy'/'inToken' yalnızca auth.yaml 'userProfile' alanlarında kullanılabilir.");
                 }
             }
 
@@ -226,6 +189,57 @@ public static class SpecValidator
     /// Bir 'default' değerinin verilen spec tipi için geçerli olup olmadığını kontrol eder.
     /// datetime/date/guid/uuid'de literal default desteklenmez (Parse ifadesi gerektirir, kapsam dışı).
     /// </summary>
+    /// <summary>
+    /// Tek bir alan tanımını (ad, tip, maxLength, enum değerleri, default) doğrular. Servis entity'leri ile
+    /// auth.yaml <c>userProfile</c> alanları aynı kuralları paylaşır (bkz. <see cref="AuthSpecValidator"/>).
+    /// </summary>
+    internal static void ValidateProp(string label, string propName, PropSpec prop, List<string> errors)
+    {
+        if (!IsValidIdentifier(propName))
+        {
+            errors.Add($"'{label}' geçersiz alan adı.");
+            return;
+        }
+
+        if (!TypeMap.IsKnown(prop.Type))
+        {
+            errors.Add($"'{label}' bilinmeyen tip: '{prop.Type}'.");
+            return;
+        }
+
+        var isStringLike = string.Equals(prop.Type, "string", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(prop.Type, "text", StringComparison.OrdinalIgnoreCase);
+
+        if (prop.MaxLength is not null)
+        {
+            if (!isStringLike)
+            {
+                errors.Add($"'{label}' — 'maxLength' yalnızca string/text tipinde kullanılabilir.");
+            }
+            else if (prop.MaxLength <= 0)
+            {
+                errors.Add($"'{label}' — 'maxLength' pozitif bir sayı olmalı.");
+            }
+        }
+
+        if (TypeMap.IsEnum(prop.Type))
+        {
+            ValidateEnumProp(label, prop, errors);
+            return;
+        }
+
+        if (prop.Values.Count > 0)
+        {
+            errors.Add($"'{label}' — 'values' yalnızca 'enum' tipinde kullanılabilir.");
+        }
+
+        if (prop.Default is not null && !IsValidDefault(prop.Type, prop.Default))
+        {
+            errors.Add($"'{label}' — 'default' değeri ('{prop.Default}') '{prop.Type}' tipi için geçersiz " +
+                       "(datetime/date/guid tiplerinde default desteklenmez).");
+        }
+    }
+
     private static bool IsValidDefault(string specType, string defaultValue) => specType.Trim().ToLowerInvariant() switch
     {
         "string" or "text" => true,
@@ -460,9 +474,8 @@ public static class SpecValidator
         _ => true,
     };
 
-    private static void ValidateEnumProp(string entityName, string propName, PropSpec prop, List<string> errors)
+    private static void ValidateEnumProp(string label, PropSpec prop, List<string> errors)
     {
-        var label = $"{entityName}.{propName}";
         if (prop.Values.Count == 0)
         {
             errors.Add($"'{label}' — 'enum' tipi en az bir değer içeren bir 'values' listesi gerektirir (örn. [Draft, Active]).");
@@ -488,7 +501,7 @@ public static class SpecValidator
     private static bool IsValidRoleName(string value) =>
         !string.IsNullOrWhiteSpace(value) && value.All(c => char.IsLetterOrDigit(c) || c is '_' or '-');
 
-    private static bool IsValidIdentifier(string value)
+    internal static bool IsValidIdentifier(string value)
     {
         if (string.IsNullOrEmpty(value) || (!char.IsLetter(value[0]) && value[0] != '_'))
         {

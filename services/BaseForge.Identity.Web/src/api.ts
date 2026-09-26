@@ -1,4 +1,4 @@
-import type { AdminUserRow, MeResponse, ServiceRegistryEntry, ServiceStatusRow } from "./types";
+import type { AdminUserRow, MeResponse, ProfileField, ProfileValues, ServiceRegistryEntry, ServiceStatusRow } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -71,6 +71,15 @@ export const api = {
 
   updateProfile: (fullName: string) =>
     req<void>("/api/account/profile", { method: "PUT", body: JSON.stringify({ fullName }) }),
+
+  /** auth.yaml userProfile alanları — yalnızca gönderilenler güncellenir (ad soyad değişmez). */
+  updateProfileFields: (profile: ProfileValues) =>
+    req<void>("/api/account/profile", { method: "PUT", body: JSON.stringify({ profile }) }),
+
+  profileSchema: () => req<ProfileField[]>("/api/account/profile-schema"),
+
+  adminUpdateProfile: (id: string, profile: ProfileValues) =>
+    req<AdminUserRow>(`/api/admin/users/${id}/profile`, { method: "PUT", body: JSON.stringify(profile) }),
 
   changePassword: (currentPassword: string | null, newPassword: string) =>
     req<void>("/api/account/change-password", {

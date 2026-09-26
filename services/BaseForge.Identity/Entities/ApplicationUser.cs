@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Identity;
 
 namespace BaseForge.Identity.Entities;
 
-/// <summary>Uygulama kullanıcısı (Guid anahtarlı). İleride custom alanlar buraya eklenir.</summary>
-public sealed class ApplicationUser : IdentityUser<Guid>
+/// <summary>
+/// Uygulama kullanıcısı (Guid anahtarlı). Domain'e özgü alanlar auth.yaml <c>userProfile</c>'dan üretilen
+/// <c>ApplicationUser.Profile.cs</c> partial'ındadır (bkz. BaseForge docs/ARCH.md §6.3).
+/// </summary>
+public sealed partial class ApplicationUser : IdentityUser<Guid>
 {
     /// <summary>Kullanıcının görünen adı.</summary>
     public string? FullName { get; set; }

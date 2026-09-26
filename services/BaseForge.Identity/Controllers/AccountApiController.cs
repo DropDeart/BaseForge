@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using System.Text.Json;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Profile;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -59,7 +61,7 @@ public sealed class AccountApiController : ControllerBase
 
         var roles = await _userManager.GetRolesAsync(user);
         var hasPassword = await _userManager.HasPasswordAsync(user);
-        return Ok(new MeResponse(user.Id, user.Email ?? user.UserName ?? string.Empty, user.FullName, user.AvatarUrl, hasPassword, roles));
+        return Ok(new MeResponse(user.Id, user.Email ?? user.UserName ?? string.Empty, user.FullName, user.AvatarUrl, hasPassword, roles, UserProfile.Read(user)));
     }
 
     [HttpPut("profile")]
@@ -72,10 +74,25 @@ public sealed class AccountApiController : ControllerBase
             return Unauthorized();
         }
 
-        user.FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
+        var errors = UserProfile.Apply(user, request.Profile, asAdmin: false);
+        if (errors.Count > 0)
+        {
+            return BadRequest(new ErrorResponse(string.Join(" ", errors)));
+        }
+
+        if (request.Profile is null || request.FullName is not null)
+        {
+            user.FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
+        }
+
         await _userManager.UpdateAsync(user);
         return Ok();
     }
+
+    /// <summary>auth.yaml <c>userProfile</c> alan metadata'sı — SPA profil/admin formlarını buradan çizer.</summary>
+    [HttpGet("profile-schema")]
+    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    public IActionResult ProfileSchema() => Ok(UserProfile.Fields);
 
     [HttpPost("change-password")]
     [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
@@ -313,11 +330,15 @@ public sealed record RegisterRequest(string? FullName, string Email, string Pass
 
 public sealed record RegistrationStatus(bool Enabled);
 
-public sealed record UpdateProfileRequest(string? FullName);
+/// <summary>
+/// Profil güncelleme. <c>Profile</c> kısmi günceller (yalnızca gönderilen alanlar; admin-only alanlar reddedilir).
+/// <c>FullName</c> yalnızca <c>Profile</c> gönderilmediğinde veya kendisi doluysa değişir ("" → temizler).
+/// </summary>
+public sealed record UpdateProfileRequest(string? FullName, Dictionary<string, JsonElement>? Profile = null);
 
 public sealed record ChangePasswordRequest(string? CurrentPassword, string NewPassword);
 
-public sealed record MeResponse(Guid Id, string Email, string? FullName, string? AvatarUrl, bool HasPassword, IEnumerable<string> Roles);
+public sealed record MeResponse(Guid Id, string Email, string? FullName, string? AvatarUrl, bool HasPassword, IEnumerable<string> Roles, Dictionary<string, object?> Profile);
 
 public sealed record AvatarResponse(string AvatarUrl);
 

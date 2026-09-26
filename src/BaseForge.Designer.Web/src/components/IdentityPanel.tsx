@@ -1,8 +1,9 @@
 import { type ReactNode, useState } from "react";
-import { BUILT_IN_ROLES, type AuthSpec, type ProviderSpec, type ProvidersSpec } from "../types";
+import { BUILT_IN_ROLES, type AuthSpec, type Meta, type ProviderSpec, type ProvidersSpec } from "../types";
+import { UserProfileEditor } from "./UserProfileEditor";
 
 interface Props {
-  meta: { providers: string[] };
+  meta: Meta;
   auth: AuthSpec;
   onChange: (auth: AuthSpec) => void;
   children?: ReactNode;
@@ -168,6 +169,8 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
         </div>
 
         <RolesAndRegistration auth={auth} onChange={onChange} />
+
+        <UserProfileEditor meta={meta} auth={auth} onChange={onChange} />
 
         {children}
       </div>

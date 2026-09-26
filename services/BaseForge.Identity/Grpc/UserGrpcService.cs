@@ -1,4 +1,5 @@
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Profile;
 using Grpc.Core;
 using Microsoft.AspNetCore.Identity;
 
@@ -15,12 +16,14 @@ public sealed class UserGrpcService(UserManager<ApplicationUser> userManager) : 
         var user = await userManager.FindByIdAsync(request.Id)
             ?? throw new RpcException(new Status(StatusCode.NotFound, $"User '{request.Id}' bulunamadı."));
 
-        return new UserMessage
+        var message = new UserMessage
         {
             Id = user.Id.ToString(),
             UserName = user.UserName ?? string.Empty,
             Email = user.Email ?? string.Empty,
             FullName = user.FullName ?? string.Empty,
         };
+        UserProfile.ToProto(user, message);
+        return message;
     }
 }

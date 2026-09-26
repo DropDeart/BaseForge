@@ -190,6 +190,8 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IdentityServiceDbContext>();
     await db.Database.EnsureCreatedAsync();
+    // EnsureCreated var olan tabloyu değiştirmez: sonradan eklenen userProfile alanlarının kolonlarını ekle.
+    await BaseForge.Identity.Profile.UserProfile.EnsureColumnsAsync(db);
     await SeedData.SeedAsync(scope.ServiceProvider, authOptions);
 }
 

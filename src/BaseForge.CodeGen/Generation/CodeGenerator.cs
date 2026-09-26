@@ -225,7 +225,7 @@ internal static class CodeGenerator
             if (resolution.IsRich)
             {
                 var protoText = string.Equals(resolution.ProviderNamespace, "Identity", StringComparison.Ordinal)
-                    ? ReadIdentityUserProtoText()
+                    ? ReadIdentityUserProtoText(outputDir)
                     : TemplateEngine.Render(Templates.ProtoServer, new EntityProtoFileModel
                     {
                         Namespace = resolution.ProviderNamespace,
@@ -570,7 +570,32 @@ internal static class CodeGenerator
         return targets;
     }
 
-    /// <summary><c>identity/User</c> özel durumu — Identity'nin sabit (ApplicationUser) alan şekliyle çözümler.</summary>
+    /// <summary>
+    /// Aynı workspace'teki Identity'nin <c>auth.yaml</c>'ı (services.json kaydından bulunur); yoksa veya okunamazsa
+    /// <see langword="null"/>.
+    /// </summary>
+    private static AuthSpec? LoadWorkspaceAuthSpec(string outputDir)
+    {
+        var workspaceRoot = Path.GetDirectoryName(Path.GetFullPath(outputDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+        var identity = workspaceRoot is null ? null : ServiceRegistry.LoadForWorkspace(workspaceRoot).FirstOrDefault(s => s.IsIdentity);
+        var authPath = identity is null ? null : Path.Combine(workspaceRoot!, identity.Name, "auth.yaml");
+        if (authPath is null || !File.Exists(authPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return SpecLoader.Load<AuthSpec>(authPath);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Uyarı: '{authPath}' okunamadı ({ex.Message}); identity/User profil alanları olmadan üretiliyor.");
+            return null;
+        }
+    }
+
+    /// <summary><c>identity/User</c> özel durumu — Identity'nin ApplicationUser alanları (+ auth.yaml userProfile) ile çözümler.</summary>
     private static GrpcClientResolution? TryResolveIdentityUser(string target, string ns, string entityName, string outputDir)
     {
         if (!string.Equals(target, "identity/User", StringComparison.OrdinalIgnoreCase))
@@ -578,12 +603,8 @@ internal static class CodeGenerator
             return null;
         }
 
-        var fields = new List<ProtoFieldModel>
-        {
-            MakeProtoField("UserName", "string", 2),
-            MakeProtoField("Email", "string", 3),
-            MakeProtoField("FullName", "string", 4),
-        };
+        // Sabit alanlar + (workspace'teki identity/auth.yaml bulunursa) userProfile alanları — proto ile aynı sıra/numara.
+        var fields = UserProfileGenerator.ConsumerProtoFields(LoadWorkspaceAuthSpec(outputDir)?.UserProfile);
 
         // Identity'nin gerçek gRPC portu workspace kökündeki paylaşılan services.json kaydından okunur
         // (identity daha önce üretildiyse); bulunamazsa identity'nin kendi varsayılanına (8082) düşülür.
@@ -779,9 +800,17 @@ internal static class CodeGenerator
         return (null, string.Empty, string.Empty);
     }
 
-    /// <summary>Identity'nin gömülü <c>user.proto</c> kaynağını okuyup tüketen servisin adına uyarlar.</summary>
-    private static string ReadIdentityUserProtoText()
+    /// <summary>
+    /// Tüketen servis için <c>user.proto</c>: workspace'teki <c>identity/auth.yaml</c> bulunursa Identity'nin kendisiyle
+    /// aynı (profil alanlı) proto üretilir; bulunamazsa gömülü (profilsiz) kaynak kullanılır.
+    /// </summary>
+    private static string ReadIdentityUserProtoText(string outputDir)
     {
+        if (LoadWorkspaceAuthSpec(outputDir) is { } auth)
+        {
+            return UserProfileGenerator.BuildProto("Identity", auth.UserProfile);
+        }
+
         var assembly = typeof(CodeGenerator).Assembly;
         using var stream = assembly.GetManifestResourceStream("identity/Protos/user.proto")
             ?? throw new InvalidOperationException("identity/Protos/user.proto gömülü kaynağı bulunamadı.");
@@ -802,7 +831,7 @@ internal static class CodeGenerator
         return fields;
     }
 
-    private static ProtoFieldModel MakeProtoField(string name, string specType, int number, bool nullable = false)
+    internal static ProtoFieldModel MakeProtoField(string name, string specType, int number, bool nullable = false)
     {
         var csharpBase = TypeMap.ToCSharp(specType);
         var isNonNullableString = !nullable && string.Equals(csharpBase, "string", StringComparison.Ordinal);
@@ -919,7 +948,7 @@ internal static class CodeGenerator
     /// Bir alanın C# initializer'ını hesaplar: explicit 'default' varsa tip-uygun literal;
     /// yoksa non-nullable string için mevcut <c>= string.Empty;</c> fallback'i; aksi halde boş.
     /// </summary>
-    private static string ComputeInit(PropSpec prop, string csharpBaseType)
+    internal static string ComputeInit(PropSpec prop, string csharpBaseType)
     {
         if (prop.Default is not null)
         {

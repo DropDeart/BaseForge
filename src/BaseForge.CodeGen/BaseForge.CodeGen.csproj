@@ -50,6 +50,9 @@
          (tek fiziksel kaynak, tek LogicalName — SDK aynı yolu iki LogicalName ile içermeyi reddediyor). -->
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Protos\user.proto" LogicalName="identity/Protos/user.proto" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Grpc\UserGrpcService.cs" LogicalName="identity/Grpc/UserGrpcService.cs" />
+    <!-- Profil yardımcıları (şemadan bağımsız). UserProfile.cs, ApplicationUser.Profile.cs ve user.proto ise
+         auth.yaml userProfile'dan üretilir (UserProfileGenerator); repodaki kopyaları boş profil çıktısıdır. -->
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Profile\ProfileJson.cs" LogicalName="identity/Profile/ProfileJson.cs" />
   </ItemGroup>
 
   <!-- Designer React arayüzü: npm build çıktısını (dist) 'web/...' logical name'leriyle gömer.

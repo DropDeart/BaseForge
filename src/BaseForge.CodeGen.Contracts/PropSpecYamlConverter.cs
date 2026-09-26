@@ -50,6 +50,12 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
                     }
 
                     break;
+                case "editableBy":
+                    spec.EditableBy = parser.Consume<Scalar>().Value;
+                    break;
+                case "inToken":
+                    spec.InToken = bool.Parse(parser.Consume<Scalar>().Value);
+                    break;
                 default:
                     // Bilinmeyen anahtar — değerini (skaler veya iç içe yapı olabilir) atla.
                     parser.SkipThisAndNestedEvents();
@@ -65,7 +71,8 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
     {
         var spec = (PropSpec)value!;
 
-        if (!spec.Nullable && spec.MaxLength is null && spec.Default is null && spec.Values.Count == 0)
+        if (!spec.Nullable && spec.MaxLength is null && spec.Default is null && spec.Values.Count == 0
+            && spec.EditableBy is null && !spec.InToken)
         {
             emitter.Emit(new Scalar(spec.Type));
             return;
@@ -104,6 +111,18 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
             }
 
             emitter.Emit(new SequenceEnd());
+        }
+
+        if (spec.EditableBy is not null)
+        {
+            emitter.Emit(new Scalar("editableBy"));
+            emitter.Emit(new Scalar(spec.EditableBy));
+        }
+
+        if (spec.InToken)
+        {
+            emitter.Emit(new Scalar("inToken"));
+            emitter.Emit(new Scalar("true"));
         }
 
         emitter.Emit(new MappingEnd());

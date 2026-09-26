@@ -16,6 +16,7 @@ internal static class IdentityGenerator
     private const string ResourcePrefix = "identity/";
     private const string WebResourcePrefix = "identity-web/";
     private const string ReferenceNamespace = "BaseForge.Identity";
+    private const string ProtoResource = ResourcePrefix + "Protos/user.proto";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -33,7 +34,7 @@ internal static class IdentityGenerator
         // 1) Kod dosyaları: gömülü referanstan namespace değiştirilerek.
         var assembly = typeof(IdentityGenerator).Assembly;
         foreach (var resource in assembly.GetManifestResourceNames()
-                     .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal)))
+                     .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal) && n != ProtoResource))
         {
             using var stream = assembly.GetManifestResourceStream(resource)!;
             using var reader = new StreamReader(stream);
@@ -42,6 +43,12 @@ internal static class IdentityGenerator
             var relative = resource[ResourcePrefix.Length..].Replace('/', Path.DirectorySeparatorChar);
             written.Add(WriteFile(Path.Combine(outputDir, relative), code));
         }
+
+        // 1a) auth.yaml userProfile'dan üretilen kod (profil boşsa da — gömülü kod bunlara bağlı). user.proto
+        // gömülü kaynaktan kopyalanmaz: profil alanlarını içerecek şekilde burada üretilir (bkz. docs/ARCH.md §6.3).
+        written.Add(WriteFile(Path.Combine(outputDir, "Entities", "ApplicationUser.Profile.cs"), UserProfileGenerator.BuildEntityPartial(ns, spec.UserProfile)));
+        written.Add(WriteFile(Path.Combine(outputDir, "Profile", "UserProfile.cs"), UserProfileGenerator.BuildProfileClass(ns, spec.UserProfile)));
+        written.Add(WriteFile(Path.Combine(outputDir, "Protos", "user.proto"), UserProfileGenerator.BuildProto(ns, spec.UserProfile)));
 
         // 1b) Ortak Giriş SPA'sı (Login/Register/Admin): önceden derlenmiş dist çıktısı, wwwroot altına
         // ham bayt olarak kopyalanır (font/JS gibi binary dosyalar için metin okuma/değiştirme uygulanmaz).

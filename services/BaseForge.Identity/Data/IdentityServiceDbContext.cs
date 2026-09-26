@@ -1,4 +1,5 @@
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Profile;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -19,5 +20,6 @@ public sealed class IdentityServiceDbContext : IdentityDbContext<ApplicationUser
     {
         base.OnModelCreating(builder);
         builder.UseOpenIddict();
+        UserProfile.Configure(builder);
     }
 }

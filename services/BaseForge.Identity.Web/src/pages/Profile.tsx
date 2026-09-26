@@ -1,10 +1,12 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FiCamera } from "react-icons/fi";
 import { Avatar } from "../components/Avatar";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/FormField";
+import { ProfileFields } from "../components/ProfileFields";
+import { toApiValues, toFormState, type ProfileFormState } from "../lib/profile";
 import { api } from "../api";
-import type { MeResponse } from "../types";
+import type { MeResponse, ProfileField } from "../types";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -26,6 +28,42 @@ export function Profile({ me, onUpdated }: { me: MeResponse; onUpdated: (next: M
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+
+  // auth.yaml userProfile alanları — şema boşsa bölüm hiç gösterilmez.
+  const [schema, setSchema] = useState<ProfileField[]>([]);
+  const [profileState, setProfileState] = useState<ProfileFormState>({});
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
+  useEffect(() => {
+    api
+      .profileSchema()
+      .then((fields) => {
+        setSchema(fields);
+        setProfileState(toFormState(fields, me.profile ?? {}));
+      })
+      .catch(() => setSchema([]));
+    // Şema oturum boyunca değişmez; me.profile yalnızca ilk doldurma için.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveProfileFields = async (e: FormEvent) => {
+    e.preventDefault();
+    setProfileError("");
+    setProfileSaved(false);
+    setProfileSaving(true);
+    try {
+      const values = toApiValues(schema, profileState, (f) => !f.adminOnly);
+      await api.updateProfileFields(values);
+      onUpdated({ ...me, profile: { ...me.profile, ...values } });
+      setProfileSaved(true);
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Kaydedilemedi.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const pickAvatar = () => fileInput.current?.click();
 
@@ -136,6 +174,22 @@ export function Profile({ me, onUpdated }: { me: MeResponse; onUpdated: (next: M
         {nameError && <div className="mt-2 text-xs text-red-600">{nameError}</div>}
         {nameSaved && <div className="mt-2 text-xs text-emerald-700">Kaydedildi.</div>}
       </section>
+
+      {schema.length > 0 && (
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-semibold text-slate-800">Profil bilgileri</h2>
+          <form onSubmit={saveProfileFields} className="flex flex-col gap-4">
+            <ProfileFields fields={schema} state={profileState} onChange={setProfileState} editable={(f) => !f.adminOnly} />
+            {schema.some((f) => !f.adminOnly) && (
+              <Button type="submit" disabled={profileSaving} className="self-start">
+                {profileSaving ? "Kaydediliyor…" : "Kaydet"}
+              </Button>
+            )}
+          </form>
+          {profileError && <div className="mt-2 text-xs text-red-600">{profileError}</div>}
+          {profileSaved && <div className="mt-2 text-xs text-emerald-700">Kaydedildi.</div>}
+        </section>
+      )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 className="mb-1 text-sm font-semibold text-slate-800">{me.hasPassword ? "Parola değiştir" : "Parola belirle"}</h2>

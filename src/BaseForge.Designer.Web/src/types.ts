@@ -20,6 +20,10 @@ export interface PropSpec {
   default?: string | null; // yalnızca C# tarafı (in-memory initializer); datetime/date/guid'de desteklenmez
   /** Yalnızca enum tipinde: izinli değerler (C# tanımlayıcısı, örn. Draft, InReview). */
   values?: string[];
+  /** Yalnızca auth.yaml userProfile: self (varsayılan, kullanıcı düzenler) | admin (yalnızca admin paneli). */
+  editableBy?: string | null;
+  /** Yalnızca auth.yaml userProfile: JWT claim'i olarak token'a eklensin mi. */
+  inToken?: boolean;
 }
 
 export interface EntitySpec {
@@ -139,6 +143,8 @@ export interface AuthSpec {
   roles?: string[];
   /** Kendi kendine kayıt (varsayılan kapalı). Kapalıyken dış sağlayıcıyla da yeni hesap açılmaz. */
   registration?: { enabled: boolean; defaultRole: string };
+  /** Kullanıcıya eklenecek domain alanları (docs/ARCH.md §6.3). */
+  userProfile?: { props: Record<string, PropSpec> } | null;
 }
 
 /** Identity'de her zaman var olan roller (AuthSpecValidator.AllRoles ile aynı). */

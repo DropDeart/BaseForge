@@ -297,6 +297,15 @@ public sealed class PropSpec
     /// string olarak taşınır (sıra değişse de eski kayıtlar bozulmaz).
     /// </summary>
     public List<string> Values { get; set; } = [];
+
+    /// <summary>
+    /// Yalnızca auth.yaml <c>userProfile</c> alanlarında: alanı kim düzenleyebilir — <c>self</c> (kullanıcı kendi
+    /// profilinden; <see langword="null"/> ile aynı, varsayılan) veya <c>admin</c> (yalnızca admin paneli). Bkz. docs/ARCH.md §6.3.
+    /// </summary>
+    public string? EditableBy { get; set; }
+
+    /// <summary>Yalnızca auth.yaml <c>userProfile</c> alanlarında: alan JWT claim'i olarak token'a eklensin mi (varsayılan hayır).</summary>
+    public bool InToken { get; set; }
 }
 
 /// <summary>Başka bir servise ait kayda yapılan dış referans. FK/navigation üretilmez; yalnızca ID tutulur.</summary>
