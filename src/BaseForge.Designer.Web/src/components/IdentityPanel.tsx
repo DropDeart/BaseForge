@@ -213,8 +213,8 @@ function RolesAndRegistration({ auth, onChange }: { auth: AuthSpec; onChange: (a
         ))}
         <input
           className="uinput mono"
-          style={{ width: 130 }}
-          placeholder="yeni rol (örn. Editor)"
+          style={{ width: 170 }}
+          placeholder="yeni rol, örn. Editor"
           value={draft}
           onChange={(e) => setDraft(e.target.value.trim())}
           onKeyDown={(e) => e.key === "Enter" && addRole()}
