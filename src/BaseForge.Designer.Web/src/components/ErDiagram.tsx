@@ -1,12 +1,14 @@
 import { useState } from "react";
 import type { ServiceSpec } from "../types";
 import { toDbml, fkName } from "../dbml";
+import { useT } from "../i18n";
 
 interface Props {
   spec: ServiceSpec;
 }
 
 export function ErDiagram({ spec }: Props) {
+  const m = useT();
   const [copied, setCopied] = useState(false);
   const entities = spec.entities ?? {};
   const names = Object.keys(entities);
@@ -48,17 +50,15 @@ export function ErDiagram({ spec }: Props) {
   return (
     <>
       <div className="header" style={{ borderTop: "none" }}>
-        <div className="hint">
-          Spec'ten canlı üretilir · solid = servis içi FK ilişkisi · kesikli = dış servis referansı (FK yok, sadece ID)
-        </div>
+        <div className="hint">{m.er.hint}</div>
         <div className="header-spacer" />
-        <button className="btn mono" onClick={copyDbml}>{copied ? "kopyalandı ✓" : "DBML kopyala"}</button>
-        <button className="btn btn-primary" onClick={openDbdiagram}>dbdiagram.io'da aç</button>
+        <button className="btn mono" onClick={copyDbml}>{copied ? m.er.copied : m.er.copyDbml}</button>
+        <button className="btn btn-primary" onClick={openDbdiagram}>{m.er.openDbdiagram}</button>
       </div>
 
       <div className="er-canvas">
         {names.length === 0 ? (
-          <div className="empty">Henüz entity yok — Servis sekmesinden ekleyin.</div>
+          <div className="empty">{m.er.empty}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
             {/* Entity kutuları */}
@@ -90,7 +90,7 @@ export function ErDiagram({ spec }: Props) {
             {/* İlişkiler */}
             {relations.length > 0 && (
               <div>
-                <div className="group-label" style={{ marginBottom: 10 }}>İlişkiler</div>
+                <div className="group-label" style={{ marginBottom: 10 }}>{m.er.relations}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {relations.map((r, i) => (
                     <div className="er-cluster" key={i} style={{ gap: 10 }}>
@@ -110,7 +110,7 @@ export function ErDiagram({ spec }: Props) {
             {/* Dış referanslar */}
             {externals.length > 0 && (
               <div>
-                <div className="group-label" style={{ marginBottom: 10 }}>Dış referanslar</div>
+                <div className="group-label" style={{ marginBottom: 10 }}>{m.er.externalRefs}</div>
                 <div className="er-col">
                   {externals.map((x, i) => (
                     <div className="er-cluster" key={i}>

@@ -7,6 +7,7 @@ import { UiDesignLauncher } from "./components/UiDesignLauncher";
 import { ServiceAccessEditor } from "./components/AccessEditor";
 import { BUILT_IN_ROLES, type AuthSpec, type DockerPortsSpec, type GenerateResponse, type Meta, type ServiceSpec, type WorkspaceEntry } from "./types";
 import { removeKey, renameKey, setKey, uniqueKey } from "./util";
+import { LANGS, useLang, useT } from "./i18n";
 
 type View = "service" | "identity" | "er";
 
@@ -36,6 +37,8 @@ function portsEqual(a: DockerPortsSpec, b: DockerPortsSpec): boolean {
 }
 
 export function App() {
+  const m = useT();
+  const { lang, setLang } = useLang();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [spec, setSpec] = useState<ServiceSpec | null>(null);
   const [auth, setAuth] = useState<AuthSpec | null>(null);
@@ -99,11 +102,10 @@ export function App() {
     return (
       <div className="closed-screen">
         <div className="closed-card">
-          <div className="closed-title">{closing === "closing" ? "Designer kapatılıyor…" : "Designer kapatıldı"}</div>
+          <div className="closed-title">{closing === "closing" ? m.app.closing : m.app.closed}</div>
           {closing === "closed" && (
             <div className="hint">
-              Sunucu ve port kapandı; başlattığın container'lar durduruldu. Bu sekmeyi kapatabilirsin — tekrar açmak için{" "}
-              <code>baseforge new</code> / <code>baseforge update</code>.
+              {m.app.closedHint} <code>baseforge new</code> {m.app.or} <code>baseforge update</code>.
             </div>
           )}
         </div>
@@ -112,7 +114,7 @@ export function App() {
   }
 
   if (!meta || !spec || !auth) {
-    return <div className="empty">Yükleniyor…</div>;
+    return <div className="empty">{m.app.loading}</div>;
   }
 
   const entities = spec.entities ?? {};
@@ -201,10 +203,10 @@ export function App() {
 
   const headerTitle =
     view === "service"
-      ? { name: spec.service, sub: "servis tasarımcısı" }
+      ? { name: spec.service, sub: m.app.subService }
       : view === "identity"
-        ? { name: auth.service, sub: "merkez kimlik doğrulama" }
-        : { name: spec.service, sub: "ER diyagramı" };
+        ? { name: auth.service, sub: m.app.subIdentity }
+        : { name: spec.service, sub: m.app.subEr };
 
   const railItem = (id: View, glyph: string, label: string) => (
     <button
@@ -219,11 +221,21 @@ export function App() {
   return (
     <div className="app">
       <div className="rail">
-        {railItem("service", "S", "Servis")}
-        {railItem("identity", "I", "Identity")}
-        {railItem("er", "E", "ER diyagramı")}
+        {railItem("service", "S", m.app.railService)}
+        {railItem("identity", "I", m.app.railIdentity)}
+        {railItem("er", "E", m.app.railEr)}
         <div className="rail-spacer" />
-        <button className="rail-item" title="Kapat" onClick={closeDesigner}>
+        {LANGS.map((l) => (
+          <button
+            key={l.code}
+            className={`rail-item rail-lang ${lang === l.code ? "active" : ""}`}
+            title={`${m.app.language}: ${l.label}`}
+            onClick={() => setLang(l.code)}
+          >
+            {l.label}
+          </button>
+        ))}
+        <button className="rail-item" title={m.app.railClose} onClick={closeDesigner}>
           ⏻
         </button>
       </div>
@@ -240,8 +252,8 @@ export function App() {
                 className="toggle-row"
                 title={
                   meta.solutionFound
-                    ? `Üretilen proje ${meta.solutionName} içine eklenir.`
-                    : "Yakında bir .slnx/.sln bulunamadı — servis diskte ayrı bir klasör olarak kalır."
+                    ? m.app.solutionTitle(meta.solutionName ?? "")
+                    : m.app.solutionMissingTitle
                 }
               >
                 <button
@@ -252,12 +264,12 @@ export function App() {
                   <span className="knob" />
                 </button>
                 <span className="hint">
-                  {meta.solutionFound ? `Solution'a ekle (${meta.solutionName})` : "Solution bulunamadı — ayrı kalacak"}
+                  {meta.solutionFound ? m.app.addToSolution(meta.solutionName ?? "") : m.app.solutionMissing}
                 </span>
               </div>
-              <button className="btn" onClick={closeDesigner}>Kapat</button>
+              <button className="btn" onClick={closeDesigner}>{m.app.close}</button>
               <button className="btn btn-primary" disabled={busy} onClick={generate}>
-                {busy ? "Üretiliyor…" : view === "identity" ? "Identity Üret + Derle" : "Üret + Derle"}
+                {busy ? m.app.generating : view === "identity" ? m.app.generateIdentity : m.app.generate}
               </button>
             </>
           )}
@@ -266,7 +278,7 @@ export function App() {
         {view === "service" && (
           <div className="cols">
             <div className="list-col">
-              <div className="list-label">Entity'ler</div>
+              <div className="list-label">{m.app.entities}</div>
               {entityNames.map((name) => (
                 <div
                   key={name}
@@ -277,19 +289,19 @@ export function App() {
                   <span className="count">{Object.keys(entities[name].props ?? {}).length}</span>
                 </div>
               ))}
-              <button className="btn-link" style={{ marginTop: 8 }} onClick={addEntity}>+ ekle</button>
+              <button className="btn-link" style={{ marginTop: 8 }} onClick={addEntity}>{m.common.add}</button>
             </div>
 
             <div className="inspector">
               <div>
-                <div className="group-label">Servis ayarları</div>
+                <div className="group-label">{m.app.serviceSettings}</div>
                 <div className="field-row">
                   <div className="field">
-                    <span className="field-label">Servis adı</span>
+                    <span className="field-label">{m.common.serviceName}</span>
                     <input className="uinput" value={spec.service} onChange={(e) => setSpec({ ...spec, service: e.target.value })} />
                   </div>
                   <div className="field">
-                    <span className="field-label">Veritabanı</span>
+                    <span className="field-label">{m.common.database}</span>
                     <input className="uinput mono" value={spec.database} onChange={(e) => setSpec({ ...spec, database: e.target.value })} />
                   </div>
                 </div>
@@ -307,7 +319,7 @@ export function App() {
                   >
                     <span className="knob" />
                   </button>
-                  <span className="hint">Merkez Identity'ye JWT ile bağla</span>
+                  <span className="hint">{m.app.connectJwt}</span>
                 </div>
                 {spec.auth && (
                   <div className="field-row" style={{ marginTop: 12 }}>
@@ -320,7 +332,7 @@ export function App() {
                       <input className="uinput mono" value={spec.auth.audience} onChange={(e) => setSpec({ ...spec, auth: { ...spec.auth!, audience: e.target.value } })} />
                     </div>
                     <div className="field">
-                      <span className="field-label">Koruma</span>
+                      <span className="field-label">{m.app.protection}</span>
                       <div className="toggle-row" style={{ paddingTop: 6 }}>
                         <button className={`toggle ${spec.auth.protect ? "on" : ""}`} onClick={() => setSpec({ ...spec, auth: { ...spec.auth!, protect: !spec.auth!.protect } })}>
                           <span className="knob" />
@@ -344,11 +356,11 @@ export function App() {
                   >
                     <span className="knob" />
                   </button>
-                  <span className="hint">Multi-tenancy (tüm entity'lere TenantId + izolasyon)</span>
+                  <span className="hint">{m.app.multiTenancy}</span>
                 </div>
                 <div className="field-row" style={{ marginTop: 14 }}>
                   <div className="field">
-                    <span className="field-label">REST portu</span>
+                    <span className="field-label">{m.common.restPort}</span>
                     <input
                       className="uinput mono"
                       type="number"
@@ -358,7 +370,7 @@ export function App() {
                     />
                   </div>
                   <div className="field">
-                    <span className="field-label">gRPC portu</span>
+                    <span className="field-label">{m.common.grpcPort}</span>
                     <input
                       className="uinput mono"
                       type="number"
@@ -368,7 +380,7 @@ export function App() {
                     />
                   </div>
                   <div className="field">
-                    <span className="field-label">Postgres portu</span>
+                    <span className="field-label">{m.common.postgresPort}</span>
                     <input
                       className="uinput mono"
                       type="number"
@@ -380,12 +392,14 @@ export function App() {
                 </div>
                 <div className="hint" style={{ marginTop: 4 }}>
                   {workspace.length > 0
-                    ? `Bu workspace'te zaten üretilmiş: ${workspace.map((w) => `${w.name} (REST ${w.restPort ?? "?"}, gRPC ${w.grpcPort ?? "?"}, PG ${w.postgresPort ?? "?"})`).join(" · ")}. Portlar bunlarla çakışmayacak şekilde otomatik önerildi, istersen elle değiştir.`
-                    : "Boş = varsayılan. Başka bir projeyle port çakışıyorsa değiştirin."}
+                    ? m.app.workspacePorts(
+                        workspace.map((w) => `${w.name} (REST ${w.restPort ?? "?"}, gRPC ${w.grpcPort ?? "?"}, PG ${w.postgresPort ?? "?"})`).join(" · "),
+                      )
+                    : m.common.portsHint}
                 </div>
                 <div className="field-row" style={{ marginTop: 14 }}>
                   <div className="field">
-                    <span className="field-label">Outbox max retry</span>
+                    <span className="field-label">{m.app.outboxMaxRetries}</span>
                     <input
                       className="uinput mono"
                       type="number"
@@ -395,7 +409,7 @@ export function App() {
                     />
                   </div>
                   <div className="field">
-                    <span className="field-label">Outbox retention (gün)</span>
+                    <span className="field-label">{m.app.outboxRetention}</span>
                     <input
                       className="uinput mono"
                       type="number"
@@ -406,17 +420,15 @@ export function App() {
                   </div>
                 </div>
                 <div className="hint" style={{ marginTop: 4 }}>
-                  Yalnızca <code>publishes</code>/<code>subscribes</code> kullanan servislerde anlamlıdır. Boş = kütüphane varsayılanı (10 deneme / 7 gün).
+                  {m.app.outboxHintBefore} <code>publishes</code>/<code>subscribes</code>{m.app.outboxHintAfter}
                 </div>
                 <div className="field" style={{ marginTop: 14 }}>
-                  <span className="field-label">Loglama</span>
+                  <span className="field-label">{m.app.logging}</span>
                   <div className="hint">
-                    Loglar her zaman konsola, ayrıca <code>Serilog:LokiUrl</code> adresindeki Grafana Loki'ye gönderilir
-                    (varsayılan <code>http://host.docker.internal:3100</code>; ortamda <code>Serilog__LokiUrl</code> ile değişir).
-                    Loki erişilemezse servis sessizce yalnızca konsola loglar. İlk üretimde workspace'e bir{" "}
-                    <code>observability/</code> klasörü (Loki + Grafana, hazır log dashboard'u) eklenir — orada{" "}
-                    <code>docker compose up -d</code>; Grafana: <code>http://localhost:3000</code> (parola{" "}
-                    <code>observability/.env</code> içinde).
+                    {m.app.loggingHint1} <code>Serilog:LokiUrl</code> {m.app.loggingHint2} <code>http://host.docker.internal:3100</code>
+                    {m.app.loggingHint3} <code>Serilog__LokiUrl</code> {m.app.loggingHint4} <code>observability/</code>{" "}
+                    {m.app.loggingHint5} <code>docker compose up -d</code>
+                    {m.app.loggingHint6} <code>http://localhost:3000</code> {m.app.loggingHint7} <code>observability/.env</code>).
                   </div>
                 </div>
               </div>
@@ -434,7 +446,7 @@ export function App() {
                   onChange={(en) => setSpec({ ...spec, entities: setKey(entities, selected, en) })}
                 />
               ) : (
-                <div className="empty">Soldan bir entity seçin ya da yeni ekleyin.</div>
+                <div className="empty">{m.app.selectEntity}</div>
               )}
 
               <GenerateResult
@@ -477,6 +489,7 @@ function GenerateResult({
   workspace?: WorkspaceEntry[];
   defaultService?: string;
 }) {
+  const m = useT();
   const [running, setRunning] = useState<"idle" | "starting" | "running" | "stopping">("idle");
   const [runUrl, setRunUrl] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -493,7 +506,7 @@ function GenerateResult({
         setRunUrl(res.url);
         setRunning("running");
       } else {
-        setRunError(res.dockerOutput || "Postgres başlatılamadı.");
+        setRunError(res.dockerOutput || m.result.postgresFailed);
         setRunning("idle");
       }
     } catch (e) {
@@ -514,7 +527,7 @@ function GenerateResult({
     <div className="result">
       {errors.length > 0 && (
         <>
-          <span className="badge fail">Hatalı</span>
+          <span className="badge fail">{m.result.failed}</span>
           <ul className="errors">
             {errors.map((e, i) => (
               <li key={i}>{e}</li>
@@ -525,9 +538,9 @@ function GenerateResult({
       {result && (
         <>
           <span className={`badge ${result.buildSuccess ? "ok" : "fail"}`}>
-            {result.buildSuccess ? "derleme başarılı" : "derleme hatası"}
+            {result.buildSuccess ? m.result.buildOk : m.result.buildFailed}
           </span>
-          <span className="result-meta">{result.files.length} dosya → {result.output}</span>
+          <span className="result-meta">{m.result.files(result.files.length, result.output)}</span>
           <div className="files">{result.files.map((f) => f.split(/[\\/]/).slice(-2).join("/")).join(" · ")}</div>
           {result.solutionMessage && <div className="hint" style={{ marginTop: 4 }}>{result.solutionMessage}</div>}
           {!result.buildSuccess && <pre className="build">{result.buildOutput}</pre>}
@@ -536,11 +549,11 @@ function GenerateResult({
               {running === "running" && runUrl ? (
                 <>
                   <a className="btn" href={`${runUrl}${linkPath}`} target="_blank" rel="noopener noreferrer">{runUrl}{linkPath} ↗</a>
-                  <button className="btn" onClick={stop} disabled={running !== "running"}>Durdur</button>
+                  <button className="btn" onClick={stop} disabled={running !== "running"}>{m.result.stop}</button>
                 </>
               ) : (
                 <button className="btn btn-primary" onClick={start} disabled={running === "starting" || running === "stopping"}>
-                  {running === "starting" ? "Başlatılıyor…" : "Çalıştır"}
+                  {running === "starting" ? m.common.starting : m.result.run}
                 </button>
               )}
               {runError && <div className="hint" style={{ color: "var(--red)" }}>{runError}</div>}

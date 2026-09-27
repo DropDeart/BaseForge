@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import type { EntitySpec } from "../types";
 import { RoleChips } from "./AccessEditor";
+import { useT } from "../i18n";
 
 // Liste filtreleri (filterable) ve okuma görünürlüğü (readFilter) — bkz. docs/ARCH.md §6.2.
 
@@ -30,6 +31,7 @@ export function ListOptionsEditor({
   knownRoles: string[];
   onChange: (entity: EntitySpec) => void;
 }) {
+  const m = useT();
   const paginated = entity.paginated !== false;
   const filterable = entity.filterable ?? [];
   const candidates = scalarFields(entity).filter((f) => FILTERABLE_TYPES.includes(f.type));
@@ -56,16 +58,18 @@ export function ListOptionsEditor({
       <section className="opt-card">
         <div className="opt-head">
           <div>
-            <div className="opt-title">Liste filtreleri</div>
-            <div className="opt-desc">Seçilen alanlar liste ucunda <b>eşitlik filtresi</b> olur; istemci yalnızca istediği kayıtları çeker.</div>
+            <div className="opt-title">{m.list.filtersTitle}</div>
+            <div className="opt-desc">
+              {m.list.filtersDescBefore} <b>{m.list.filtersDescStrong}</b> {m.list.filtersDescAfter}
+            </div>
           </div>
-          {paginated && candidates.length > 0 && <span className="opt-count">{filterable.length} / {candidates.length} seçili</span>}
+          {paginated && candidates.length > 0 && <span className="opt-count">{m.list.selected(filterable.length, candidates.length)}</span>}
         </div>
 
         {!paginated ? (
-          <div className="opt-empty">Filtreler yalnızca sayfalı listelerde kullanılabilir — yukarıdan "Sayfalama"yı açın.</div>
+          <div className="opt-empty">{m.list.needsPagination}</div>
         ) : candidates.length === 0 ? (
-          <div className="opt-empty">Filtrelenebilir alan yok (string, sayı, bool, guid, tarih, enum veya ilişki alanı ekleyin).</div>
+          <div className="opt-empty">{m.list.noCandidates}</div>
         ) : (
           <>
             <div className="chips roomy">
@@ -77,7 +81,7 @@ export function ListOptionsEditor({
               ))}
             </div>
             <div className="opt-example">
-              GET /api/…?{filterable.length > 0 ? exampleQuery : <span className="opt-muted">alan seçin</span>}
+              GET /api/…?{filterable.length > 0 ? exampleQuery : <span className="opt-muted">{m.list.pickField}</span>}
             </div>
           </>
         )}
@@ -87,15 +91,13 @@ export function ListOptionsEditor({
       <section className="opt-card">
         <div className="opt-head">
           <div>
-            <div className="opt-title">Görünürlük filtresi</div>
-            <div className="opt-desc">
-              list ve getById yalnızca koşula uyan kayıtları döndürür (örn. taslakları gizler). Uymayan kayıt getById'de 404 olur; servisler arası gRPC etkilenmez.
-            </div>
+            <div className="opt-title">{m.list.visibilityTitle}</div>
+            <div className="opt-desc">{m.list.visibilityDesc}</div>
           </div>
           <button
             className={`toggle ${rf ? "on" : ""}`}
             disabled={!rf && whereProps.length === 0}
-            title={rf ? "Kapat" : "Aç"}
+            title={rf ? m.list.turnOff : m.list.turnOn}
             onClick={() =>
               onChange({
                 ...entity,
@@ -108,14 +110,14 @@ export function ListOptionsEditor({
         </div>
 
         {!rf ? (
-          whereProps.length === 0 && <div className="opt-empty">Bool, enum, string veya sayı tipinde bir alan gerekir (örn. IsPublished).</div>
+          whereProps.length === 0 && <div className="opt-empty">{m.list.visibilityNeedsField}</div>
         ) : (
           <>
-            <div className="opt-sub-title">Görünür olma koşulu {whereCount > 1 && <span className="opt-muted">— hepsi sağlanmalı (VE)</span>}</div>
+            <div className="opt-sub-title">{m.list.condition} {whereCount > 1 && <span className="opt-muted">{m.list.allMustMatch}</span>}</div>
             <div className="where-grid">
-              <span className="field-label">Alan</span>
+              <span className="field-label">{m.list.field}</span>
               <span />
-              <span className="field-label">Değer</span>
+              <span className="field-label">{m.list.value}</span>
               <span />
               {Object.entries(rf.where).map(([field, value]) => {
                 const [propName, prop] = whereProps.find(([n]) => pascal(n) === pascal(field)) ?? [field, undefined];
@@ -148,7 +150,7 @@ export function ListOptionsEditor({
                     <button
                       className="icon-btn"
                       disabled={whereCount === 1}
-                      title={whereCount === 1 ? "En az bir koşul gerekir" : "Koşulu kaldır"}
+                      title={whereCount === 1 ? m.list.needOneCondition : m.list.removeCondition}
                       onClick={() => {
                         const next = { ...rf.where };
                         delete next[field];
@@ -170,12 +172,12 @@ export function ListOptionsEditor({
                   setWhere({ ...rf.where, [pascal(n)]: defaultValueFor(n) });
                 }}
               >
-                + koşul ekle (VE)
+                {m.list.addCondition}
               </button>
             )}
 
             <div className="opt-sub">
-              <div className="opt-sub-title">Filtreye takılmadan her şeyi görenler</div>
+              <div className="opt-sub-title">{m.list.bypassTitle}</div>
               <RoleChips
                 roles={knownRoles}
                 // "sahibi" çipi spec'te ayrı bir bayrak (bypassOwner); rol listesine karışmaz.
@@ -188,10 +190,10 @@ export function ListOptionsEditor({
                 }
                 owner={{
                   enabled: !!entity.ownerField,
-                  title: entity.ownerField ? "Sahibi kendi kayıtlarını her zaman görür" : "Önce Erişim bölümünden bir sahip alanı seçin",
+                  title: entity.ownerField ? m.list.ownerSeesOwn : m.list.pickOwnerInAccess,
                 }}
               />
-              <div className="opt-desc">Servisin süper rolleri otomatik dahildir.</div>
+              <div className="opt-desc">{m.list.superRolesIncluded}</div>
             </div>
           </>
         )}

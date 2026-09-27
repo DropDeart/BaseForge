@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api/client";
 import type { WorkspaceEntry } from "../types";
+import { useT } from "../i18n";
 
 /**
  * "Arayüz oluştur" butonu: workspace'te birden fazla servis varsa checkbox ile seçtirir
@@ -9,6 +10,7 @@ import type { WorkspaceEntry } from "../types";
  * seçilen servislerle başlatıp dönen URL'i yeni sekmede açar.
  */
 export function UiDesignLauncher({ workspace, defaultService }: { workspace: WorkspaceEntry[]; defaultService: string }) {
+  const m = useT();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set([defaultService]));
   const [busy, setBusy] = useState(false);
@@ -30,7 +32,7 @@ export function UiDesignLauncher({ workspace, defaultService }: { workspace: Wor
   const launch = async () => {
     const services = multiple ? Array.from(selected) : [defaultService];
     if (services.length === 0) {
-      setMessage("En az bir servis seçin.");
+      setMessage(m.ui.pickService);
       return;
     }
 
@@ -55,7 +57,7 @@ export function UiDesignLauncher({ workspace, defaultService }: { workspace: Wor
   if (!open) {
     return (
       <div className="run-row">
-        <button className="btn" onClick={() => setOpen(true)}>Arayüz oluştur</button>
+        <button className="btn" onClick={() => setOpen(true)}>{m.ui.create}</button>
         {message && <span className="hint">{message}</span>}
       </div>
     );
@@ -65,7 +67,7 @@ export function UiDesignLauncher({ workspace, defaultService }: { workspace: Wor
     <div className="result" style={{ marginTop: 12 }}>
       {multiple ? (
         <>
-          <div className="group-label">Arayüze dahil edilecek servisler</div>
+          <div className="group-label">{m.ui.servicesToInclude}</div>
           {candidates.map((c) => (
             <label key={c.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 13 }}>
               <input type="checkbox" checked={selected.has(c.name)} onChange={() => toggle(c.name)} />
@@ -74,13 +76,13 @@ export function UiDesignLauncher({ workspace, defaultService }: { workspace: Wor
           ))}
         </>
       ) : (
-        <div className="hint">Yalnızca '{defaultService}' arayüze dahil edilecek.</div>
+        <div className="hint">{m.ui.onlyThis(defaultService)}</div>
       )}
       <div className="run-row">
         <button className="btn btn-primary" disabled={busy} onClick={launch}>
-          {busy ? "Başlatılıyor…" : "Başlat"}
+          {busy ? m.common.starting : m.common.start}
         </button>
-        <button className="btn" disabled={busy} onClick={() => setOpen(false)}>Vazgeç</button>
+        <button className="btn" disabled={busy} onClick={() => setOpen(false)}>{m.common.cancel}</button>
       </div>
       {message && <div className="hint" style={{ marginTop: 6 }}>{message}</div>}
     </div>

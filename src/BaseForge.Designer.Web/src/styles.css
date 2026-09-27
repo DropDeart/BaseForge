@@ -350,3 +350,6 @@ pre.build { margin: 10px 0 0; padding: 10px; background: oklch(96% 0.006 75); bo
   border: 1px solid var(--border); border-radius: 12px; padding: 28px 32px; background: var(--panel);
 }
 .closed-title { font-size: 15px; font-weight: 600; }
+
+/* language switch in the rail */
+.rail-lang { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; height: 26px; }
