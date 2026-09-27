@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bf-layer" x1="10" y1="16" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="bf-spark" x1="44" y1="4" x2="44" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fde68a"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 38 L54 49 L32 60 L10 49 Z" fill="url(#bf-layer)" opacity=".4"/>
+  <path d="M32 28 L54 39 L32 50 L10 39 Z" fill="url(#bf-layer)" opacity=".7"/>
+  <path d="M32 18 L54 29 L32 40 L10 29 Z" fill="url(#bf-layer)"/>
+  <path d="M45 3 l2.4 6.1 L53.5 11.5 l-6.1 2.4 L45 20 l-2.4-6.1 L36.5 11.5 l6.1-2.4 Z" fill="url(#bf-spark)"/>
+</svg>
