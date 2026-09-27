@@ -56,7 +56,7 @@ BaseForge makes those decisions **once**, documents *why* in the [architecture d
 | [`BaseForge.CodeGen`](https://www.nuget.org/packages/BaseForge.CodeGen) | The `baseforge` .NET tool: code generator + Designer |
 
 ::: tip Status
-BaseForge is in **beta** (current: `0.6.1-beta`). The API is stabilizing but breaking changes are still possible between minor versions — they are always listed in the [release notes](/releases/v0.6.1-beta).
+BaseForge is in **beta** (current: `0.6.2-beta`). The API is stabilizing but breaking changes are still possible between minor versions — they are always listed in the [release notes](/releases/v0.6.2-beta).
 :::
 
 Ready? Head to [Getting Started](/guide/getting-started).

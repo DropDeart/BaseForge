@@ -56,7 +56,7 @@ BaseForge bu kararları **bir kez** verir, *neden* verildiğini [mimari kararlar
 | [`BaseForge.CodeGen`](https://www.nuget.org/packages/BaseForge.CodeGen) | `baseforge` .NET tool'u: kod üretici + Designer |
 
 ::: tip Durum
-BaseForge **beta** aşamasında (güncel: `0.6.1-beta`). API oturuyor, ancak minor sürümler arasında kırıcı değişiklik olabilir — bunlar her zaman [sürüm notlarında](/tr/releases/v0.6.1-beta) listelenir.
+BaseForge **beta** aşamasında (güncel: `0.6.2-beta`). API oturuyor, ancak minor sürümler arasında kırıcı değişiklik olabilir — bunlar her zaman [sürüm notlarında](/tr/releases/v0.6.2-beta) listelenir.
 :::
 
 Hazır mısın? [Başlarken](/tr/guide/getting-started) sayfasına geç.
