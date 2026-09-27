@@ -95,7 +95,7 @@ export default defineConfig({
 
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo.svg` }],
-    ["meta", { name: "theme-color", content: "#0f9f7a" }],
+    ["meta", { name: "theme-color", content: "#f2612f" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:title", content: "BaseForge — forge .NET microservices from a spec" }],
     ["meta", { property: "og:description", content: "Opinionated base library + visual code generator for .NET 10 microservices." }],

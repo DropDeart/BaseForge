@@ -21,14 +21,14 @@ BaseForge bu kararları **bir kez** verir, *neden* verildiğini [mimari kararlar
 
 ## Öne çıkanlar
 
-- 🧱 MediatR üzerinde **Clean Architecture + CQRS**, `ICommand` / `IQuery` / handler sözleşmeleri.
-- 🗄️ **EF Core 10 + Dapper** — yazma için LINQ ve change tracking, ağır okumalar için ham SQL; aynı bağlantı ve transaction paylaşılır.
-- 🔐 **Merkezi Identity servisi** (OpenIddict + ASP.NET Identity) — OAuth2/OIDC, sosyal girişler, roller, sahiplik kuralları, kullanıcı profil alanları.
-- 🔌 Servisler arası **gRPC** — proto'lar, istemciler ve sunucular otomatik üretilir.
-- 📨 **Transactional outbox**, inbox idempotency ve dead-letter kuyruklarıyla **RabbitMQ** pub/sub.
-- 🔭 **İzlenebilirlik** — Serilog + Grafana Loki, HTTP → gRPC → RabbitMQ boyunca tek correlation id, her yerde `/health`.
-- 🎨 **Görsel Designer** — entity'leri, ilişkileri, erişim kurallarını ve Identity'yi tarayıcıda tasarla, canlı ER diyagramını gör, tek tıkla üret, derle ve Docker ile çalıştır.
-- 🏢 **Multi-tenancy**, **append-only entity'ler**, **JSONB alanlar**, **enum'lar**, **liste filtreleri**, **YARP gateway** ve daha fazlası — hepsi spec'ten.
+- MediatR üzerinde **Clean Architecture + CQRS**, `ICommand` / `IQuery` / handler sözleşmeleri.
+- **EF Core 10 + Dapper** — yazma için LINQ ve change tracking, ağır okumalar için ham SQL; aynı bağlantı ve transaction paylaşılır.
+- **Merkezi Identity servisi** (OpenIddict + ASP.NET Identity) — OAuth2/OIDC, sosyal girişler, roller, sahiplik kuralları, kullanıcı profil alanları.
+- Servisler arası **gRPC** — proto'lar, istemciler ve sunucular otomatik üretilir.
+- **Transactional outbox**, inbox idempotency ve dead-letter kuyruklarıyla **RabbitMQ** pub/sub.
+- **İzlenebilirlik** — Serilog + Grafana Loki, HTTP → gRPC → RabbitMQ boyunca tek correlation id, her yerde `/health`.
+- **Görsel Designer** — entity'leri, ilişkileri, erişim kurallarını ve Identity'yi tarayıcıda tasarla, canlı ER diyagramını gör, tek tıkla üret, derle ve Docker ile çalıştır.
+- **Multi-tenancy**, **append-only entity'ler**, **JSONB alanlar**, **enum'lar**, **liste filtreleri**, **YARP gateway** ve daha fazlası — hepsi spec'ten.
 
 ## Teknoloji yığını
 

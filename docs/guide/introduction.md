@@ -21,14 +21,14 @@ BaseForge makes those decisions **once**, documents *why* in the [architecture d
 
 ## Highlights
 
-- 🧱 **Clean Architecture + CQRS** on MediatR, with `ICommand` / `IQuery` / handler contracts.
-- 🗄️ **EF Core 10 + Dapper** — LINQ and change tracking for writes, raw SQL for heavy reads, sharing one connection and transaction.
-- 🔐 **Central Identity service** (OpenIddict + ASP.NET Identity) — OAuth2/OIDC, social logins, roles, ownership rules, user profile fields.
-- 🔌 **gRPC** between services with automatically generated protos, clients and servers.
-- 📨 **RabbitMQ** pub/sub with a **transactional outbox**, inbox idempotency and dead-letter queues.
-- 🔭 **Observability** — Serilog + Grafana Loki, a correlation id across HTTP → gRPC → RabbitMQ, and `/health` everywhere.
-- 🎨 **Visual Designer** — design entities, relations, access rules and Identity in the browser, see a live ER diagram, generate, build and run with Docker in one click.
-- 🏢 **Multi-tenancy**, **append-only entities**, **JSONB fields**, **enums**, **list filters**, **YARP gateway** and more — all from the spec.
+- **Clean Architecture + CQRS** on MediatR, with `ICommand` / `IQuery` / handler contracts.
+- **EF Core 10 + Dapper** — LINQ and change tracking for writes, raw SQL for heavy reads, sharing one connection and transaction.
+- **Central Identity service** (OpenIddict + ASP.NET Identity) — OAuth2/OIDC, social logins, roles, ownership rules, user profile fields.
+- **gRPC** between services with automatically generated protos, clients and servers.
+- **RabbitMQ** pub/sub with a **transactional outbox**, inbox idempotency and dead-letter queues.
+- **Observability** — Serilog + Grafana Loki, a correlation id across HTTP → gRPC → RabbitMQ, and `/health` everywhere.
+- **Visual Designer** — design entities, relations, access rules and Identity in the browser, see a live ER diagram, generate, build and run with Docker in one click.
+- **Multi-tenancy**, **append-only entities**, **JSONB fields**, **enums**, **list filters**, **YARP gateway** and more — all from the spec.
 
 ## Tech stack
 
