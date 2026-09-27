@@ -1,108 +1,110 @@
 # BaseForge
 
-.NET 10 tabanlı, mikroservis mimarisine uygun, yeniden kullanılabilir bir **base library**. Yeni backend projeleri için sıfırdan mimari kurmak yerine bu lib extend edilerek kullanılır. Public NuGet paketi olarak yayınlanacaktır.
+**.NET mikroservislerini spec'ten üret.**
 
-## Teknoloji Stack
+[![NuGet](https://img.shields.io/nuget/vpre/BaseForge.API?label=NuGet&color=0f9f7a)](https://www.nuget.org/packages?q=BaseForge)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512bd4)](https://dotnet.microsoft.com/)
+[![Docs](https://img.shields.io/badge/docs-dropdeart.github.io%2FBaseForge-0f9f7a)](https://dropdeart.github.io/BaseForge/tr/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-| Katman | Teknoloji |
-| --- | --- |
-| Framework | .NET 10 |
-| Mimari | Clean Architecture + CQRS + Repository Pattern |
-| CQRS | MediatR |
-| Servisler arası (sync) | gRPC |
-| Servisler arası (async) | RabbitMQ |
-| Auth | Merkezi Identity Service + JWT / OAuth2 |
-| Veritabanı | PostgreSQL (her mikroservis kendi DB'si) |
-| ORM / Data Access | EF Core 10 (yazma + tracking) + Dapper (ham SQL okuma) |
-| Container | Docker + Docker Compose |
-| Paket | Public NuGet (nuget.org) |
+BaseForge, .NET 10 mikroservisleri için opinionated bir **temel kütüphane** ve **görsel kod üreticidir**. Entity'lerini YAML ile tarif et — ya da tarayıcı tabanlı Designer'da tıklayarak oluştur — CQRS, kimlik doğrulama, gRPC, event'ler, loglama ve Docker'ı hazır bağlanmış, temiz ve production'a hazır servisler al.
 
-## NuGet Paketleri
+📖 **Dokümantasyon:** https://dropdeart.github.io/BaseForge/tr/ · 🇬🇧 [English README](README.md)
 
-| Paket | Açıklama |
-| --- | --- |
-| `BaseForge.Core` | Sadece interface ve entity base'leri (dış bağımlılık yok) |
-| `BaseForge.Infrastructure` | Repository implementasyonları (EF Core), Dapper sorgu yardımcıları |
-| `BaseForge.API` | Controller base, middleware, DI extension'ları |
-| `BaseForge.Tools` | Geliştirme araçları: EF Core model'inden DBML ER diyagramı üretimi |
+---
 
-## Hızlı Başlangıç
+## Neden BaseForge?
 
-```csharp
-builder.Services.AddBaseForge(options =>
-{
-    options.UsePostgreSQL(connectionString);
-    options.EnableCQRS();
-    options.EnableAuditLog();
-});
-```
+Her mikroservis aynı altyapıya ihtiyaç duyar — katmanlama, CQRS, repository'ler, audit alanları, soft delete, hata yönetimi, auth, servisler arası çağrılar, mesajlaşma, loglama, health check, Docker dosyaları. BaseForge bu kararları bir kez verir, *nedenini* belgeler ve şu şekilde sunar:
 
-## Designer — Görsel Arayüz (`baseforge new`)
+- **Bir kütüphane** — `builder.Services.AddBaseForge(...)` hepsini tek satırda verir. Framework değil kütüphanedir: her davranış override edilebilir.
+- **Bir üretici** — `baseforge` CLI ve Designer'ı bir spec'i sana ait, sade ve okunabilir C#'a (controller, handler, EF Core entity, DTO, proto, Dockerfile) çevirir.
 
-YAML elle yazmak yerine tarayıcı tabanlı bir tasarımcıyla servis üret. Tek komut:
+## Özellikler
+
+- 🎨 **Görsel Designer** — entity'ler, ilişkiler, erişim kuralları ve Identity tarayıcıda, canlı ER diyagramıyla; tek tıkla üret, derle ve çalıştır
+- 🧱 MediatR üzerinde **Clean Architecture + CQRS**, repository'ler, audit alanları, soft delete
+- 🗄️ **EF Core 10 + Dapper** — yazma için LINQ, ağır okumalar için ham SQL, tek paylaşılan bağlantı
+- 🔐 **Merkezi Identity** (OpenIddict + ASP.NET Identity) — OAuth2/OIDC, sosyal girişler, roller, sahiplik kuralları, kullanıcı profil alanları
+- 🔌 Servisler arası **gRPC** — üretilen proto'lar, istemciler ve sunucular
+- 📨 Transactional outbox, inbox idempotency ve dead-letter kuyruklarıyla **RabbitMQ** event'leri
+- 🔭 **İzlenebilirlik** — Serilog + Grafana Loki, HTTP → gRPC → RabbitMQ boyunca correlation id, her yerde `/health`
+- 🏢 **Multi-tenancy**, **append-only entity'ler**, **enum'lar**, **JSONB**, **liste filtreleri**, **YARP gateway**
+
+## Hızlı başlangıç
 
 ```bash
+# 1. CLI'yı kur
+dotnet tool install -g BaseForge.CodeGen --prerelease
+
+# 2. Bir workspace klasöründe Designer'ı aç
+mkdir my-platform && cd my-platform
 baseforge new orders
 ```
 
-`http://localhost:3500` adresinde açılan arayüz, sol ikon rayıyla üç bölüm sunar (**S**ervis · **I**dentity · **E**R):
+Designer `http://localhost:3500` adresinde açılır. Entity ekle, **Üret + Derle**'ye, ardından **Çalıştır**'a bas — servisin `http://localhost:8080/scalar/v1` adresinde ayakta.
 
-- **Servis** — entity alanları (tip dropdown'ları), aynı servis içi ilişkiler (one-to-many / many-to-one / one-to-one) ve başka servislere dış referanslar (grpc / event).
-- **JWT bağlantısı** — üretilen servisi merkez Identity'ye bağla (authority, audience, `[Authorize]`).
-- **Identity** — sosyal sağlayıcı credential'ları (Google, GitHub, Microsoft, Facebook), seed admin.
-- **ER diyagramı** — spec'ten canlı çizilir (solid = servis içi FK, kesikli = dış referans); DBML olarak kopyalanır veya dbdiagram.io'da açılır.
-- **Üret + Derle** — "Generate" ile hem `spec.yaml` hem kod üretilir, ardından otomatik `dotnet build` çalışır ve sonuç (dosya listesi + derleme durumu) arayüzde gösterilir.
+YAML mı tercih edersin? Bir spec yazıp terminalden üret:
 
-Üretilen spec `spec.yaml` olarak diske yazılır; servisi sonradan tekrar açıp düzenleyebilir, version control'e koyabilirsin (mevcut `new-service` / `er` komutlarıyla uyumlu).
-
-> Arayüz React (Vite + TS) ile yazılır ve `dotnet tool`'a gömülür — çalıştırmak için ek kurulum gerekmez. Kaynağı: `src/BaseForge.Designer.Web/`.
-
-### Global `baseforge` CLI'yi güncel tutma (local geliştirme)
-
-`main`'i her `git pull`'da global kurulu `baseforge` tool'u otomatik güncellenmez — repodaki kaynak ile
-kurulu sürüm birbirinden bağımsızdır. Local kurulumu en güncel koda göre yeniden pack'leyip
-güncellemek için:
-
-```powershell
-.\scripts\update-cli.ps1            # tam build (Designer/Identity arayüzleri dahil)
-.\scripts\update-cli.ps1 -SkipWebBuild   # sadece CLI/codegen tarafını hızlıca güncelle
+```yaml
+# orders.yaml
+service: orders
+database: orders_db
+entities:
+  Order:
+    props:
+      Status: { type: enum, values: [Draft, Paid], default: Draft }
+      Total: decimal
+      BuyerId: guid
+    ownerField: BuyerId
+    access:
+      list: [Admin, owner]
+    publishes: [created]
 ```
 
-Script, `localpkgs/` altına yerel bir NuGet paketi üretir ve mevcut kurulu local sürümün patch
-numarasını otomatik artırarak (`0.5.1-local` → `0.5.2-local` gibi) global tool'u günceller.
-Bu **resmi bir NuGet release'i değildir** — sadece geliştirme makinesindeki `baseforge` komutunu
-tazeler. Resmi sürümler `.github/workflows/publish.yml` üzerinden GitHub Release ile yayınlanır.
-
-## Yapı
-
-```
-src/
-  BaseForge.Core/            → Entity base'leri, interface'ler, CQRS sözleşmeleri, exception'lar
-  BaseForge.Infrastructure/  → GenericRepository (EF Core), Dapper sorgu yardımcıları, DI extension'ları
-  BaseForge.API/             → BaseController, middleware, AddBaseForge()
-  BaseForge.CodeGen/         → baseforge CLI: kod üretici + Designer web arayüzü (baseforge new)
-  BaseForge.Designer.Web/    → Designer React arayüzü (Vite + TypeScript)
-tests/
-  BaseForge.UnitTests/
-  BaseForge.IntegrationTests/
-docs/
-  ARCH.md                    → Detaylı mimari kararlar
-  CONVENTIONS.md             → Kod standartları ve naming kuralları
+```bash
+baseforge new-service --spec orders.yaml
 ```
 
-## ER Diyagramı (BaseForge.Tools)
+### Kütüphaneyi doğrudan kullanmak
 
-EF Core model'inden DBML üretir; çıktıyı [dbdiagram.io](https://dbdiagram.io)'ya yapıştırarak görselleştir:
+```bash
+dotnet add package BaseForge.API --prerelease
+```
 
 ```csharp
-using BaseForge.Tools;
+builder.AddBaseForgeLogging("orders");
+builder.Services.AddBaseForge(options =>
+{
+    options.UsePostgreSQL<OrdersDbContext>(connectionString);
+    options.EnableCQRS(typeof(Program).Assembly);
+    options.EnableAuditLog();
+});
 
-// Bir DbContext örneğinden (DB bağlantısı gerekmez, sadece model okunur)
-string dbml = DbmlGenerator.Generate(dbContext);
-File.WriteAllText("docs/er.dbml", dbml);
+var app = builder.Build();
+app.UseBaseForge();
 ```
 
-Gerçek tablo/kolon adları, kolon tipleri (provider'a göre, örn. PostgreSQL `uuid`/`timestamptz`), birincil anahtarlar ve FK ilişkileri yansıtılır.
+## Paketler
+
+| Paket | Açıklama |
+| --- | --- |
+| `BaseForge.Core` | Yalnızca interface ve entity base'leri (dış bağımlılık yok) |
+| `BaseForge.Infrastructure` | EF Core repository'leri, Dapper sorgu yardımcıları, DbContext base, RabbitMQ event bus, outbox/inbox |
+| `BaseForge.API` | Controller base, middleware, `AddBaseForge()` / `UseBaseForge()`, JWT, loglama, health check |
+| `BaseForge.Tools` | Geliştirici araçları: EF Core modelinden DBML ER diyagramı |
+| `BaseForge.CodeGen` | `baseforge` .NET tool'u — kod üretici + Designer |
+
+## Dokümantasyon
+
+| | |
+| --- | --- |
+| [Başlarken](https://dropdeart.github.io/BaseForge/tr/guide/getting-started) | Kur, üret ve ilk servisini çalıştır |
+| [Designer](https://dropdeart.github.io/BaseForge/tr/guide/designer) | Görsel editör turu |
+| [Servis Spec'i](https://dropdeart.github.io/BaseForge/tr/guide/service-spec) | Tüm YAML seçenekleri |
+| [Identity ve Yetkilendirme](https://dropdeart.github.io/BaseForge/tr/guide/identity) | Merkezi auth, roller, sahiplik, profil alanları |
+| [Production'a Yayın](https://dropdeart.github.io/BaseForge/tr/guide/deployment) | Docker, reverse proxy, HTTPS, kontrol listesi |
+| [Mimari Kararlar](https://dropdeart.github.io/BaseForge/tr/architecture) | Neye karar verildi ve neden |
 
 ## Geliştirme
 
@@ -111,8 +113,27 @@ dotnet build      # tüm solution
 dotnet test       # testler
 ```
 
-> Bu proje Claude Code ile birlikte geliştirilmektedir. Mimari ve kod kuralları için bkz. [`CLAUDE.md`](CLAUDE.md), [`docs/ARCH.md`](docs/ARCH.md), [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
+Global kurulu `baseforge` tool'unu yerel kaynaktan tazelemek için (bu **resmi bir sürüm değildir**):
+
+```powershell
+.\scripts\update-cli.ps1                 # tam build (Designer / Identity arayüzleri dahil)
+.\scripts\update-cli.ps1 -SkipWebBuild   # yalnızca CLI / codegen
+```
+
+Script, `localpkgs/` altına yerel bir NuGet paketi üretir ve kurulu local sürümün patch numarasını otomatik artırarak (`0.5.1-local` → `0.5.2-local` gibi) global tool'u günceller.
+
+Dokümantasyon sitesi üzerinde çalışmak için:
+
+```bash
+cd docs
+npm install
+npm run dev
+```
+
+Resmi sürümler, GitHub'da bir Release oluşturulduğunda `.github/workflows/publish.yml` ile nuget.org'a yayınlanır.
+
+> Bu proje Claude Code ile birlikte geliştirilmektedir. Mimari ve kod kuralları için bkz. [`CLAUDE.md`](CLAUDE.md), [`docs/tr/ARCH.md`](docs/tr/ARCH.md), [`docs/tr/CONVENTIONS.md`](docs/tr/CONVENTIONS.md).
 
 ## Lisans
 
-MIT
+[MIT](LICENSE)
