@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { BUILT_IN_ROLES, type AuthSpec, type Meta, type ProviderSpec, type ProvidersSpec } from "../types";
 import { UserProfileEditor } from "./UserProfileEditor";
+import { useT } from "../i18n";
 
 interface Props {
   meta: Meta;
@@ -28,6 +29,7 @@ function isPasswordPolicyValid(password: string): boolean {
 }
 
 export function IdentityPanel({ meta, auth, onChange, children }: Props) {
+  const m = useT();
   const [selectedLabel, setSelectedLabel] = useState(meta.providers[0]);
   const providers = auth.providers ?? {};
   const selectedKey = PROVIDER_KEYS[selectedLabel];
@@ -41,7 +43,7 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
   return (
     <div className="cols">
       <div className="list-col">
-        <div className="list-label">Sağlayıcılar</div>
+        <div className="list-label">{m.identity.providers}</div>
         {meta.providers.map((label) => {
           const key = PROVIDER_KEYS[label];
           const enabled = providers[key] != null;
@@ -61,14 +63,14 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
       <div className="inspector narrow">
         {/* Merkez ayarlar */}
         <div>
-          <div className="group-label">Merkez ayarlar</div>
+          <div className="group-label">{m.identity.central}</div>
           <div className="field-row">
             <div className="field">
-              <span className="field-label">Servis adı</span>
+              <span className="field-label">{m.common.serviceName}</span>
               <input className="uinput" value={auth.service} onChange={(e) => onChange({ ...auth, service: e.target.value })} />
             </div>
             <div className="field">
-              <span className="field-label">Veritabanı</span>
+              <span className="field-label">{m.common.database}</span>
               <input className="uinput mono" value={auth.database} onChange={(e) => onChange({ ...auth, database: e.target.value })} />
             </div>
           </div>
@@ -78,7 +80,7 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
           </div>
           <div className="field-row" style={{ marginTop: 12 }}>
             <div className="field">
-              <span className="field-label">REST portu</span>
+              <span className="field-label">{m.common.restPort}</span>
               <input
                 className="uinput mono"
                 type="number"
@@ -88,7 +90,7 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
               />
             </div>
             <div className="field">
-              <span className="field-label">gRPC portu</span>
+              <span className="field-label">{m.common.grpcPort}</span>
               <input
                 className="uinput mono"
                 type="number"
@@ -98,7 +100,7 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
               />
             </div>
             <div className="field">
-              <span className="field-label">Postgres portu</span>
+              <span className="field-label">{m.common.postgresPort}</span>
               <input
                 className="uinput mono"
                 type="number"
@@ -108,7 +110,7 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
               />
             </div>
           </div>
-          <div className="hint" style={{ marginTop: 4 }}>Boş = varsayılan. Başka bir projeyle port çakışıyorsa değiştirin.</div>
+          <div className="hint" style={{ marginTop: 4 }}>{m.common.portsHint}</div>
         </div>
 
         {/* Selected provider */}
@@ -130,11 +132,11 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
               </div>
               <div className="field">
                 <span className="field-label">ClientSecret</span>
-                <input className="uinput mono" type="password" placeholder="kayıtlı — değiştirmek için gir" value={selected.clientSecret} onChange={(e) => setProvider(selectedKey, { ...selected, clientSecret: e.target.value })} />
+                <input className="uinput mono" type="password" placeholder={m.identity.storedSecret} value={selected.clientSecret} onChange={(e) => setProvider(selectedKey, { ...selected, clientSecret: e.target.value })} />
               </div>
             </div>
           ) : (
-            <div className="hint">Bu sağlayıcıyı kullanmak için soldaki toggle'ı aç.</div>
+            <div className="hint">{m.identity.enableProvider}</div>
           )}
         </div>
 
@@ -153,16 +155,16 @@ export function IdentityPanel({ meta, auth, onChange, children }: Props) {
             <>
               <div className="field-row">
                 <div className="field">
-                  <span className="field-label">E-posta</span>
+                  <span className="field-label">{m.identity.email}</span>
                   <input className="uinput" placeholder="admin@baseforge.local" value={auth.seedAdmin.email} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, email: e.target.value } })} />
                 </div>
                 <div className="field">
-                  <span className="field-label">Parola</span>
-                  <input className="uinput" type="password" placeholder="kayıtlı — değiştirmek için gir" value={auth.seedAdmin.password} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, password: e.target.value } })} />
+                  <span className="field-label">{m.identity.password}</span>
+                  <input className="uinput" type="password" placeholder={m.identity.storedSecret} value={auth.seedAdmin.password} onChange={(e) => onChange({ ...auth, seedAdmin: { ...auth.seedAdmin!, password: e.target.value } })} />
                 </div>
               </div>
               <div className="hint" style={passwordInvalid ? { color: "var(--red)" } : undefined}>
-                Parola politikası: en az 8 karakter, büyük+küçük harf, rakam ve özel karakter içermeli.
+                {m.identity.passwordPolicy}
               </div>
             </>
           )}
@@ -182,6 +184,7 @@ const ROLE_NAME = /^[A-Za-z0-9_-]+$/;
 
 /** Ek roller + kendi kendine kayıt ayarı (bkz. docs/ARCH.md §6.1). */
 function RolesAndRegistration({ auth, onChange }: { auth: AuthSpec; onChange: (auth: AuthSpec) => void }) {
+  const m = useT();
   const [draft, setDraft] = useState("");
   const roles = auth.roles ?? [];
   const registration = auth.registration ?? { enabled: false, defaultRole: "User" };
@@ -204,28 +207,28 @@ function RolesAndRegistration({ auth, onChange }: { auth: AuthSpec; onChange: (a
 
   return (
     <div className="divider">
-      <div className="group-label">Roller</div>
+      <div className="group-label">{m.identity.roles}</div>
       <div className="chips">
         {BUILT_IN_ROLES.map((r) => (
-          <span key={r} className="chip on" title="Her zaman var">{r}</span>
+          <span key={r} className="chip on" title={m.identity.alwaysPresent}>{r}</span>
         ))}
         {roles.map((r) => (
-          <button key={r} type="button" className="chip on" title="Kaldır" onClick={() => removeRole(r)}>
+          <button key={r} type="button" className="chip on" title={m.identity.removeRole} onClick={() => removeRole(r)}>
             {r}<span className="x">×</span>
           </button>
         ))}
         <input
           className="uinput mono"
           style={{ width: 170 }}
-          placeholder="yeni rol, örn. Editor"
+          placeholder={m.identity.newRole}
           value={draft}
           onChange={(e) => setDraft(e.target.value.trim())}
           onKeyDown={(e) => e.key === "Enter" && addRole()}
         />
-        <button className="btn-link" disabled={!draftValid} onClick={addRole}>+ ekle</button>
+        <button className="btn-link" disabled={!draftValid} onClick={addRole}>{m.common.add}</button>
       </div>
       <div className="hint" style={{ marginTop: 4 }}>
-        Servislerde erişim kurallarında seçilebilir. SaaS'ta platform sahibi için SuperAdmin ekleyip servis ayarlarında "süper rol" yapın.
+        {m.identity.rolesHint}
       </div>
 
       <div className="toggle-row" style={{ marginTop: 16 }}>
@@ -235,11 +238,11 @@ function RolesAndRegistration({ auth, onChange }: { auth: AuthSpec; onChange: (a
         >
           <span className="knob" />
         </button>
-        <span className="group-label" style={{ margin: 0 }}>Kendi kendine kayıt</span>
+        <span className="group-label" style={{ margin: 0 }}>{m.identity.registration}</span>
       </div>
       {registration.enabled ? (
         <div className="field" style={{ marginTop: 8, maxWidth: 240 }}>
-          <span className="field-label">Kayıt olana verilecek rol</span>
+          <span className="field-label">{m.identity.registrationRole}</span>
           <select
             className="uselect"
             value={registration.defaultRole}
@@ -252,7 +255,7 @@ function RolesAndRegistration({ auth, onChange }: { auth: AuthSpec; onChange: (a
         </div>
       ) : (
         <div className="hint" style={{ marginTop: 4 }}>
-          Kapalı: kayıt ucu 404 döner ve Google vb. ile ilk kez gelenlere hesap açılmaz. Kullanıcıları admin panelinden ekleyin.
+          {m.identity.registrationOff}
         </div>
       )}
     </div>

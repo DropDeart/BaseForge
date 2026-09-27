@@ -142,8 +142,11 @@ BaseForge.Tools           → Geliştirme araçları (EF Core model'inden DBML E
 Bu proje Claude Code ile birlikte geliştirilmektedir.
 
 - `CLAUDE.md` → Claude'un ana referans dosyası (bu dosya)
-- `docs/ARCH.md` → Detaylı mimari kararlar ve gerekçeleri
-- `docs/CONVENTIONS.md` → Kod yazım standartları
+- `docs/ARCH.md` → Detaylı mimari kararlar ve gerekçeleri (İngilizce, asıl kaynak)
+- `docs/CONVENTIONS.md` → Kod yazım standartları (İngilizce, asıl kaynak)
+- `docs/tr/` → Aynı dokümanların Türkçe karşılıkları; İngilizce sürüm güncellenince bunlar da güncellenir
+- `docs/` aynı zamanda VitePress dokümantasyon sitesidir (`cd docs && npm run dev`), `.github/workflows/docs.yml` ile GitHub Pages'e yayınlanır
+- Designer arayüz metinleri `src/BaseForge.Designer.Web/src/i18n/` altındadır (`en.ts` asıl kaynak, `tr.ts` aynı anahtarları içermek zorunda — tip denetimi zorlar); yeni metin JSX'e doğrudan yazılmaz
 
 ### Claude'un özel talimatları
 

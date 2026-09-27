@@ -3,6 +3,7 @@ import type { EntitySpec, Meta, PropSpec, ServiceAuthSpec } from "../types";
 import { removeKey, renameKey, setKey, typeClass, uniqueKey } from "../util";
 import { EntityAccessEditor } from "./AccessEditor";
 import { ListOptionsEditor } from "./ListOptionsEditor";
+import { useT } from "../i18n";
 
 interface Props {
   name: string;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles, onRename, onRemove, onChange }: Props) {
+  const m = useT();
   const props = entity.props ?? {};
   const relations = entity.relations ?? {};
   const externalRefs = entity.externalRefs ?? {};
@@ -30,7 +32,7 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
   // (Önceden input doğrudan spec'e bağlıydı; boş ad reddedildiği için son harf silinemiyordu.)
   const [nameDraft, setNameDraft] = useState(name);
   useEffect(() => setNameDraft(name), [name]);
-  const nameProblem = !nameDraft.trim() ? "Entity adı boş olamaz." : others.includes(nameDraft) ? "Bu adda bir entity zaten var." : null;
+  const nameProblem = !nameDraft.trim() ? m.entity.nameEmpty : others.includes(nameDraft) ? m.entity.nameTaken : null;
   const changeName = (value: string) => {
     setNameDraft(value);
     if (value.trim() && !others.includes(value)) onRename(value);
@@ -97,7 +99,7 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
       <div className="divider">
         <div className="field-row" style={{ alignItems: "flex-end" }}>
           <div className="field">
-            <span className="field-label">Entity adı</span>
+            <span className="field-label">{m.entity.name}</span>
             <input
               className="uinput mono"
               value={nameDraft}
@@ -109,18 +111,18 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
             {nameProblem && <span className="hint" style={{ color: "var(--red)" }}>{nameProblem}</span>}
           </div>
           <div style={{ flex: 0 }}>
-            <button className="btn" onClick={onRemove}>Entity'yi sil</button>
+            <button className="btn" onClick={onRemove}>{m.entity.remove}</button>
           </div>
         </div>
         <div className="field-row" style={{ marginTop: 12, gap: 24 }}>
-          {listToggle("Sayfalama", paginated, true, () => onChange({ ...entity, paginated: !paginated }))}
-          {listToggle("Sıralama", sortable, paginated, () => onChange({ ...entity, sortable: !sortable }))}
-          {listToggle("Arama", searchable, paginated, () => onChange({ ...entity, searchable: !searchable }))}
-          {listToggle("Append-only", appendOnly, true, () => onChange({ ...entity, appendOnly: !appendOnly }))}
+          {listToggle(m.entity.pagination, paginated, true, () => onChange({ ...entity, paginated: !paginated }))}
+          {listToggle(m.entity.sorting, sortable, paginated, () => onChange({ ...entity, sortable: !sortable }))}
+          {listToggle(m.entity.search, searchable, paginated, () => onChange({ ...entity, searchable: !searchable }))}
+          {listToggle(m.entity.appendOnly, appendOnly, true, () => onChange({ ...entity, appendOnly: !appendOnly }))}
         </div>
         {appendOnly && (
           <div className="hint" style={{ marginTop: 4 }}>
-            Update/Delete hiç üretilmez — yalnızca Create/GetById/List (audit/trace kaydı için).
+            {m.entity.appendOnlyHint}
           </div>
         )}
       </div>
@@ -128,16 +130,16 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
       {/* Properties */}
       <div>
         <div className="group-head">
-          <span className="group-label">Alanlar — {name}</span>
+          <span className="group-label">{m.entity.fields(name)}</span>
           <button
             className="btn-link"
             onClick={() => onChange({ ...entity, props: setKey(props, uniqueKey(props, "field"), { type: meta.types[0] }) })}
           >
-            + alan
+            {m.common.addField}
           </button>
         </div>
         <div className="hint" style={{ marginBottom: 8 }}>
-          Id, CreatedAt, UpdatedAt gibi audit alanları BaseEntity'den gelir.
+          {m.entity.auditHint}
         </div>
         {Object.entries(props).map(([pName, pSpec], index) => {
           const isOpen = expandedProp === pName;
@@ -161,12 +163,12 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                 <div className="prop-row-actions">
                   <button
                     className="icon-btn"
-                    title="Gelişmiş ayarlar (nullable / maxLength / default / counter)"
+                    title={m.common.advancedTitle}
                     onClick={() => setExpandedProp(isOpen ? null : pName)}
                   >
                     ⚙
                   </button>
-                  <button className="icon-btn" onClick={() => removeProp(pName)}>Sil</button>
+                  <button className="icon-btn" onClick={() => removeProp(pName)}>{m.common.delete}</button>
                 </div>
               </div>
               {isOpen && (
@@ -191,8 +193,8 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                   ) : isEnum ? (
                     <input
                       className="uinput mono"
-                      placeholder="değerler: Draft, Active, Sold"
-                      title="Virgülle ayırın. Her değer bir C# tanımlayıcısı olmalı (örn. InReview). DB ve API'de bu adla saklanır."
+                      placeholder={m.entity.enumValuesPlaceholder}
+                      title={m.entity.enumValuesTitle}
                       value={(pSpec.values ?? []).join(", ")}
                       onChange={(e) =>
                         updateProp(pName, {
@@ -206,11 +208,11 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                   {isEnum ? (
                     <select
                       className="uselect"
-                      title="Varsayılan değer"
+                      title={m.common.defaultValueTitle}
                       value={pSpec.default ?? ""}
                       onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
                     >
-                      <option value="">— varsayılan yok —</option>
+                      <option value="">{m.common.noDefault}</option>
                       {(pSpec.values ?? []).filter((v) => v !== "").map((v) => (
                         <option key={v} value={v}>{v}</option>
                       ))}
@@ -218,15 +220,15 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                   ) : (
                     <input
                       className="uinput"
-                      placeholder="default değer"
+                      placeholder={m.common.defaultValue}
                       value={pSpec.default ?? ""}
                       onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
                     />
                   )}
                   {isInt ? (
-                    <label title="Her zaman herkese açık bir POST .../{id}/increment-{alan} ucu üretilir.">
+                    <label title={m.entity.counterTitle}>
                       <input type="checkbox" checked={isCounter} onChange={() => toggleCounter(pName)} />
-                      counter
+                      {m.entity.counter}
                     </label>
                   ) : (
                     <span />
@@ -236,7 +238,7 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
             </div>
           );
         })}
-        {Object.keys(props).length === 0 && <div className="hint">Henüz alan yok.</div>}
+        {Object.keys(props).length === 0 && <div className="hint">{m.entity.noFields}</div>}
       </div>
 
       {/* Erişim: sahip alanı + action başına kural (docs/ARCH.md §6.1) */}
@@ -253,7 +255,7 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
       <div className="field-row" style={{ gap: 40 }}>
         <div className="field">
           <div className="group-head">
-            <span className="group-label">İlişkiler</span>
+            <span className="group-label">{m.entity.relations}</span>
             {others.length > 0 && (
               <button
                 className="btn-link"
@@ -264,7 +266,7 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                   })
                 }
               >
-                + ilişki
+                {m.entity.addRelation}
               </button>
             )}
           </div>
@@ -287,30 +289,30 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                 ))}
               </select>
               <select className="uselect grow" value={rel.target} onChange={(e) => onChange({ ...entity, relations: setKey(relations, rName, { ...rel, target: e.target.value }) })}>
-                <option value="">— hedef —</option>
+                <option value="">{m.entity.target}</option>
                 {others.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
               {rel.kind !== "one-to-many" && (
-                <label className="hint" title="FK Guid? üretilir; kayıt hedefsiz oluşturulabilir (örn. kök kategori)" style={{ whiteSpace: "nowrap" }}>
+                <label className="hint" title={m.entity.optionalTitle} style={{ whiteSpace: "nowrap" }}>
                   <input
                     type="checkbox"
                     checked={!!rel.nullable}
                     onChange={(e) => onChange({ ...entity, relations: setKey(relations, rName, { ...rel, nullable: e.target.checked }) })}
                   />{" "}
-                  opsiyonel
+                  {m.entity.optional}
                 </label>
               )}
               <button className="icon-btn" onClick={() => onChange({ ...entity, relations: removeKey(relations, rName) })}>×</button>
             </div>
           ))}
-          {others.length === 0 && <div className="hint">İlişki için en az bir başka entity gerekir.</div>}
+          {others.length === 0 && <div className="hint">{m.entity.relationNeedsOther}</div>}
         </div>
 
         <div className="field">
           <div className="group-head">
-            <span className="group-label">Dış referanslar</span>
+            <span className="group-label">{m.entity.externalRefs}</span>
             <button
               className="btn-link"
               onClick={() =>
@@ -320,15 +322,15 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                 })
               }
             >
-              + referans
+              {m.entity.addRef}
             </button>
           </div>
-          <div className="hint" style={{ marginBottom: 4 }}>FK üretilmez; sadece ID + grpc/event.</div>
+          <div className="hint" style={{ marginBottom: 4 }}>{m.entity.externalRefsHint}</div>
           {Object.entries(externalRefs).map(([xName, x], index) => (
             <div className="ext-row" key={index}>
               <input className="uinput mono" style={{ width: 80 }} value={xName} onChange={(e) => onChange({ ...entity, externalRefs: renameKey(externalRefs, xName, e.target.value) })} />
-              <input className="uinput grow" placeholder="servis/Entity" value={x.target} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, target: e.target.value }) })} />
-              <input className="uinput mono" style={{ width: 110 }} placeholder="ör. OperatorId" value={x.store} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, store: e.target.value }) })} />
+              <input className="uinput grow" placeholder={m.entity.refTarget} value={x.target} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, target: e.target.value }) })} />
+              <input className="uinput mono" style={{ width: 110 }} placeholder={m.entity.refStore} value={x.store} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, store: e.target.value }) })} />
               <select className="uselect" value={x.via} onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, via: e.target.value }) })}>
                 {meta.via.map((v) => (
                   <option key={v} value={v}>{v}</option>

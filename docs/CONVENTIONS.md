@@ -1,62 +1,62 @@
-# BaseForge — Kod Standartları ve Naming Kuralları (CONVENTIONS)
+# Coding Conventions
 
-Bu doküman, BaseForge ve onu kullanan mikroservislerde uyulması gereken kod yazım standartlarını tanımlar.
+This document defines the coding standards to follow in BaseForge and in microservices that use it.
 
 ## Naming Conventions
 
-| Eleman | Kural | Örnek |
+| Element | Rule | Example |
 | --- | --- | --- |
-| Interface | `I` prefix'i ile başlar | `IRepository<T>`, `ICommand` |
-| Base sınıf | `Base` prefix'i ile başlar | `BaseEntity`, `BaseController` |
-| Handler | `Handler` ile biter | `CreateUserCommandHandler` |
-| Query | `Query` suffix'i ile biter | `GetUserByIdQuery` |
-| Command | `Command` suffix'i ile biter | `CreateUserCommand` |
+| Interface | Starts with the `I` prefix | `IRepository<T>`, `ICommand` |
+| Base class | Starts with the `Base` prefix | `BaseEntity`, `BaseController` |
+| Handler | Ends with `Handler` | `CreateUserCommandHandler` |
+| Query | Ends with the `Query` suffix | `GetUserByIdQuery` |
+| Command | Ends with the `Command` suffix | `CreateUserCommand` |
 
-## Katman Kuralları
+## Layer Rules
 
-- `Core` katmanı hiçbir dış bağımlılık almaz (yalnızca MediatR interface'leri).
-- `Infrastructure` katmanı `Core`'a bağımlıdır; `API`'ye bağımlı **olamaz**.
-- `API` katmanı her iki katmana da bağımlı olabilir.
+- The `Core` layer takes no external dependencies (MediatR interfaces only).
+- The `Infrastructure` layer depends on `Core`; it **must not** depend on `API`.
+- The `API` layer may depend on both.
 
-## Dil ve Stil
+## Language and Style
 
-- Dil: **C# / .NET 10**, `LangVersion=latest`.
-- `Nullable` ve `ImplicitUsings` tüm projelerde **açık**.
-- `TreatWarningsAsErrors=true` — uyarılar hata sayılır. Analiz seviyesi: `latest-recommended`.
-- Public üyeler XML doc içerir (`GenerateDocumentationFile=true`).
-- Bilinçli istisnalar `NoWarn` ile yönetilir (örn. test projelerinde `CA1707`).
+- Language: **C# / .NET 10**, `LangVersion=latest`.
+- `Nullable` and `ImplicitUsings` are **enabled** in all projects.
+- `TreatWarningsAsErrors=true` — warnings are errors. Analysis level: `latest-recommended`.
+- Public members have XML docs (`GenerateDocumentationFile=true`).
+- Deliberate exceptions are managed with `NoWarn` (e.g. `CA1707` in test projects).
 
-## Veri Erişimi
+## Data Access
 
-- **EF Core 10** birincil ORM'dir: yazma, change tracking ve migration. CRUD'un çoğu LINQ ile yazılır.
-- **Dapper** ağır okuma / karmaşık join sorgularında ham SQL için kullanılır (sonuç → DTO mapping). EF `DbContext`'inin bağlantısı üzerinden çalışır.
-- SQL elle yazıldığında (Dapper veya EF `FromSql`) **parametreli** sorgu zorunludur (SQL injection'a karşı).
-- Dapper ile yazılan sorgularda soft delete koşulu (`is_deleted = false`) elle eklenir; EF global query filter Dapper'ı kapsamaz.
-- Tüm entity'ler `BaseEntity`'den türer; audit alanları (`CreatedAt`, `UpdatedAt`, `CreatedBy`) ve soft delete EF `SaveChanges`/query filter ile otomatik yönetilir.
+- **EF Core 10** is the primary ORM: writes, change tracking and migrations. Most CRUD is written with LINQ.
+- **Dapper** is used for raw SQL in heavy reads / complex join queries (result → DTO mapping). It runs over the EF `DbContext`'s connection.
+- When SQL is written by hand (Dapper or EF `FromSql`), **parameterized** queries are mandatory (against SQL injection).
+- In queries written with Dapper the soft-delete condition (`is_deleted = false`) is added by hand; the EF global query filter does not cover Dapper.
+- All entities derive from `BaseEntity`; audit fields (`CreatedAt`, `UpdatedAt`, `CreatedBy`) and soft delete are managed automatically via EF `SaveChanges` / query filters.
 
 ## CQRS
 
-- Komut/sorgu ayrımı uygulanır.
-- Her command/query için tek bir handler bulunur.
-- MediatR dışında başka bir CQRS kütüphanesi eklenmez.
+- Command/query separation is applied.
+- There is exactly one handler per command/query.
+- No CQRS library other than MediatR is added.
 
-## Klasör Yerleşimi
+## Folder Layout
 
-- Entity base'leri → `Core/Entities`
-- Sözleşmeler → `Core/Interfaces`, `Core/CQRS`
-- Exception tipleri → `Core/Exceptions`
-- Repository implementasyonları → `Infrastructure/Repositories`
-- Veri erişimi / query builder → `Infrastructure/Data`
-- DI extension'ları → `Infrastructure/Extensions`, `API/Extensions`
+- Entity bases → `Core/Entities`
+- Contracts → `Core/Interfaces`, `Core/CQRS`
+- Exception types → `Core/Exceptions`
+- Repository implementations → `Infrastructure/Repositories`
+- Data access / query helpers → `Infrastructure/Data`
+- DI extensions → `Infrastructure/Extensions`, `API/Extensions`
 - Controller base + middleware → `API/Controllers`, `API/Middleware`
 
-## Test
+## Tests
 
-- Birim testler `BaseForge.UnitTests`, entegrasyon testleri `BaseForge.IntegrationTests` altında.
-- Test metot adlarında `MetotAdı_Durum_BeklenenSonuç` biçimi kullanılır (alt çizgi serbesttir).
+- Unit tests live in `BaseForge.UnitTests`, integration tests in `BaseForge.IntegrationTests`.
+- Test method names use the `MethodName_Condition_ExpectedResult` format (underscores are allowed).
 - Framework: xUnit.
 
-## Commit & Branch
+## Commits & Branches
 
-- Anlamlı, küçük commit'ler tercih edilir.
-- Yeni özellik eklenmeden önce `docs/ARCH.md` güncellenir.
+- Prefer meaningful, small commits.
+- `docs/ARCH.md` is updated before a new feature is added.

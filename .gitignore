@@ -44,3 +44,8 @@ src/BaseForge.Designer.Web/*.tsbuildinfo
 
 # Yerel paket çıktısı (test)
 /localpkgs/
+
+# Documentation site (VitePress)
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
