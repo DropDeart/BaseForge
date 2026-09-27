@@ -1,46 +1,50 @@
-/* BaseForge brand — the same teal-green as the Designer (oklch hue ≈ 165). */
+/* BaseForge brand — orange, the same colour tfbSoft uses for BaseForge (#f2612f, dark #f4703f). */
 :root {
-  --vp-c-brand-1: #0f9f7a;
-  --vp-c-brand-2: #12b389;
-  --vp-c-brand-3: #0d8a6a;
-  --vp-c-brand-soft: rgba(16, 185, 129, 0.14);
+  --vp-c-brand-1: #d9501f;   /* links/text: one step darker than #f2612f for contrast on white */
+  --vp-c-brand-2: #f2612f;
+  --vp-c-brand-3: #c2410c;
+  --vp-c-brand-soft: rgba(242, 97, 47, 0.12);
 
-  --bf-spark: #f59e0b;
-  --bf-grad: linear-gradient(120deg, #10b981 10%, #0d9488 55%, #0ea5e9 100%);
+  --bf-grad: linear-gradient(120deg, #f2612f 10%, #f97316 50%, #f59e0b 100%);
   --bf-card: rgba(255, 255, 255, 0.72);
-  --bf-card-border: rgba(15, 159, 122, 0.18);
+  --bf-card-border: rgba(242, 97, 47, 0.18);
   --bf-code-bg: #0b1220;
   --bf-code-text: #d7e3f4;
 
   --vp-home-hero-name-color: transparent;
   --vp-home-hero-name-background: var(--bf-grad);
-  --vp-home-hero-image-background-image: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.55), rgba(14, 165, 233, 0.35) 45%, transparent 70%);
+  --vp-home-hero-image-background-image: radial-gradient(circle at 50% 50%, rgba(242, 97, 47, 0.55), rgba(245, 158, 11, 0.35) 45%, transparent 70%);
   --vp-home-hero-image-filter: blur(56px);
 
-  --vp-button-brand-bg: var(--vp-c-brand-1);
-  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-text: #fff;
+  --vp-button-brand-hover-text: #fff;
+  --vp-button-brand-active-text: #fff;
+  --vp-button-brand-bg: var(--vp-c-brand-2);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-1);
   --vp-button-brand-active-bg: var(--vp-c-brand-3);
 }
 
 .dark {
-  --vp-c-brand-1: #34d399;
-  --vp-c-brand-2: #6ee7b7;
-  --vp-c-brand-3: #10b981;
-  --vp-c-brand-soft: rgba(52, 211, 153, 0.16);
-  --vp-button-brand-text: #04241b;
-  --vp-button-brand-hover-text: #04241b;
-  --vp-button-brand-active-text: #04241b;
+  --vp-c-brand-1: #f4703f;
+  --vp-c-brand-2: #f78c63;
+  --vp-c-brand-3: #f2612f;
+  --vp-c-brand-soft: rgba(244, 112, 63, 0.16);
+  --vp-button-brand-text: #1f0b03;
+  --vp-button-brand-hover-text: #1f0b03;
+  --vp-button-brand-active-text: #1f0b03;
+  --vp-button-brand-bg: var(--vp-c-brand-1);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
 
   --bf-card: rgba(22, 27, 34, 0.72);
-  --bf-card-border: rgba(52, 211, 153, 0.18);
+  --bf-card-border: rgba(244, 112, 63, 0.18);
   --bf-code-bg: #0a0f1a;
 }
 
 /* ---------- hero ---------- */
 .VPHome {
   background:
-    radial-gradient(1100px 520px at 85% -8%, rgba(16, 185, 129, 0.13), transparent 60%),
-    radial-gradient(900px 480px at -10% 10%, rgba(14, 165, 233, 0.1), transparent 60%);
+    radial-gradient(1100px 520px at 85% -8%, rgba(242, 97, 47, 0.12), transparent 60%),
+    radial-gradient(900px 480px at -10% 10%, rgba(245, 158, 11, 0.08), transparent 60%);
 }
 
 .VPHero .name {
@@ -80,12 +84,17 @@
 .VPFeatures .VPFeature:hover {
   transform: translateY(-3px);
   border-color: var(--vp-c-brand-1);
-  box-shadow: 0 12px 32px -12px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 12px 32px -12px rgba(242, 97, 47, 0.35);
 }
 
 .VPFeatures .VPFeature .icon {
   background: var(--vp-c-brand-soft);
-  font-size: 22px;
+  color: var(--vp-c-brand-1);
+}
+
+.VPFeatures .VPFeature .icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 /* ---------- docs polish ---------- */

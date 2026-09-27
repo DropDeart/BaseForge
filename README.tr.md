@@ -2,9 +2,9 @@
 
 **.NET mikroservislerini spec'ten üret.**
 
-[![NuGet](https://img.shields.io/nuget/vpre/BaseForge.API?label=NuGet&color=0f9f7a)](https://www.nuget.org/packages?q=BaseForge)
+[![NuGet](https://img.shields.io/nuget/vpre/BaseForge.API?label=NuGet&color=f2612f)](https://www.nuget.org/packages?q=BaseForge)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4)](https://dotnet.microsoft.com/)
-[![Docs](https://img.shields.io/badge/docs-dropdeart.github.io%2FBaseForge-0f9f7a)](https://dropdeart.github.io/BaseForge/tr/)
+[![Docs](https://img.shields.io/badge/docs-dropdeart.github.io%2FBaseForge-f2612f)](https://dropdeart.github.io/BaseForge/tr/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 BaseForge, .NET 10 mikroservisleri için opinionated bir **temel kütüphane** ve **görsel kod üreticidir**. Entity'lerini YAML ile tarif et — ya da tarayıcı tabanlı Designer'da tıklayarak oluştur — CQRS, kimlik doğrulama, gRPC, event'ler, loglama ve Docker'ı hazır bağlanmış, temiz ve production'a hazır servisler al.

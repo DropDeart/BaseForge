@@ -2,9 +2,9 @@
 
 **Forge .NET microservices from a spec.**
 
-[![NuGet](https://img.shields.io/nuget/vpre/BaseForge.API?label=NuGet&color=0f9f7a)](https://www.nuget.org/packages?q=BaseForge)
+[![NuGet](https://img.shields.io/nuget/vpre/BaseForge.API?label=NuGet&color=f2612f)](https://www.nuget.org/packages?q=BaseForge)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4)](https://dotnet.microsoft.com/)
-[![Docs](https://img.shields.io/badge/docs-dropdeart.github.io%2FBaseForge-0f9f7a)](https://dropdeart.github.io/BaseForge/)
+[![Docs](https://img.shields.io/badge/docs-dropdeart.github.io%2FBaseForge-f2612f)](https://dropdeart.github.io/BaseForge/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 BaseForge is an opinionated **base library** and **visual code generator** for .NET 10 microservices. Describe your entities in YAML — or click them together in the browser-based Designer — and get clean, production-ready services with CQRS, authentication, gRPC, events, logging and Docker already wired.

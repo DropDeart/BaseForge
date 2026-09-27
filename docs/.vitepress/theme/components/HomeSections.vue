@@ -323,7 +323,7 @@ async function copyInstall() {
   overflow: hidden;
   background: var(--bf-code-bg);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 24px 60px -24px rgba(8, 47, 38, 0.55);
+  box-shadow: 0 24px 60px -24px rgba(60, 20, 5, 0.55);
 }
 
 .bf-window-bar {
@@ -393,7 +393,7 @@ async function copyInstall() {
 .bf-line.cmd { color: #e2e8f0; }
 .bf-line.ok { color: #86efac; }
 .bf-line.live {
-  color: #34d399;
+  color: #fb923c;
   font-weight: 600;
 }
 
@@ -510,11 +510,11 @@ async function copyInstall() {
   padding: 56px 24px;
   border-radius: 20px;
   text-align: center;
-  color: #ecfdf5;
+  color: #fff7ed;
   background:
-    radial-gradient(600px 240px at 90% 0%, rgba(14, 165, 233, 0.45), transparent 60%),
-    radial-gradient(600px 260px at 0% 100%, rgba(245, 158, 11, 0.25), transparent 60%),
-    linear-gradient(135deg, #065f46, #0f766e 55%, #0e7490);
+    radial-gradient(600px 240px at 90% 0%, rgba(251, 191, 36, 0.4), transparent 60%),
+    radial-gradient(600px 260px at 0% 100%, rgba(124, 45, 18, 0.45), transparent 60%),
+    linear-gradient(135deg, #9a3412, #d9501f 55%, #f2612f);
 }
 
 .bf-cta h2 {
@@ -534,7 +534,7 @@ async function copyInstall() {
 .bf-cta p {
   margin: 12px 0 28px;
   font-size: 17px;
-  color: rgba(236, 253, 245, 0.85);
+  color: rgba(255, 247, 237, 0.9);
 }
 
 .bf-install {
@@ -544,9 +544,9 @@ async function copyInstall() {
   max-width: 100%;
   padding: 12px 14px 12px 18px;
   border-radius: 12px;
-  background: rgba(3, 15, 12, 0.45);
+  background: rgba(40, 12, 2, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #ecfdf5;
+  color: #fff7ed;
   cursor: pointer;
   font-family: var(--vp-font-family-mono);
   font-size: 14px;
@@ -561,7 +561,7 @@ async function copyInstall() {
   white-space: nowrap;
 }
 
-.bf-install .prompt { color: #6ee7b7; }
+.bf-install .prompt { color: #fdba74; }
 
 .bf-copy {
   flex: none;
@@ -600,11 +600,11 @@ async function copyInstall() {
 .bf-btn.primary {
   background: #fff;
   border-color: #fff;
-  color: #065f46 !important;
+  color: #9a3412 !important;
 }
 
 .bf-btn.primary:hover {
-  background: #ecfdf5;
+  background: #fff7ed;
 }
 
 @media (prefers-reduced-motion: reduce) {
