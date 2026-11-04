@@ -166,7 +166,8 @@ public static class AuthSpecValidator
         }
 
         var reset = spec.PasswordReset;
-        if (reset.Enabled && !Uri.TryCreate(reset.ResetUrl, UriKind.Absolute, out _))
+        // Linux'ta "/yol" da mutlak (file://) sayılır; yalnızca http/https kabul edilir.
+        if (reset.Enabled && !(Uri.TryCreate(reset.ResetUrl, UriKind.Absolute, out var resetUri) && resetUri.Scheme is "http" or "https"))
         {
             errors.Add("'passwordReset.resetUrl' mutlak bir URL olmalı (örn. https://app.ornek.com/sifre-sifirla).");
         }
