@@ -89,6 +89,10 @@ subscribes:
 | `paginated` / `sortable` / `searchable` | bool | List behavior (all default `true`) |
 | `sortFields` | list | Fields `sortBy` may use (default: all scalar fields + `CreatedAt`/`UpdatedAt`); anything else is a 400 |
 | `searchFields` | list | String/text fields `search` looks in (default: all) — keep sensitive fields out |
+| `rangeFilters` | list | Date/number fields filtered as `?xFrom=…&xTo=…` (inclusive) |
+| `inFilters` | list | Fields filtered as `?xIn=A&xIn=B` |
+| `defaultSort` | string | Sort when `sortBy` is empty, e.g. `PlannedAt asc` |
+| `unique` | list of lists | Unique field groups, e.g. `[[Code], [StationId, TicketNo]]` — per tenant in multi-tenant services |
 
 ## Field types
 
@@ -115,7 +119,7 @@ props:
   Status: { type: enum, values: [Draft, Active], default: Draft }
 ```
 
-Rich-form keys: `type`, `nullable`, `maxLength` (string/text only), `default`, `values` (enum only), `serverManaged` (left out of the generated Create/Update commands — only your own code changes it; still returned in the DTO).
+Rich-form keys: `type`, `nullable`, `maxLength` (string/text only), `default`, `values` (enum only), `serverManaged` (left out of the generated Create/Update commands — only your own code changes it; still returned in the DTO), `min`/`max` (numbers), `minLength`/`pattern` (string/text) — validated on the generated commands.
 
 ## Relations
 

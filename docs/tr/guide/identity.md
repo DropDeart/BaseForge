@@ -132,3 +132,40 @@ userProfile:
 Giriş SPA'sı profil ve admin formlarını otomatik çizer, `/api/account/me` bunları döner ve `identity/User`'a referans veren servisler bunları gRPC üzerinden alır.
 
 Bu tasarımların gerekçelerinin tamamı için bkz. [Mimari §6](/tr/architecture#_6-kimlik-dogrulama).
+
+## Şirketler, giriş yöntemleri ve e-posta (0.6.4)
+
+```yaml
+registration:
+  enabled: true
+  selfAssignableRoles: [Driver]      # uygulama kullanıcıyı Driver olarak kaydedebilir
+multiTenancy:
+  enabled: true
+  adminRole: TenantAdmin             # şirketi açan/yöneten
+  memberRoles: [Operator]            # şirket içindeki diğer roller
+  requireApproval: true              # yeni şirket platform onayı bekler
+  approverRoles: [SuperAdmin]
+otp:
+  enabled: true                      # telefonla giriş + telefon/e-posta doğrulama
+  defaultCountryCode: "+90"
+messaging:
+  emailProvider: Smtp                # Log (geliştirme) | Smtp
+  smtp: { host: smtp.resend.com, port: 465, username: resend, fromAddress: no-reply@ornek.com, fromName: Örnek }
+passwordReset:
+  enabled: true
+  resetUrl: https://app.ornek.com/sifre-sifirla
+accessTokenLifetimeMinutes: 60
+```
+
+| Uç | Amaç |
+| --- | --- |
+| `POST /api/tenants` · `GET /api/tenants/mine` | Şirket aç · şirketlerim, davetler, istekler |
+| `POST /api/tenants/join` · `POST /api/tenants/memberships/{id}/accept\|decline` | Şirket koduyla katıl · davete yanıt |
+| `GET/POST /api/tenants/{id}/members…` | Şirket yöneticisi: liste, davet, onay/ret, rol, çıkarma |
+| `POST /api/admin/tenants/{id}/approve\|reject\|suspend\|activate` | Platform onayı |
+| `tenant_id` ile `POST /connect/token` | Aktif şirketi seç/değiştir (`refresh_token` grant'ı) |
+| `POST /api/account/otp/send` + `urn:baseforge:grant-type:otp` grant'ı | Telefonla giriş/kayıt (`phone`, `code`, isteğe bağlı `role`) |
+| `POST /api/account/phone/send\|verify` · `email/send\|verify` | Hesaba telefon / e-posta doğrula |
+| `POST /api/account/forgot-password` · `reset-password` | E-postayla şifre sıfırlama |
+
+SMTP parolası `.env`'e `Auth__Messaging__Smtp__Password` olarak yazılır. Ayrıntı: [Mimari §6.6](/tr/architecture).

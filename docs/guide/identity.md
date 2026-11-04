@@ -132,3 +132,40 @@ userProfile:
 The sign-in SPA renders the profile and admin forms automatically, `/api/account/me` returns them, and services that reference `identity/User` receive them over gRPC.
 
 For the full reasoning behind these designs, see [Architecture §6](/architecture#_6-authentication).
+
+## Companies, sign-in methods and e-mail (0.6.4)
+
+```yaml
+registration:
+  enabled: true
+  selfAssignableRoles: [Driver]      # an app may sign users up as Driver
+multiTenancy:
+  enabled: true
+  adminRole: TenantAdmin             # who opens/manages a company
+  memberRoles: [Operator]            # other roles inside a company
+  requireApproval: true              # new companies wait for platform approval
+  approverRoles: [SuperAdmin]
+otp:
+  enabled: true                      # phone sign-in + phone/e-mail verification
+  defaultCountryCode: "+90"
+messaging:
+  emailProvider: Smtp                # Log (development) | Smtp
+  smtp: { host: smtp.resend.com, port: 465, username: resend, fromAddress: no-reply@example.com, fromName: Example }
+passwordReset:
+  enabled: true
+  resetUrl: https://app.example.com/reset-password
+accessTokenLifetimeMinutes: 60
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/tenants` · `GET /api/tenants/mine` | Open a company · my companies, invitations, requests |
+| `POST /api/tenants/join` · `POST /api/tenants/memberships/{id}/accept\|decline` | Join with a company code · answer an invitation |
+| `GET/POST /api/tenants/{id}/members…` | Company admin: list, invite, approve/reject, roles, remove |
+| `POST /api/admin/tenants/{id}/approve\|reject\|suspend\|activate` | Platform approval |
+| `POST /connect/token` with `tenant_id` | Pick/switch the active company (`refresh_token` grant) |
+| `POST /api/account/otp/send` + grant `urn:baseforge:grant-type:otp` | Phone sign-in/sign-up (`phone`, `code`, optional `role`) |
+| `POST /api/account/phone/send\|verify` · `email/send\|verify` | Verify a phone / e-mail on the account |
+| `POST /api/account/forgot-password` · `reset-password` | Password reset by e-mail |
+
+The SMTP password goes to `.env` as `Auth__Messaging__Smtp__Password`. See [Architecture §6.6](/architecture#_6-6-identity-companies-one-time-codes-e-mail-password-reset-0-6-4).
