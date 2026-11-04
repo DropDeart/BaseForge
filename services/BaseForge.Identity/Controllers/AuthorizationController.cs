@@ -1,7 +1,10 @@
 using System.Security.Claims;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Configuration;
+using BaseForge.Identity.ErrorHandling;
+using BaseForge.Identity.Otp;
 using BaseForge.Identity.Profile;
 using BaseForge.Identity.Tenancy;
 using Microsoft.AspNetCore;
@@ -24,6 +27,8 @@ public sealed class AuthorizationController : ControllerBase
     private readonly ITenantTokenResolver _tenantResolver;
     private readonly IMembershipService _memberships;
     private readonly MultiTenancyOptions _tenancy;
+    private readonly AuthOptions _authOptions;
+    private readonly IContactVerificationService _verification;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
@@ -31,8 +36,11 @@ public sealed class AuthorizationController : ControllerBase
         IOpenIddictScopeManager scopeManager,
         ITenantTokenResolver tenantResolver,
         IMembershipService memberships,
+        IContactVerificationService verification,
         AuthOptions authOptions)
     {
+        _verification = verification;
+        _authOptions = authOptions;
         _userManager = userManager;
         _signInManager = signInManager;
         _scopeManager = scopeManager;
@@ -79,6 +87,11 @@ public sealed class AuthorizationController : ControllerBase
             return await HandlePasswordAsync(request);
         }
 
+        if (request.GrantType == OtpRegistration.GrantType)
+        {
+            return await HandleOtpAsync(request);
+        }
+
         if (request.IsClientCredentialsGrantType())
         {
             return await HandleClientCredentialsAsync(request);
@@ -107,6 +120,31 @@ public sealed class AuthorizationController : ControllerBase
         if (!check.Succeeded)
         {
             return Forbidden("Kullanıcı adı veya parola hatalı.");
+        }
+
+        return await SignInUserAsync(user, request.GetScopes(), RequestedTenant(request), previousTenantId: null);
+    }
+
+    /// <summary>Telefon + SMS kodu: doğrulanmış telefonun sahibi ya da (kayıt açıksa) yeni hesap.</summary>
+    private async Task<IActionResult> HandleOtpAsync(OpenIddictRequest request)
+    {
+        if (!_authOptions.Otp.Enabled)
+        {
+            return Forbidden("Telefonla giriş kapalı.");
+        }
+
+        ApplicationUser user;
+        try
+        {
+            user = await _verification.SignInWithPhoneAsync(
+                (string?)request.GetParameter("phone") ?? string.Empty,
+                (string?)request.GetParameter("code") ?? string.Empty,
+                (string?)request.GetParameter("role"),
+                HttpContext.RequestAborted);
+        }
+        catch (IdentityException ex)
+        {
+            return Forbidden(ex.Message);
         }
 
         return await SignInUserAsync(user, request.GetScopes(), RequestedTenant(request), previousTenantId: null);

@@ -1,6 +1,4 @@
 using BaseForge.Identity.Configuration;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BaseForge.Identity.Tenancy;
@@ -29,24 +27,5 @@ public static class TenancyRegistration
             .AddAuthenticationSchemes(AuthSchemes.Split(','))
             .RequireRole(approverRoles));
         return services;
-    }
-}
-
-/// <summary>Kiracı yönetimi kapalıysa uç yokmuş gibi 404 döner.</summary>
-[AttributeUsage(AttributeTargets.Class)]
-public sealed class RequireTenancyAttribute : Attribute, IResourceFilter
-{
-    /// <inheritdoc />
-    public void OnResourceExecuting(ResourceExecutingContext context)
-    {
-        if (!context.HttpContext.RequestServices.GetRequiredService<AuthOptions>().MultiTenancy.Enabled)
-        {
-            context.Result = new NotFoundResult();
-        }
-    }
-
-    /// <inheritdoc />
-    public void OnResourceExecuted(ResourceExecutedContext context)
-    {
     }
 }

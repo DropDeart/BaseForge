@@ -1,3 +1,5 @@
+using BaseForge.Identity.Configuration;
+using BaseForge.Identity.Contacts;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
@@ -34,7 +36,8 @@ public interface IMembershipService
 }
 
 /// <inheritdoc cref="IMembershipService" />
-internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdminGuard guard, TimeProvider clock) : IMembershipService
+internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdminGuard guard, AuthOptions options, TimeProvider clock)
+    : IMembershipService
 {
     private DbSet<TenantMembership> Memberships => db.Set<TenantMembership>();
 
@@ -124,8 +127,8 @@ internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdmi
     public async Task ClaimInvitationsAsync(ApplicationUser user, CancellationToken cancellationToken)
     {
         // Yalnız doğrulanmış iletişim bilgisi: başkasının e-postasıyla kayıt olup daveti sahiplenmek engellenir.
-        var email = user.EmailConfirmed ? TenancyText.Email(user.Email) : null;
-        var phone = user.PhoneNumberConfirmed ? TenancyText.Phone(user.PhoneNumber) : null;
+        var email = user.EmailConfirmed ? ContactNormalizer.Email(user.Email) : null;
+        var phone = user.PhoneNumberConfirmed ? ContactNormalizer.Phone(user.PhoneNumber, options.Otp.DefaultCountryCode) : null;
         if (email is null && phone is null)
         {
             return;

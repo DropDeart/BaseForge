@@ -53,6 +53,8 @@ public static class AuthSpecValidator
             ValidateMultiTenancy(spec, errors);
         }
 
+        ValidateOtp(spec, errors);
+
         if (spec.UserProfile is not null)
         {
             ValidateUserProfile(spec.UserProfile, errors);
@@ -110,6 +112,44 @@ public static class AuthSpecValidator
         foreach (var name in duplicates)
         {
             errors.Add($"'userProfile' — '{name}' alanı büyük/küçük harf farkıyla birden fazla kez tanımlı.");
+        }
+    }
+
+    private static void ValidateOtp(AuthSpec spec, List<string> errors)
+    {
+        var otp = spec.Otp;
+        var usesGrant = spec.Clients.Any(c => c.Grants.Contains("otp", StringComparer.OrdinalIgnoreCase));
+        if (usesGrant && !otp.Enabled)
+        {
+            errors.Add("Bir client 'otp' grant'ı kullanıyor ama 'otp.enabled' kapalı.");
+        }
+
+        if (!otp.Enabled)
+        {
+            return;
+        }
+
+        if (otp.CodeLength is < 4 or > 8)
+        {
+            errors.Add("'otp.codeLength' 4-8 arasında olmalı.");
+        }
+
+        if (otp.LifetimeSeconds < 30 || otp.MaxAttempts < 1 || otp.MaxPerHour < 1 || otp.ResendCooldownSeconds < 0)
+        {
+            errors.Add("'otp' süre/sınır değerleri pozitif olmalı (lifetimeSeconds ≥ 30).");
+        }
+
+        if (!otp.DefaultCountryCode.StartsWith('+') || otp.DefaultCountryCode.Length < 2)
+        {
+            errors.Add("'otp.defaultCountryCode' '+' ile başlamalı (örn. +90).");
+        }
+
+        foreach (var (name, provider) in new[] { ("smsProvider", otp.SmsProvider), ("emailProvider", otp.EmailProvider) })
+        {
+            if (!OtpSpec.Providers.Contains(provider, StringComparer.Ordinal))
+            {
+                errors.Add($"'otp.{name}' '{provider}' desteklenmiyor (şimdilik: {string.Join(", ", OtpSpec.Providers)}).");
+            }
         }
     }
 

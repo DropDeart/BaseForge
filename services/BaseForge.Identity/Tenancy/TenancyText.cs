@@ -3,7 +3,7 @@ using System.Text;
 
 namespace BaseForge.Identity.Tenancy;
 
-/// <summary>Şirket kodu (slug) ve iletişim bilgisi normalizasyonu.</summary>
+/// <summary>Şirket kodu (slug) üretimi.</summary>
 public static class TenancyText
 {
     private const int MaxSlugLength = 50;
@@ -26,21 +26,5 @@ public static class TenancyText
 
         var slug = builder.ToString().Trim('-');
         return slug.Length > MaxSlugLength ? slug[..MaxSlugLength].TrimEnd('-') : slug;
-    }
-
-    /// <summary>E-posta: kırpılmış, küçük harf.</summary>
-    public static string? Email(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
-
-    /// <summary>Telefon: yalnız rakamlar ve baştaki + (örn. +905551112233).</summary>
-    public static string? Phone(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var digits = new string(value.Where(char.IsAsciiDigit).ToArray());
-        return digits.Length == 0 ? null : (value.TrimStart().StartsWith('+') ? "+" : string.Empty) + digits;
     }
 }

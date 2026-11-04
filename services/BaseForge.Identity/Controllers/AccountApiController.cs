@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Profile;
@@ -37,17 +38,20 @@ public sealed class AccountApiController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IWebHostEnvironment _env;
     private readonly RegistrationOptions _registration;
+    private readonly IExternalAccountService _externalAccounts;
 
     public AccountApiController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
         IWebHostEnvironment env,
-        AuthOptions authOptions)
+        AuthOptions authOptions,
+        IExternalAccountService externalAccounts)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _env = env;
         _registration = authOptions.Registration;
+        _externalAccounts = externalAccounts;
     }
 
     [HttpGet("me")]
@@ -258,11 +262,7 @@ public sealed class AccountApiController : ControllerBase
             return BadRequest(new ErrorResponse(string.Join(" ", result.Errors.Select(e => e.Description))));
         }
 
-        await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
-        if (request.Role is { } role && role != _registration.DefaultRole && _registration.SelfAssignableRoles.Contains(role, StringComparer.Ordinal))
-        {
-            await _userManager.AddToRoleAsync(user, role);
-        }
+        await RegistrationRoles.AssignAsync(_userManager, user, _registration, request.Role);
 
         await _signInManager.SignInAsync(user, isPersistent: false);
         return Ok();
@@ -301,50 +301,13 @@ public sealed class AccountApiController : ControllerBase
             return Redirect(returnUrl);
         }
 
-        var email = info.Principal.FindFirstValue(ClaimTypes.Email) ?? info.Principal.FindFirstValue(ClaimTypes.Name);
-        if (string.IsNullOrWhiteSpace(email))
+        var account = await _externalAccounts.ResolveAsync(info);
+        if (account.User is null)
         {
-            return Redirect("/Account/Login?error=external");
+            return Redirect($"/Account/Login?error={account.Error}");
         }
 
-        var user = await _userManager.FindByEmailAsync(email);
-        if (user is null)
-        {
-            // Dış giriş de bir kayıt yoludur: kayıt kapalıyken sistemde olmayan biri Google vb. ile hesap açamaz.
-            if (!_registration.Enabled)
-            {
-                return Redirect("/Account/Login?error=registration-closed");
-            }
-
-            var displayName = info.Principal.FindFirstValue(ClaimTypes.Name);
-            var picture = info.Principal.FindFirstValue("picture");
-            user = new ApplicationUser
-            {
-                UserName = email,
-                Email = email,
-                EmailConfirmed = true,
-                FullName = string.IsNullOrWhiteSpace(displayName) || displayName == email ? null : displayName,
-                AvatarUrl = string.IsNullOrWhiteSpace(picture) ? null : picture,
-            };
-            var created = await _userManager.CreateAsync(user);
-            if (!created.Succeeded)
-            {
-                return Redirect("/Account/Login?error=external");
-            }
-
-            await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
-        }
-        else if (await _userManager.HasPasswordAsync(user))
-        {
-            // Parolalı bir hesaba dış girişi e-posta eşleşmesiyle otomatik BAĞLAMA: sağlayıcı e-postayı doğrulamadan
-            // kabul ediyorsa (bazıları ediyor), saldırgan kurbanın e-postasıyla orada hesap açıp buradaki hesabı ele
-            // geçirebilirdi. Parolalı hesabın sahibi zaten parolasıyla girebilir. Parolasız hesaplar (admin panelinden
-            // eklenen, ilk girişini dış sağlayıcıyla yapacak kullanıcılar) bağlanmaya devam eder.
-            return Redirect("/Account/Login?error=account-exists");
-        }
-
-        await _userManager.AddLoginAsync(user, info);
-        await _signInManager.SignInAsync(user, isPersistent: false);
+        await _signInManager.SignInAsync(account.User, isPersistent: false);
         return Redirect(returnUrl);
     }
 }

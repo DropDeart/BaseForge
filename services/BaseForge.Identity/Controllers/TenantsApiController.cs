@@ -1,3 +1,4 @@
+using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Tenancy;
@@ -10,7 +11,7 @@ namespace BaseForge.Identity.Controllers;
 /// <summary>Kullanıcının şirketleri: açma, katılma, davet yanıtı, varsayılan, ayrılma.</summary>
 [ApiController]
 [Route("api/tenants")]
-[RequireTenancy]
+[RequireFeature(AuthFeature.MultiTenancy)]
 [Authorize(AuthenticationSchemes = TenancyRegistration.AuthSchemes)]
 public sealed class TenantsApiController(
     UserManager<ApplicationUser> userManager,

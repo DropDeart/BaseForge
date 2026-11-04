@@ -20,6 +20,9 @@ public class IdentityException(HttpStatusCode status, string errorCode, string m
     /// <summary>409: kaydın durumu işleme uygun değil.</summary>
     public static IdentityException Conflict(string message) => new(HttpStatusCode.Conflict, "state.conflict", message);
 
+    /// <summary>429: istek sınırı.</summary>
+    public static IdentityException TooManyRequests(string message) => new(HttpStatusCode.TooManyRequests, "rate_limited", message);
+
     /// <summary>400.</summary>
     public static IdentityException Invalid(string message) => new(HttpStatusCode.BadRequest, "validation.failed", message);
 }

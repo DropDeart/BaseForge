@@ -53,6 +53,21 @@
     <!-- Profil yardımcıları (şemadan bağımsız). UserProfile.cs, ApplicationUser.Profile.cs ve user.proto ise
          auth.yaml userProfile'dan üretilir (UserProfileGenerator); repodaki kopyaları boş profil çıktısıdır. -->
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Profile\ProfileJson.cs" LogicalName="identity/Profile/ProfileJson.cs" />
+    <!-- Hesap: dış giriş, OTP (SMS/e-posta) ve doğrulama (0.6.4). -->
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Configuration\RequireFeatureAttribute.cs" LogicalName="identity/Configuration/RequireFeatureAttribute.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Contacts\ContactNormalizer.cs" LogicalName="identity/Contacts/ContactNormalizer.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Messaging\MessageSenders.cs" LogicalName="identity/Messaging/MessageSenders.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Accounts\AccountRegistration.cs" LogicalName="identity/Accounts/AccountRegistration.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Accounts\ContactVerificationService.cs" LogicalName="identity/Accounts/ContactVerificationService.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Accounts\ExternalAccountService.cs" LogicalName="identity/Accounts/ExternalAccountService.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Accounts\OptionalEmailValidator.cs" LogicalName="identity/Accounts/OptionalEmailValidator.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Accounts\RegistrationRoles.cs" LogicalName="identity/Accounts/RegistrationRoles.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Otp\OtpChallenge.cs" LogicalName="identity/Otp/OtpChallenge.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Otp\OtpCode.cs" LogicalName="identity/Otp/OtpCode.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Otp\OtpModel.cs" LogicalName="identity/Otp/OtpModel.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Otp\OtpRegistration.cs" LogicalName="identity/Otp/OtpRegistration.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Otp\OtpService.cs" LogicalName="identity/Otp/OtpService.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\VerificationApiController.cs" LogicalName="identity/Controllers/VerificationApiController.cs" />
     <!-- Kiracı (şirket) yönetimi ve /api hata middleware'i (0.6.4). -->
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\ErrorHandling\IdentityException.cs" LogicalName="identity/ErrorHandling/IdentityException.cs" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\ErrorHandling\IdentityExceptionMiddleware.cs" LogicalName="identity/ErrorHandling/IdentityExceptionMiddleware.cs" />

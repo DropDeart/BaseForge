@@ -4,6 +4,8 @@ using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
+using BaseForge.Identity.Accounts;
+using BaseForge.Identity.Otp;
 using BaseForge.Identity.Tenancy;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -55,7 +57,8 @@ builder.Services
         options.Password.RequireUppercase = true;
         options.Password.RequireLowercase = true;
         options.Password.RequireNonAlphanumeric = true;
-        options.User.RequireUniqueEmail = true;
+        // Yalnız telefonla açılan hesapta e-posta yok; benzersizliği OptionalEmailValidator denetler (AddAccounts).
+        options.User.RequireUniqueEmail = false;
     })
     .AddEntityFrameworkStores<IdentityServiceDbContext>()
     .AddDefaultTokenProviders();
@@ -121,6 +124,7 @@ builder.Services.AddOpenIddict()
                .AllowClientCredentialsFlow()
                .AllowRefreshTokenFlow()
                .AllowAuthorizationCodeFlow()
+               .AllowCustomFlow(OtpRegistration.GrantType)
                .RequireProofKeyForCodeExchange();
 
         // Scope'lar config'ten + standart OIDC scope'ları.
@@ -165,6 +169,9 @@ builder.Services.AddControllers()
 
 // Kiracı (şirket) yönetimi: Auth:MultiTenancy:Enabled kapalıyken uçlar 404 döner.
 builder.Services.AddTenancy(authOptions);
+builder.Services.AddAccounts();
+// Tek kullanımlık kod (SMS/e-posta): Auth:Otp:Enabled kapalıyken uçlar 404, otp grant'ı reddedilir.
+builder.Services.AddOtp(authOptions, builder.Environment);
 
 // Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin gRPC ile salt-okunur erişimi.
 builder.Services.AddGrpc();
@@ -199,6 +206,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     // EnsureCreated var olan tabloyu değiştirmez: sonradan eklenen userProfile alanlarının kolonlarını ekle.
     await BaseForge.Identity.Profile.UserProfile.EnsureColumnsAsync(db);
     await TenancyModel.EnsureTablesAsync(db);
+    await OtpModel.EnsureTableAsync(db);
     await SeedData.SeedAsync(scope.ServiceProvider, authOptions);
 }
 
@@ -206,6 +214,7 @@ app.UseStaticFiles();
 app.UseCors("ConfiguredOrigins");
 // /api uçlarında iş kuralı hataları BaseForge servisleriyle aynı ProblemDetails biçiminde döner.
 app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api"), api => api.UseMiddleware<IdentityExceptionMiddleware>());
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

@@ -11,7 +11,7 @@ namespace BaseForge.Identity.Controllers;
 /// <summary>Şirket yöneticisinin üye işlemleri (platform yöneticisi de yapabilir).</summary>
 [ApiController]
 [Route("api/tenants/{tenantId:guid}/members")]
-[RequireTenancy]
+[RequireFeature(AuthFeature.MultiTenancy)]
 [Authorize(AuthenticationSchemes = TenancyRegistration.AuthSchemes)]
 public sealed class TenantMembersApiController(
     UserManager<ApplicationUser> userManager,

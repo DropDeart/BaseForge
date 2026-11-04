@@ -1,3 +1,5 @@
+using BaseForge.Identity.Configuration;
+using BaseForge.Identity.Contacts;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
@@ -33,6 +35,7 @@ internal sealed class MemberAdministrationService(
     IdentityServiceDbContext db,
     UserManager<ApplicationUser> userManager,
     ITenantAdminGuard guard,
+    AuthOptions options,
     TimeProvider clock) : IMemberAdministrationService
 {
     private DbSet<TenantMembership> Memberships => db.Set<TenantMembership>();
@@ -56,8 +59,13 @@ internal sealed class MemberAdministrationService(
     {
         await guard.EnsureCanManageAsync(tenantId, actor, cancellationToken);
         var roles = guard.ValidateRoles(request.Roles);
-        var email = TenancyText.Email(request.Email);
-        var phone = TenancyText.Phone(request.Phone);
+        var email = ContactNormalizer.Email(request.Email);
+        var phone = ContactNormalizer.Phone(request.Phone, options.Otp.DefaultCountryCode);
+        if (request.Phone is not null && phone is null)
+        {
+            throw IdentityException.Invalid("Telefon numarası geçersiz.");
+        }
+
         if ((email is null) == (phone is null))
         {
             throw IdentityException.Invalid("E-posta ya da telefondan yalnızca biri verilmeli.");
@@ -65,7 +73,7 @@ internal sealed class MemberAdministrationService(
 
         var user = email is not null
             ? await userManager.FindByEmailAsync(email)
-            : await db.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phone, cancellationToken);
+            : await db.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phone && u.PhoneNumberConfirmed, cancellationToken);
         var now = clock.GetUtcNow();
 
         var existing = await Memberships.FirstOrDefaultAsync(m => m.TenantId == tenantId

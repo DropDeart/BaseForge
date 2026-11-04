@@ -1,3 +1,4 @@
+using BaseForge.Identity.Contacts;
 using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Tenancy;
 
@@ -73,8 +74,11 @@ public class TenancyDomainTests
 
     [Theory]
     [InlineData("+90 (555) 111 22 33", "+905551112233")]
-    [InlineData("0555 111 22 33", "05551112233")]
+    [InlineData("0555 111 22 33", "+905551112233")]
+    [InlineData("555 111 22 33", "+905551112233")]
+    [InlineData("0049 151 2345 6789", "+4915123456789")]
+    [InlineData("12", null)]
     [InlineData("  ", null)]
-    public void Phone_KeepsDigitsAndPlus(string input, string? expected)
-        => Assert.Equal(expected, TenancyText.Phone(input));
+    public void Phone_IsE164(string input, string? expected)
+        => Assert.Equal(expected, ContactNormalizer.Phone(input));
 }

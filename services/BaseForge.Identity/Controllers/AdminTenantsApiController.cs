@@ -1,3 +1,4 @@
+using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Tenancy;
@@ -11,7 +12,7 @@ namespace BaseForge.Identity.Controllers;
 /// <summary>Platform yöneticisinin şirket onayı ve askısı.</summary>
 [ApiController]
 [Route("api/admin/tenants")]
-[RequireTenancy]
+[RequireFeature(AuthFeature.MultiTenancy)]
 [Authorize(Policy = TenancyRegistration.ApproverPolicy)]
 public sealed class AdminTenantsApiController(UserManager<ApplicationUser> userManager, ITenantOnboardingService onboarding)
     : ControllerBase

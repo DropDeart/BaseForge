@@ -105,9 +105,9 @@ internal static class IdentityGenerator
             <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
             <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
             <PackageReference Include="OpenIddict.AspNetCore" Version="7.5.0" />
-            <!-- OpenIddict 7.5.0 geçişli olarak açıklı 10.0.7 sürümlerini getiriyor (GHSA-846f-f764-76mx vb.); yamalı sürüme sabitlenir. -->
+            <!-- OpenIddict 7.5.0 geçişli olarak açıklı System.Security.Cryptography.Pkcs 10.0.7 getiriyor (GHSA-846f-f764-76mx); yamalı sürüme sabitlenir.
+                 System.Security.Cryptography.Xml paylaşılan çerçeveden gelir, sabitlemeye gerek yok. -->
             <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
-            <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.14" />
             <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.5.0" />
             <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.9" />
             <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.9" />
@@ -187,6 +187,18 @@ internal static class IdentityGenerator
                     ["Enabled"] = spec.Registration.Enabled,
                     ["DefaultRole"] = spec.Registration.DefaultRole,
                     ["SelfAssignableRoles"] = spec.Registration.SelfAssignableRoles,
+                },
+                ["Otp"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["Enabled"] = spec.Otp.Enabled,
+                    ["CodeLength"] = spec.Otp.CodeLength,
+                    ["LifetimeSeconds"] = spec.Otp.LifetimeSeconds,
+                    ["MaxAttempts"] = spec.Otp.MaxAttempts,
+                    ["ResendCooldownSeconds"] = spec.Otp.ResendCooldownSeconds,
+                    ["MaxPerHour"] = spec.Otp.MaxPerHour,
+                    ["DefaultCountryCode"] = spec.Otp.DefaultCountryCode,
+                    ["SmsProvider"] = spec.Otp.SmsProvider,
+                    ["EmailProvider"] = spec.Otp.EmailProvider,
                 },
                 ["MultiTenancy"] = new Dictionary<string, object?>(StringComparer.Ordinal)
                 {

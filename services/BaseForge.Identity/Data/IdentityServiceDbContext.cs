@@ -1,4 +1,5 @@
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Otp;
 using BaseForge.Identity.Profile;
 using BaseForge.Identity.Tenancy;
 using Microsoft.AspNetCore.Identity;
@@ -23,5 +24,6 @@ public sealed class IdentityServiceDbContext : IdentityDbContext<ApplicationUser
         builder.UseOpenIddict();
         UserProfile.Configure(builder);
         TenancyModel.Configure(builder);
+        OtpModel.Configure(builder);
     }
 }

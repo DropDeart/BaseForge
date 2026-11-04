@@ -1,3 +1,4 @@
+using BaseForge.Identity.Otp;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -42,10 +43,12 @@ public static class SeedData
         var manager = services.GetRequiredService<IOpenIddictApplicationManager>();
         foreach (var client in auth.Clients)
         {
-            if (string.IsNullOrWhiteSpace(client.ClientId) || await manager.FindByClientIdAsync(client.ClientId, ct) is not null)
+            if (string.IsNullOrWhiteSpace(client.ClientId))
             {
                 continue;
             }
+
+            var existing = await manager.FindByClientIdAsync(client.ClientId, ct);
 
             var descriptor = new OpenIddictApplicationDescriptor
             {
@@ -79,6 +82,9 @@ public static class SeedData
                         descriptor.Permissions.Add(Permissions.ResponseTypes.Code);
                         descriptor.Permissions.Add(Permissions.Endpoints.Authorization);
                         break;
+                    case "otp":
+                        descriptor.Permissions.Add(Permissions.Prefixes.GrantType + OtpRegistration.GrantType);
+                        break;
                     default:
                         break;
                 }
@@ -94,7 +100,16 @@ public static class SeedData
                 descriptor.RedirectUris.Add(new Uri(uri));
             }
 
-            await manager.CreateAsync(descriptor, ct);
+            if (existing is null)
+            {
+                await manager.CreateAsync(descriptor, ct);
+            }
+            else if (client.Public || descriptor.ClientSecret is not null)
+            {
+                // auth.yaml'a sonradan eklenen grant/scope/redirect var olan client'a da yansısın.
+                // Secret'ı config'te olmayan gizli client'a dokunulmaz (mevcut secret silinmesin).
+                await manager.UpdateAsync(existing, descriptor, ct);
+            }
         }
     }
 

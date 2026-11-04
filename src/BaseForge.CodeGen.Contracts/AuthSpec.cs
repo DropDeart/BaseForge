@@ -40,6 +40,9 @@ public sealed class AuthSpec
     /// <summary>Kiracı (şirket) yönetimi (varsayılan: kapalı).</summary>
     public MultiTenancySpec MultiTenancy { get; set; } = new();
 
+    /// <summary>Tek kullanımlık kod: SMS ile giriş, telefon/e-posta doğrulama (varsayılan: kapalı).</summary>
+    public OtpSpec Otp { get; set; } = new();
+
     /// <summary>Docker host portları (opsiyonel). Boş alanlar için varsayılanlar kullanılır.</summary>
     public DockerPortsSpec? DockerPorts { get; set; }
 
@@ -95,6 +98,40 @@ public sealed class RegistrationSpec
 
     /// <summary>Kullanıcının kendine ekleyebileceği global roller (örn. şoför uygulaması için <c>Driver</c>).</summary>
     public List<string> SelfAssignableRoles { get; set; } = [];
+}
+
+/// <summary>Tek kullanımlık kod (OTP) kuralları. Client'ın telefonla giriş yapabilmesi için grants'a <c>otp</c> eklenir.</summary>
+public sealed class OtpSpec
+{
+    /// <summary>Sağlayıcı adları (şimdilik yalnız geliştirme göndericisi).</summary>
+    public static readonly string[] Providers = ["Log"];
+
+    /// <summary>Açık mı?</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Kod uzunluğu (4-8).</summary>
+    public int CodeLength { get; set; } = 6;
+
+    /// <summary>Kodun geçerlilik süresi (sn).</summary>
+    public int LifetimeSeconds { get; set; } = 180;
+
+    /// <summary>Bir koda en fazla hatalı deneme.</summary>
+    public int MaxAttempts { get; set; } = 5;
+
+    /// <summary>Yeniden gönderim için bekleme (sn).</summary>
+    public int ResendCooldownSeconds { get; set; } = 60;
+
+    /// <summary>Aynı hedefe saatte en fazla gönderim.</summary>
+    public int MaxPerHour { get; set; } = 5;
+
+    /// <summary>Ülke kodsuz telefonlar için (örn. +90).</summary>
+    public string DefaultCountryCode { get; set; } = "+90";
+
+    /// <summary>SMS sağlayıcısı.</summary>
+    public string SmsProvider { get; set; } = "Log";
+
+    /// <summary>E-posta sağlayıcısı.</summary>
+    public string EmailProvider { get; set; } = "Log";
 }
 
 /// <summary>Kiracı (şirket) yönetimi: self-servis şirket, davet/katılma isteği, token'da tenant_id (bkz. docs/ARCH.md §6.6).</summary>
