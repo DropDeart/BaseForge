@@ -34,6 +34,7 @@ function sidebarEn(): DefaultTheme.Sidebar {
       text: "Release Notes",
       collapsed: true,
       items: [
+        { text: "v0.6.5-beta", link: "/releases/v0.6.5-beta" },
         { text: "v0.6.4-beta", link: "/releases/v0.6.4-beta" },
         { text: "v0.6.3-beta", link: "/releases/v0.6.3-beta" },
         { text: "v0.6.2-beta", link: "/releases/v0.6.2-beta" },
@@ -74,6 +75,7 @@ function sidebarTr(): DefaultTheme.Sidebar {
       text: "Sürüm Notları",
       collapsed: true,
       items: [
+        { text: "v0.6.5-beta", link: "/tr/releases/v0.6.5-beta" },
         { text: "v0.6.4-beta", link: "/tr/releases/v0.6.4-beta" },
         { text: "v0.6.3-beta", link: "/tr/releases/v0.6.3-beta" },
         { text: "v0.6.2-beta", link: "/tr/releases/v0.6.2-beta" },
@@ -142,9 +144,9 @@ export default defineConfig({
           { text: "Guide", link: "/guide/getting-started", activeMatch: "/guide/" },
           { text: "Architecture", link: "/architecture" },
           {
-            text: "v0.6.4-beta",
+            text: "v0.6.5-beta",
             items: [
-              { text: "Release notes", link: "/releases/v0.6.4-beta" },
+              { text: "Release notes", link: "/releases/v0.6.5-beta" },
               { text: "NuGet", link: "https://www.nuget.org/packages?q=BaseForge" },
               { text: "Changelog on GitHub", link: `${repo}/releases` },
             ],
@@ -168,9 +170,9 @@ export default defineConfig({
           { text: "Rehber", link: "/tr/guide/getting-started", activeMatch: "/tr/guide/" },
           { text: "Mimari", link: "/tr/architecture" },
           {
-            text: "v0.6.4-beta",
+            text: "v0.6.5-beta",
             items: [
-              { text: "Sürüm notları", link: "/tr/releases/v0.6.4-beta" },
+              { text: "Sürüm notları", link: "/tr/releases/v0.6.5-beta" },
               { text: "NuGet", link: "https://www.nuget.org/packages?q=BaseForge" },
               { text: "GitHub sürümleri", link: `${repo}/releases` },
             ],

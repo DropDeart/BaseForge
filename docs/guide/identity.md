@@ -133,7 +133,7 @@ The sign-in SPA renders the profile and admin forms automatically, `/api/account
 
 For the full reasoning behind these designs, see [Architecture §6](/architecture#_6-authentication).
 
-## Companies, sign-in methods and e-mail (0.6.4)
+## Companies, sign-in methods and e-mail (0.6.5)
 
 ```yaml
 registration:
@@ -168,4 +168,4 @@ accessTokenLifetimeMinutes: 60
 | `POST /api/account/phone/send\|verify` · `email/send\|verify` | Verify a phone / e-mail on the account |
 | `POST /api/account/forgot-password` · `reset-password` | Password reset by e-mail |
 
-The SMTP password goes to `.env` as `Auth__Messaging__Smtp__Password`. See [Architecture §6.6](/architecture#_6-6-identity-companies-one-time-codes-e-mail-password-reset-0-6-4).
+The SMTP password goes to `.env` as `Auth__Messaging__Smtp__Password`. See [Architecture §6.6](/architecture#_6-6-identity-companies-one-time-codes-e-mail-password-reset-0-6-4-0-6-5).
