@@ -105,6 +105,9 @@ internal static class IdentityGenerator
             <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
             <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
             <PackageReference Include="OpenIddict.AspNetCore" Version="7.5.0" />
+            <!-- OpenIddict 7.5.0 geçişli olarak açıklı 10.0.7 sürümlerini getiriyor (GHSA-846f-f764-76mx vb.); yamalı sürüme sabitlenir. -->
+            <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+            <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.14" />
             <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.5.0" />
             <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.9" />
             <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.9" />
@@ -183,6 +186,15 @@ internal static class IdentityGenerator
                 {
                     ["Enabled"] = spec.Registration.Enabled,
                     ["DefaultRole"] = spec.Registration.DefaultRole,
+                    ["SelfAssignableRoles"] = spec.Registration.SelfAssignableRoles,
+                },
+                ["MultiTenancy"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["Enabled"] = spec.MultiTenancy.Enabled,
+                    ["AdminRole"] = spec.MultiTenancy.AdminRole,
+                    ["MemberRoles"] = spec.MultiTenancy.MemberRoles,
+                    ["RequireApproval"] = spec.MultiTenancy.RequireApproval,
+                    ["ApproverRoles"] = spec.MultiTenancy.ApproverRoles,
                 },
                 ["SeedAdmin"] = spec.SeedAdmin is null ? null : new Dictionary<string, object?>(StringComparer.Ordinal)
                 {

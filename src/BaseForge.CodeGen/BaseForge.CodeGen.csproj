@@ -53,6 +53,23 @@
     <!-- Profil yardımcıları (şemadan bağımsız). UserProfile.cs, ApplicationUser.Profile.cs ve user.proto ise
          auth.yaml userProfile'dan üretilir (UserProfileGenerator); repodaki kopyaları boş profil çıktısıdır. -->
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Profile\ProfileJson.cs" LogicalName="identity/Profile/ProfileJson.cs" />
+    <!-- Kiracı (şirket) yönetimi ve /api hata middleware'i (0.6.4). -->
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\ErrorHandling\IdentityException.cs" LogicalName="identity/ErrorHandling/IdentityException.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\ErrorHandling\IdentityExceptionMiddleware.cs" LogicalName="identity/ErrorHandling/IdentityExceptionMiddleware.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\Tenant.cs" LogicalName="identity/Tenancy/Tenant.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantMembership.cs" LogicalName="identity/Tenancy/TenantMembership.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyModel.cs" LogicalName="identity/Tenancy/TenancyModel.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyText.cs" LogicalName="identity/Tenancy/TenancyText.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyDtos.cs" LogicalName="identity/Tenancy/TenancyDtos.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantAdminGuard.cs" LogicalName="identity/Tenancy/TenantAdminGuard.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantOnboardingService.cs" LogicalName="identity/Tenancy/TenantOnboardingService.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\MembershipService.cs" LogicalName="identity/Tenancy/MembershipService.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\MemberAdministrationService.cs" LogicalName="identity/Tenancy/MemberAdministrationService.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantTokenResolver.cs" LogicalName="identity/Tenancy/TenantTokenResolver.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyRegistration.cs" LogicalName="identity/Tenancy/TenancyRegistration.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\TenantsApiController.cs" LogicalName="identity/Controllers/TenantsApiController.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\TenantMembersApiController.cs" LogicalName="identity/Controllers/TenantMembersApiController.cs" />
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AdminTenantsApiController.cs" LogicalName="identity/Controllers/AdminTenantsApiController.cs" />
   </ItemGroup>
 
   <!-- Designer React arayüzü: npm build çıktısını (dist) 'web/...' logical name'leriyle gömer.

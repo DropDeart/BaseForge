@@ -3,6 +3,7 @@ using System.Text.Json;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Profile;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -211,6 +212,25 @@ public sealed class AccountApiController : ControllerBase
         return Ok();
     }
 
+    /// <summary>Kendine izinli bir global rol ekler (örn. şoför uygulaması <c>Driver</c>); yeni token'da görünür.</summary>
+    [HttpPost("roles/{role}")]
+    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    public async Task<IActionResult> AssignSelfRole(string role)
+    {
+        if (!_registration.SelfAssignableRoles.Contains(role, StringComparer.Ordinal))
+        {
+            throw IdentityException.Forbidden("Bu rol kendinize eklenemez.");
+        }
+
+        var user = await _userManager.GetUserAsync(User) ?? throw IdentityException.Forbidden("Kullanıcı bulunamadı.");
+        if (!await _userManager.IsInRoleAsync(user, role))
+        {
+            await _userManager.AddToRoleAsync(user, role);
+        }
+
+        return NoContent();
+    }
+
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest request)
     {
@@ -239,6 +259,11 @@ public sealed class AccountApiController : ControllerBase
         }
 
         await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
+        if (request.Role is { } role && role != _registration.DefaultRole && _registration.SelfAssignableRoles.Contains(role, StringComparer.Ordinal))
+        {
+            await _userManager.AddToRoleAsync(user, role);
+        }
+
         await _signInManager.SignInAsync(user, isPersistent: false);
         return Ok();
     }
@@ -326,7 +351,7 @@ public sealed class AccountApiController : ControllerBase
 
 public sealed record LoginRequest(string Email, string Password);
 
-public sealed record RegisterRequest(string? FullName, string Email, string Password);
+public sealed record RegisterRequest(string? FullName, string Email, string Password, string? Role = null);
 
 public sealed record RegistrationStatus(bool Enabled);
 

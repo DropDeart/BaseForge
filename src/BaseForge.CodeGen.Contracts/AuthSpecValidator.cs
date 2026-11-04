@@ -43,6 +43,16 @@ public static class AuthSpecValidator
             errors.Add($"'registration.defaultRole' ('{defaultRole}') tanımlı bir rol değil (tanımlı: {string.Join(", ", AllRoles(spec))}).");
         }
 
+        foreach (var role in spec.Registration.SelfAssignableRoles.Where(r => !AllRoles(spec).Contains(r, StringComparer.Ordinal)))
+        {
+            errors.Add($"'registration.selfAssignableRoles' tanımlı bir rol değil: '{role}'.");
+        }
+
+        if (spec.MultiTenancy.Enabled)
+        {
+            ValidateMultiTenancy(spec, errors);
+        }
+
         if (spec.UserProfile is not null)
         {
             ValidateUserProfile(spec.UserProfile, errors);
@@ -100,6 +110,29 @@ public static class AuthSpecValidator
         foreach (var name in duplicates)
         {
             errors.Add($"'userProfile' — '{name}' alanı büyük/küçük harf farkıyla birden fazla kez tanımlı.");
+        }
+    }
+
+    private static void ValidateMultiTenancy(AuthSpec spec, List<string> errors)
+    {
+        var tenancy = spec.MultiTenancy;
+        var roles = AllRoles(spec);
+        var memberRoles = tenancy.MemberRoles.Append(tenancy.AdminRole).ToList();
+
+        foreach (var role in memberRoles.Concat(tenancy.ApproverRoles).Where(r => !roles.Contains(r, StringComparer.Ordinal)).Distinct(StringComparer.Ordinal))
+        {
+            errors.Add($"'multiTenancy' rolü 'roles' listesinde yok: '{role}'.");
+        }
+
+        foreach (var role in tenancy.ApproverRoles.Concat(spec.Registration.SelfAssignableRoles).Append(spec.Registration.DefaultRole)
+                     .Where(r => memberRoles.Contains(r, StringComparer.Ordinal)).Distinct(StringComparer.Ordinal))
+        {
+            errors.Add($"'{role}' şirket içi rol; global rol (approverRoles / registration) olarak kullanılamaz.");
+        }
+
+        if (tenancy.ApproverRoles.Count == 0 && tenancy.RequireApproval)
+        {
+            errors.Add("'multiTenancy.requireApproval' açıkken en az bir 'approverRoles' rolü gerekir.");
         }
     }
 

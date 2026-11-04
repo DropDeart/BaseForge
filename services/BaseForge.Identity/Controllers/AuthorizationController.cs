@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Profile;
+using BaseForge.Identity.Tenancy;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -19,16 +21,28 @@ public sealed class AuthorizationController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IOpenIddictScopeManager _scopeManager;
+    private readonly ITenantTokenResolver _tenantResolver;
+    private readonly IMembershipService _memberships;
+    private readonly MultiTenancyOptions _tenancy;
 
     public AuthorizationController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
-        IOpenIddictScopeManager scopeManager)
+        IOpenIddictScopeManager scopeManager,
+        ITenantTokenResolver tenantResolver,
+        IMembershipService memberships,
+        AuthOptions authOptions)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _scopeManager = scopeManager;
+        _tenantResolver = tenantResolver;
+        _memberships = memberships;
+        _tenancy = authOptions.MultiTenancy;
     }
+
+    /// <summary>Aktif şirketi seçen istek parametresi (password, refresh_token, authorize).</summary>
+    private const string TenantParameter = "tenant_id";
 
     [HttpGet("~/connect/authorize")]
     [HttpPost("~/connect/authorize")]
@@ -50,8 +64,7 @@ public sealed class AuthorizationController : ControllerBase
         var user = await _userManager.GetUserAsync(result.Principal!)
             ?? throw new InvalidOperationException("Oturum açan kullanıcı bulunamadı.");
 
-        var principal = await CreateUserPrincipalAsync(user, request.GetScopes());
-        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        return await SignInUserAsync(user, request.GetScopes(), RequestedTenant(request), previousTenantId: null);
     }
 
     [HttpPost("~/connect/token")]
@@ -96,8 +109,7 @@ public sealed class AuthorizationController : ControllerBase
             return Forbidden("Kullanıcı adı veya parola hatalı.");
         }
 
-        var principal = await CreateUserPrincipalAsync(user, request.GetScopes());
-        return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        return await SignInUserAsync(user, request.GetScopes(), RequestedTenant(request), previousTenantId: null);
     }
 
     private async Task<IActionResult> HandleClientCredentialsAsync(OpenIddictRequest request)
@@ -132,11 +144,28 @@ public sealed class AuthorizationController : ControllerBase
             return Forbidden("Yetkilendirme kodu ya da refresh token geçersiz.");
         }
 
-        var principal = await CreateUserPrincipalAsync(user, result.Principal!.GetScopes());
+        // Refresh'te şirket korunur; tenant_id parametresiyle başka şirkete geçilir.
+        var request = HttpContext.GetOpenIddictServerRequest();
+        return await SignInUserAsync(user, result.Principal!.GetScopes(),
+            request is null ? null : RequestedTenant(request), result.Principal!.GetClaim(TenantParameter));
+    }
+
+    private static string? RequestedTenant(OpenIddictRequest request) => (string?)request.GetParameter(TenantParameter);
+
+    private async Task<IActionResult> SignInUserAsync(ApplicationUser user, IEnumerable<string> scopes, string? requestedTenantId, string? previousTenantId)
+    {
+        await _memberships.ClaimInvitationsAsync(user, HttpContext.RequestAborted);
+        var selection = await _tenantResolver.ResolveAsync(user.Id, requestedTenantId, previousTenantId, HttpContext.RequestAborted);
+        if (selection.Error is not null)
+        {
+            return Forbidden(selection.Error);
+        }
+
+        var principal = await CreateUserPrincipalAsync(user, scopes, selection.Tenant);
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    private async Task<ClaimsPrincipal> CreateUserPrincipalAsync(ApplicationUser user, IEnumerable<string> scopes)
+    private async Task<ClaimsPrincipal> CreateUserPrincipalAsync(ApplicationUser user, IEnumerable<string> scopes, ActiveTenant? tenant)
     {
         var identity = new ClaimsIdentity(
             authenticationType: TokenValidationParameters_AuthType,
@@ -147,7 +176,17 @@ public sealed class AuthorizationController : ControllerBase
         identity.AddClaim(Claims.Name, user.UserName ?? string.Empty);
         identity.AddClaim(Claims.Email, user.Email ?? string.Empty);
 
-        foreach (var role in await _userManager.GetRolesAsync(user))
+        // Şirket içi roller yalnızca aktif şirketin üyeliğinden gelir; global atanmış olsa da yazılmaz.
+        var memberRoles = _tenancy.Enabled ? _tenancy.AllMemberRoles : [];
+        var roles = (await _userManager.GetRolesAsync(user)).Where(r => !memberRoles.Contains(r, StringComparer.Ordinal));
+        if (tenant is not null)
+        {
+            identity.AddClaim(TenantParameter, tenant.TenantId.ToString());
+            identity.AddClaim("tenant_name", tenant.Name);
+            roles = roles.Concat(tenant.Roles);
+        }
+
+        foreach (var role in roles.Distinct(StringComparer.Ordinal))
         {
             identity.AddClaim(Claims.Role, role);
         }
@@ -185,7 +224,7 @@ public sealed class AuthorizationController : ControllerBase
             var destinations = new List<string> { Destinations.AccessToken };
 
             // Profil/email/rol claim'leri id_token'a da yazılsın (ilgili scope verildiyse).
-            if (claim.Type is Claims.Name or Claims.Email or Claims.Role || UserProfile.Fields.Any(f => f.InToken && f.Name == claim.Type))
+            if (claim.Type is Claims.Name or Claims.Email or Claims.Role or TenantParameter or "tenant_name" || UserProfile.Fields.Any(f => f.InToken && f.Name == claim.Type))
             {
                 destinations.Add(Destinations.IdentityToken);
             }
