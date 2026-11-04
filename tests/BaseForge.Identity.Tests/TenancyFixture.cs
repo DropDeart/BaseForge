@@ -89,6 +89,27 @@ public sealed class TenancyFixture : IAsyncLifetime
         }
     }
 
+    /// <summary>Benzersiz test e-postası.</summary>
+    public static string Email() => $"u{Guid.NewGuid():N}@test.local";
+
+    /// <summary>Rastgele E.164 test telefonu.</summary>
+    public static string Phone() => $"+90555{Random.Shared.Next(1_000_000, 9_999_999)}";
+
+    /// <summary>Şirket açar ve onaylar; şirket, yöneticisi ve kodu döner.</summary>
+    public static async Task<(Guid TenantId, Guid AdminId, string Slug)> ActiveTenantAsync(IServiceProvider sp, string name)
+    {
+        var admin = await CreateUserAsync(sp, Email());
+        var onboarding = sp.GetRequiredService<ITenantOnboardingService>();
+        var created = await onboarding.CreateAsync(admin.Id, new CreateTenantRequest(name, null), default);
+        await onboarding.ReviewAsync(created.Tenant.Id, TenantStatus.Active, Guid.NewGuid(), null, default);
+        return (created.Tenant.Id, admin.Id, created.Tenant.Slug);
+    }
+
+    /// <summary>Kodun bekleme süresini geçmiş gibi gösterir (yeniden gönderim testleri).</summary>
+    public static Task AgeChallengesAsync(IServiceProvider sp, string target)
+        => sp.GetRequiredService<IdentityServiceDbContext>().Set<OtpChallenge>().Where(c => c.Target == target)
+            .ExecuteUpdateAsync(set => set.SetProperty(c => c.CreatedAt, c => c.CreatedAt.AddMinutes(-2)));
+
     /// <summary>Kullanıcı oluşturur.</summary>
     public static async Task<ApplicationUser> CreateUserAsync(IServiceProvider sp, string email, bool emailConfirmed = true, string? phone = null)
     {

@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Text.Json;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
@@ -19,14 +18,6 @@ namespace BaseForge.Identity.Controllers;
 [Route("api/account")]
 public sealed class AccountApiController : ControllerBase
 {
-    /// <summary>
-    /// Profil uçları hem Ortak Giriş SPA'sının çerezini (cookie) hem de bağımsız SPA'ların
-    /// ROPC ile aldığı Bearer access token'ını kabul eder — ikisi de aynı kullanıcıyı temsil eder.
-    /// Değerler literal yazılır çünkü öznitelik argümanı derleme-zamanı sabiti olmalı
-    /// (OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme const değil).
-    /// </summary>
-    private const string ProfileAuthSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore";
-
     private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg", "image/png", "image/webp", "image/gif",
@@ -55,7 +46,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpGet("me")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> Me()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -70,7 +61,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpPut("profile")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -96,11 +87,11 @@ public sealed class AccountApiController : ControllerBase
 
     /// <summary>auth.yaml <c>userProfile</c> alan metadata'sı — SPA profil/admin formlarını buradan çizer.</summary>
     [HttpGet("profile-schema")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public IActionResult ProfileSchema() => Ok(UserProfile.Fields);
 
     [HttpPost("change-password")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -128,7 +119,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpPost("avatar")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     [RequestSizeLimit(MaxAvatarBytes + 4096)]
     public async Task<IActionResult> UploadAvatar(IFormFile? file)
     {
@@ -218,15 +209,15 @@ public sealed class AccountApiController : ControllerBase
 
     /// <summary>Kendine izinli bir global rol ekler (örn. şoför uygulaması <c>Driver</c>); yeni token'da görünür.</summary>
     [HttpPost("roles/{role}")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> AssignSelfRole(string role)
     {
-        if (!_registration.SelfAssignableRoles.Contains(role, StringComparer.Ordinal))
+        if (!RegistrationRoles.IsSelfAssignable(_registration, role))
         {
             throw IdentityException.Forbidden("Bu rol kendinize eklenemez.");
         }
 
-        var user = await _userManager.GetUserAsync(User) ?? throw IdentityException.Forbidden("Kullanıcı bulunamadı.");
+        var user = await _userManager.GetRequiredUserAsync(User);
         if (!await _userManager.IsInRoleAsync(user, role))
         {
             await _userManager.AddToRoleAsync(user, role);

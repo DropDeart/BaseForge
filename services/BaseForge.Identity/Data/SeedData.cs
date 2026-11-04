@@ -38,6 +38,17 @@ public static class SeedData
         }
     }
 
+    /// <summary>İzin ve yönlendirme adresleri kayıtlı client'tan farklı mı?</summary>
+    private static async Task<bool> HasChangedAsync(
+        IOpenIddictApplicationManager manager, object existing, OpenIddictApplicationDescriptor desired, CancellationToken ct)
+    {
+        var current = new OpenIddictApplicationDescriptor();
+        await manager.PopulateAsync(current, existing, ct);
+        return !current.Permissions.SetEquals(desired.Permissions)
+               || !current.RedirectUris.SetEquals(desired.RedirectUris)
+               || current.ClientType != desired.ClientType;
+    }
+
     private static async Task SeedClientsAsync(IServiceProvider services, AuthOptions auth, CancellationToken ct)
     {
         var manager = services.GetRequiredService<IOpenIddictApplicationManager>();
@@ -104,10 +115,10 @@ public static class SeedData
             {
                 await manager.CreateAsync(descriptor, ct);
             }
-            else if (client.Public || descriptor.ClientSecret is not null)
+            else if ((client.Public || descriptor.ClientSecret is not null) && await HasChangedAsync(manager, existing, descriptor, ct))
             {
-                // auth.yaml'a sonradan eklenen grant/scope/redirect var olan client'a da yansısın.
-                // Secret'ı config'te olmayan gizli client'a dokunulmaz (mevcut secret silinmesin).
+                // auth.yaml'a sonradan eklenen grant/scope/redirect var olan client'a da yansısın. Değişiklik yoksa
+                // dokunulmaz (secret'ı her açılışta yeniden hash'lemek pahalı). Secret'ı config'te olmayan gizli client atlanır.
                 await manager.UpdateAsync(existing, descriptor, ct);
             }
         }

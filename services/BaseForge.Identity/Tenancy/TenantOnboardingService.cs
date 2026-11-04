@@ -51,7 +51,7 @@ internal sealed class TenantOnboardingService(IdentityServiceDbContext db, AuthO
             UserId = userId,
             Roles = [_tenancy.AdminRole],
             Status = MembershipStatus.Active,
-            IsDefault = !await db.Set<TenantMembership>().AnyAsync(m => m.UserId == userId && m.IsDefault, cancellationToken),
+            IsDefault = !await db.Set<TenantMembership>().HasDefaultAsync(userId, cancellationToken),
             CreatedAt = now,
             CreatedByUserId = userId,
         };
@@ -63,17 +63,15 @@ internal sealed class TenantOnboardingService(IdentityServiceDbContext db, AuthO
     }
 
     public async Task<IReadOnlyList<TenantDto>> ListAsync(TenantStatus? status, CancellationToken cancellationToken)
-        => await db.Set<Tenant>()
+        => await db.Set<Tenant>().AsNoTracking()
             .Where(t => status == null || t.Status == status)
             .OrderByDescending(t => t.CreatedAt)
-            .Select(t => TenantDto.From(t))
+            .Select(t => new TenantDto(t.Id, t.Name, t.Slug, t.TaxNo, t.Status, t.CreatedAt))
             .ToListAsync(cancellationToken);
 
     public async Task<TenantDto> ReviewAsync(Guid tenantId, TenantStatus target, Guid reviewerId, string? note, CancellationToken cancellationToken)
     {
-        var tenant = await db.Set<Tenant>().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken)
-            ?? throw IdentityException.NotFound("Şirket bulunamadı.");
-
+        var tenant = await db.Set<Tenant>().GetAsync(tenantId, cancellationToken);
         tenant.Review(target, reviewerId, note, clock.GetUtcNow());
         await db.SaveChangesAsync(cancellationToken);
         return TenantDto.From(tenant);

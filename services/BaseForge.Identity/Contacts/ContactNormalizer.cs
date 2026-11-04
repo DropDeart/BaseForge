@@ -1,3 +1,5 @@
+using BaseForge.Identity.ErrorHandling;
+
 namespace BaseForge.Identity.Contacts;
 
 /// <summary>E-posta ve telefonun tek biçimi; davet, OTP ve kullanıcı eşleşmesi aynı değeri kullanır.</summary>
@@ -30,4 +32,8 @@ public static class ContactNormalizer
 
         return international.Length is >= 8 and <= 15 ? "+" + international : null;
     }
+
+    /// <summary>Telefonu normalize eder; geçersizse 400.</summary>
+    public static string RequirePhone(string? value, string defaultCountryCode)
+        => Phone(value, defaultCountryCode) ?? throw IdentityException.Invalid("Telefon numarası geçersiz.");
 }

@@ -6,9 +6,6 @@ namespace BaseForge.Identity.Tenancy;
 /// <summary>Kiracı yönetimi servis kayıtları.</summary>
 public static class TenancyRegistration
 {
-    /// <summary>Cookie (Ortak Giriş SPA) ve Bearer (diğer uygulamalar) birlikte kabul edilir.</summary>
-    public const string AuthSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore";
-
     /// <summary>Şirket onaylayan platform yöneticisi politikası.</summary>
     public const string ApproverPolicy = "tenancy.approver";
 
@@ -22,10 +19,10 @@ public static class TenancyRegistration
         services.AddScoped<IMemberAdministrationService, MemberAdministrationService>();
         services.AddScoped<ITenantTokenResolver, TenantTokenResolver>();
 
-        var approverRoles = options.MultiTenancy.ApproverRoles.Count > 0 ? options.MultiTenancy.ApproverRoles : ["SuperAdmin"];
+        // Roller boş olamaz (auth.yaml doğrulaması); şirket onayı ve üye yönetiminde platform yöneticisini bu politika belirler.
         services.AddAuthorizationBuilder().AddPolicy(ApproverPolicy, policy => policy
-            .AddAuthenticationSchemes(AuthSchemes.Split(','))
-            .RequireRole(approverRoles));
+            .AddAuthenticationSchemes(AuthSchemes.CookieOrBearer.Split(','))
+            .RequireRole(options.MultiTenancy.ApproverRoles));
         return services;
     }
 }

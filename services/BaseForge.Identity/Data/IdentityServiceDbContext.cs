@@ -1,3 +1,4 @@
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.Otp;
 using BaseForge.Identity.Profile;
@@ -25,5 +26,6 @@ public sealed class IdentityServiceDbContext : IdentityDbContext<ApplicationUser
         UserProfile.Configure(builder);
         TenancyModel.Configure(builder);
         OtpModel.Configure(builder);
+        AccountModel.Configure(builder);
     }
 }

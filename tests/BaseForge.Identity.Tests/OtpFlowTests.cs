@@ -14,14 +14,12 @@ namespace BaseForge.Identity.Tests;
 /// <summary>Kod gönderme/doğrulama, telefonla kayıt/giriş, telefon ve e-posta doğrulaması (gerçek Postgres).</summary>
 public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<TenancyFixture>
 {
-    private static string Phone() => $"+90555{Random.Shared.Next(1_000_000, 9_999_999)}";
-
     [DbFact]
     public async Task Code_VerifiesOnce_AndIsPurposeBound()
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var otp = scope.ServiceProvider.GetRequiredService<IOtpService>();
-        var phone = Phone();
+        var phone = TenancyFixture.Phone();
 
         await otp.SendAsync(OtpChannel.Sms, phone, OtpPurpose.Login, default);
         var code = fixture.Messages.LastCodeFor(phone);
@@ -37,16 +35,17 @@ public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<Tenancy
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var otp = scope.ServiceProvider.GetRequiredService<IOtpService>();
-        var phone = Phone();
+        var phone = TenancyFixture.Phone();
 
         await otp.SendAsync(OtpChannel.Sms, phone, OtpPurpose.Login, default);
         var tooSoon = await Assert.ThrowsAsync<IdentityException>(() => otp.SendAsync(OtpChannel.Sms, phone, OtpPurpose.Login, default));
         Assert.Equal(HttpStatusCode.TooManyRequests, tooSoon.Status);
 
         var code = fixture.Messages.LastCodeFor(phone);
+        var wrong = code == "000000" ? "111111" : "000000";
         for (var i = 0; i < fixture.Options.Otp.MaxAttempts; i++)
         {
-            Assert.False(await otp.VerifyAsync(OtpChannel.Sms, phone, OtpPurpose.Login, "000000" == code ? "111111" : "000000", default));
+            Assert.False(await otp.VerifyAsync(OtpChannel.Sms, phone, OtpPurpose.Login, wrong, default));
         }
 
         Assert.False(await otp.VerifyAsync(OtpChannel.Sms, phone, OtpPurpose.Login, code, default));   // deneme hakkı bitti
@@ -58,16 +57,15 @@ public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<Tenancy
         await using var scope = fixture.Services.CreateAsyncScope();
         var otp = scope.ServiceProvider.GetRequiredService<IOtpService>();
         var db = scope.ServiceProvider.GetRequiredService<IdentityServiceDbContext>();
-        var phone = Phone();
+        var phone = TenancyFixture.Phone();
 
         await otp.SendAsync(OtpChannel.Sms, phone, OtpPurpose.Login, default);
         var first = fixture.Messages.LastCodeFor(phone);
-        await db.Set<OtpChallenge>().Where(c => c.Target == phone)
-            .ExecuteUpdateAsync(set => set.SetProperty(c => c.CreatedAt, c => c.CreatedAt.AddMinutes(-2)));   // bekleme geçti
+        await TenancyFixture.AgeChallengesAsync(scope.ServiceProvider, phone);   // bekleme geçti
         await otp.SendAsync(OtpChannel.Sms, phone, OtpPurpose.Login, default);
         var second = fixture.Messages.LastCodeFor(phone);
 
-        if (first != second)
+        if (first != second)   // milyonda bir aynı kod üretilebilir; o durumda eski kodu ayrıca sınamak anlamsız
         {
             Assert.False(await otp.VerifyAsync(OtpChannel.Sms, phone, OtpPurpose.Login, first, default));
         }
@@ -81,7 +79,7 @@ public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<Tenancy
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
         var verification = sp.GetRequiredService<IContactVerificationService>();
-        var phone = Phone();
+        var phone = TenancyFixture.Phone();
         var local = "0" + phone[3..];   // 0555... yazımı aynı numaraya gider
 
         await verification.SendLoginCodeAsync(local, default);
@@ -91,8 +89,7 @@ public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<Tenancy
         Assert.Null(user.Email);
         Assert.Contains("Driver", await sp.GetRequiredService<UserManager<ApplicationUser>>().GetRolesAsync(user));
 
-        await sp.GetRequiredService<IdentityServiceDbContext>().Set<OtpChallenge>().Where(c => c.Target == phone)
-            .ExecuteUpdateAsync(set => set.SetProperty(c => c.CreatedAt, c => c.CreatedAt.AddMinutes(-2)));
+        await TenancyFixture.AgeChallengesAsync(sp, phone);
         await verification.SendLoginCodeAsync(phone, default);
         var again = await verification.SignInWithPhoneAsync(phone, fixture.Messages.LastCodeFor(phone), null, default);
         Assert.Equal(user.Id, again.Id);
@@ -106,12 +103,10 @@ public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<Tenancy
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
         var verification = sp.GetRequiredService<IContactVerificationService>();
-        var phone = Phone();
+        var phone = TenancyFixture.Phone();
 
-        var owner = await TenancyFixture.CreateUserAsync(sp, $"o{Guid.NewGuid():N}@t.local");
-        var tenant = await sp.GetRequiredService<ITenantOnboardingService>().CreateAsync(owner.Id, new CreateTenantRequest("Telefon Davet", null), default);
-        await sp.GetRequiredService<ITenantOnboardingService>().ReviewAsync(tenant.Tenant.Id, TenantStatus.Active, Guid.NewGuid(), null, default);
-        await sp.GetRequiredService<IMemberAdministrationService>().InviteAsync(tenant.Tenant.Id, new TenantActor(owner.Id, false),
+        var (tenantId, ownerId, _) = await TenancyFixture.ActiveTenantAsync(sp, "Telefon Davet");
+        await sp.GetRequiredService<IMemberAdministrationService>().InviteAsync(tenantId, new TenantActor(ownerId, false),
             new InviteMemberRequest(null, phone, ["Operator"]), default);
 
         var driver = await TenancyFixture.CreateUserAsync(sp, $"d{Guid.NewGuid():N}@t.local");
@@ -132,10 +127,8 @@ public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<Tenancy
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
         var email = $"e{Guid.NewGuid():N}@t.local";
-        var owner = await TenancyFixture.CreateUserAsync(sp, $"o{Guid.NewGuid():N}@t.local");
-        var tenant = await sp.GetRequiredService<ITenantOnboardingService>().CreateAsync(owner.Id, new CreateTenantRequest("E-posta Davet", null), default);
-        await sp.GetRequiredService<ITenantOnboardingService>().ReviewAsync(tenant.Tenant.Id, TenantStatus.Active, Guid.NewGuid(), null, default);
-        await sp.GetRequiredService<IMemberAdministrationService>().InviteAsync(tenant.Tenant.Id, new TenantActor(owner.Id, false),
+        var (tenantId, ownerId, _) = await TenancyFixture.ActiveTenantAsync(sp, "E-posta Davet");
+        await sp.GetRequiredService<IMemberAdministrationService>().InviteAsync(tenantId, new TenantActor(ownerId, false),
             new InviteMemberRequest(email, null, ["Operator"]), default);
 
         var user = await TenancyFixture.CreateUserAsync(sp, email, emailConfirmed: false);
@@ -154,7 +147,7 @@ public sealed class OtpFlowTests(TenancyFixture fixture) : IClassFixture<Tenancy
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var email = $"u{Guid.NewGuid():N}@t.local";
 
-        Assert.True((await users.CreateAsync(new ApplicationUser { UserName = Phone() })).Succeeded);
+        Assert.True((await users.CreateAsync(new ApplicationUser { UserName = TenancyFixture.Phone() })).Succeeded);
         Assert.True((await users.CreateAsync(new ApplicationUser { UserName = email, Email = email })).Succeeded);
         Assert.False((await users.CreateAsync(new ApplicationUser { UserName = "x" + email, Email = email })).Succeeded);
     }

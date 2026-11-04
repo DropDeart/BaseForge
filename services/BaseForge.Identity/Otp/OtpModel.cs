@@ -15,6 +15,7 @@ public static class OtpModel
             otp.Property(o => o.Target).HasMaxLength(256);
             otp.Property(o => o.CodeHash).HasMaxLength(128);
             otp.HasIndex(o => new { o.Target, o.Purpose, o.CreatedAt });
+            otp.HasIndex(o => o.CreatedAt);   // OtpCleanupService
         });
 
     /// <summary>0.6.3 ve öncesinden gelen identity_db için idempotent DDL.</summary>
@@ -32,5 +33,6 @@ public static class OtpModel
                 "ConsumedAt" timestamp with time zone NULL
             );
             CREATE INDEX IF NOT EXISTS "IX_OtpChallenges_Target_Purpose_CreatedAt" ON "OtpChallenges" ("Target", "Purpose", "CreatedAt");
+            CREATE INDEX IF NOT EXISTS "IX_OtpChallenges_CreatedAt" ON "OtpChallenges" ("CreatedAt");
             """, cancellationToken);
 }

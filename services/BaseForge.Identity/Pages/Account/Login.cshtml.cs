@@ -1,5 +1,4 @@
 using BaseForge.Identity.Accounts;
-using System.Security.Claims;
 using BaseForge.Identity.Entities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -11,15 +10,12 @@ namespace BaseForge.Identity.Pages.Account;
 public sealed class LoginModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly UserManager<ApplicationUser> _userManager;
-
     private readonly IExternalAccountService _externalAccounts;
 
-    public LoginModel(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, IExternalAccountService externalAccounts)
+    public LoginModel(SignInManager<ApplicationUser> signInManager, IExternalAccountService externalAccounts)
     {
         _externalAccounts = externalAccounts;
         _signInManager = signInManager;
-        _userManager = userManager;
     }
 
     [BindProperty]

@@ -182,32 +182,10 @@ internal static class IdentityGenerator
                     ["RedirectUris"] = c.RedirectUris,
                 }).ToList(),
                 ["Roles"] = AuthSpecValidator.AllRoles(spec),
-                ["Registration"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["Enabled"] = spec.Registration.Enabled,
-                    ["DefaultRole"] = spec.Registration.DefaultRole,
-                    ["SelfAssignableRoles"] = spec.Registration.SelfAssignableRoles,
-                },
-                ["Otp"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["Enabled"] = spec.Otp.Enabled,
-                    ["CodeLength"] = spec.Otp.CodeLength,
-                    ["LifetimeSeconds"] = spec.Otp.LifetimeSeconds,
-                    ["MaxAttempts"] = spec.Otp.MaxAttempts,
-                    ["ResendCooldownSeconds"] = spec.Otp.ResendCooldownSeconds,
-                    ["MaxPerHour"] = spec.Otp.MaxPerHour,
-                    ["DefaultCountryCode"] = spec.Otp.DefaultCountryCode,
-                    ["SmsProvider"] = spec.Otp.SmsProvider,
-                    ["EmailProvider"] = spec.Otp.EmailProvider,
-                },
-                ["MultiTenancy"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["Enabled"] = spec.MultiTenancy.Enabled,
-                    ["AdminRole"] = spec.MultiTenancy.AdminRole,
-                    ["MemberRoles"] = spec.MultiTenancy.MemberRoles,
-                    ["RequireApproval"] = spec.MultiTenancy.RequireApproval,
-                    ["ApproverRoles"] = spec.MultiTenancy.ApproverRoles,
-                },
+                // Gizli alan içermeyen bölümler spec nesnesinden doğrudan (AuthOptions ile aynı alan adları).
+                ["Registration"] = spec.Registration,
+                ["Otp"] = spec.Otp,
+                ["MultiTenancy"] = spec.MultiTenancy,
                 ["SeedAdmin"] = spec.SeedAdmin is null ? null : new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["Email"] = spec.SeedAdmin.Email,

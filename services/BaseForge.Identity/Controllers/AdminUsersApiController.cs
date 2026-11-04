@@ -19,11 +19,13 @@ public sealed class AdminUsersApiController : ControllerBase
 
     /// <summary>Atanabilir roller: her zaman var olan Admin/User + auth.yaml'daki <c>roles</c> (SeedData ile aynı küme).</summary>
     private readonly string[] _knownRoles;
+    private readonly IReadOnlyList<string> _tenantRoles;
 
     public AdminUsersApiController(UserManager<ApplicationUser> userManager, AuthOptions authOptions)
     {
         _userManager = userManager;
         _knownRoles = new[] { SeedData.AdminRole, SeedData.UserRole }.Concat(authOptions.Roles).Distinct(StringComparer.Ordinal).ToArray();
+        _tenantRoles = authOptions.MultiTenancy.Enabled ? authOptions.MultiTenancy.AllMemberRoles : [];
     }
 
     [HttpGet("roles")]
@@ -113,6 +115,11 @@ public sealed class AdminUsersApiController : ControllerBase
         if (!_knownRoles.Contains(request.Role, StringComparer.Ordinal))
         {
             return BadRequest(new ErrorResponse("Geçersiz rol."));
+        }
+
+        if (_tenantRoles.Contains(request.Role, StringComparer.Ordinal))
+        {
+            return BadRequest(new ErrorResponse("Bu rol şirket içi roldür; şirketin üye yönetiminden verilir."));
         }
 
         if (!await _userManager.IsInRoleAsync(user, request.Role))

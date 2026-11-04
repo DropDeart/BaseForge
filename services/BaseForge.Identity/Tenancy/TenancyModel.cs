@@ -6,7 +6,7 @@ namespace BaseForge.Identity.Tenancy;
 /// <summary>Şirket tablolarının EF eşlemesi ve var olan veritabanına eklenmesi.</summary>
 public static class TenancyModel
 {
-    private const string OpenStatuses = "'Invited','Requested','Active'";
+    private static readonly string OpenStatuses = string.Join(",", TenantMembership.OpenStatuses.Select(s => $"'{s}'"));
 
     /// <summary>EF modeli (yeni veritabanında EnsureCreated bunlardan oluşturur).</summary>
     public static void Configure(ModelBuilder builder)
@@ -44,7 +44,9 @@ public static class TenancyModel
     /// tabloları idempotent DDL ile oluşturur (EF modeliyle aynı şema).
     /// </summary>
     public static Task EnsureTablesAsync(DbContext db, CancellationToken cancellationToken = default)
-        => db.Database.ExecuteSqlRawAsync($"""
+    {
+        // OpenStatuses enum adlarından üretilir (kullanıcı girdisi değil).
+        var ddl = $"""
             CREATE TABLE IF NOT EXISTS "Tenants" (
                 "Id" uuid NOT NULL CONSTRAINT "PK_Tenants" PRIMARY KEY,
                 "Name" character varying(200) NOT NULL,
@@ -77,5 +79,7 @@ public static class TenancyModel
             CREATE INDEX IF NOT EXISTS "IX_TenantMemberships_UserId" ON "TenantMemberships" ("UserId");
             CREATE INDEX IF NOT EXISTS "IX_TenantMemberships_InvitedEmail" ON "TenantMemberships" ("InvitedEmail");
             CREATE INDEX IF NOT EXISTS "IX_TenantMemberships_InvitedPhone" ON "TenantMemberships" ("InvitedPhone");
-            """, cancellationToken);
+            """;
+        return db.Database.ExecuteSqlRawAsync(ddl, cancellationToken);
+    }
 }

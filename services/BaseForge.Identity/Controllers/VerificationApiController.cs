@@ -1,7 +1,6 @@
 using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Entities;
-using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Otp;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -29,36 +28,33 @@ public sealed class VerificationApiController(UserManager<ApplicationUser> userM
 
     /// <summary>Hesaba eklenecek telefona kod gönderir.</summary>
     [HttpPost("phone/send")]
-    [Authorize(AuthenticationSchemes = OtpRegistration.AuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<OtpSendResult> SendPhoneCode(PhoneRequest request, CancellationToken cancellationToken)
-        => await verification.SendPhoneCodeAsync(await CurrentUserAsync(), request.Phone, cancellationToken);
+        => await verification.SendPhoneCodeAsync(await userManager.GetRequiredUserAsync(User), request.Phone, cancellationToken);
 
     /// <summary>Telefonu doğrular ve hesaba yazar.</summary>
     [HttpPost("phone/verify")]
-    [Authorize(AuthenticationSchemes = OtpRegistration.AuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> VerifyPhone(PhoneCodeRequest request, CancellationToken cancellationToken)
     {
-        await verification.ConfirmPhoneAsync(await CurrentUserAsync(), request.Phone, request.Code, cancellationToken);
+        await verification.ConfirmPhoneAsync(await userManager.GetRequiredUserAsync(User), request.Phone, request.Code, cancellationToken);
         return NoContent();
     }
 
     /// <summary>Hesabın e-postasına doğrulama kodu gönderir.</summary>
     [HttpPost("email/send")]
-    [Authorize(AuthenticationSchemes = OtpRegistration.AuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<OtpSendResult> SendEmailCode(CancellationToken cancellationToken)
-        => await verification.SendEmailCodeAsync(await CurrentUserAsync(), cancellationToken);
+        => await verification.SendEmailCodeAsync(await userManager.GetRequiredUserAsync(User), cancellationToken);
 
     /// <summary>E-postayı doğrular.</summary>
     [HttpPost("email/verify")]
-    [Authorize(AuthenticationSchemes = OtpRegistration.AuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> VerifyEmail(CodeRequest request, CancellationToken cancellationToken)
     {
-        await verification.ConfirmEmailAsync(await CurrentUserAsync(), request.Code, cancellationToken);
+        await verification.ConfirmEmailAsync(await userManager.GetRequiredUserAsync(User), request.Code, cancellationToken);
         return NoContent();
     }
-
-    private async Task<ApplicationUser> CurrentUserAsync()
-        => await userManager.GetUserAsync(User) ?? throw IdentityException.Forbidden("Kullanıcı bulunamadı.");
 }
 
 /// <summary>Telefon.</summary>

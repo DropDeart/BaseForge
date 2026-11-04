@@ -124,8 +124,13 @@ builder.Services.AddOpenIddict()
                .AllowClientCredentialsFlow()
                .AllowRefreshTokenFlow()
                .AllowAuthorizationCodeFlow()
-               .AllowCustomFlow(OtpRegistration.GrantType)
                .RequireProofKeyForCodeExchange();
+
+        // Telefonla giriş grant'ı yalnız otp açıkken; kapalıyken OpenIddict unsupported_grant_type döner.
+        if (authOptions.Otp.Enabled)
+        {
+            options.AllowCustomFlow(OtpRegistration.GrantType);
+        }
 
         // Scope'lar config'ten + standart OIDC scope'ları.
         var scopeNames = authOptions.Scopes
@@ -205,8 +210,16 @@ await using (var scope = app.Services.CreateAsyncScope())
     await db.Database.EnsureCreatedAsync();
     // EnsureCreated var olan tabloyu değiştirmez: sonradan eklenen userProfile alanlarının kolonlarını ekle.
     await BaseForge.Identity.Profile.UserProfile.EnsureColumnsAsync(db);
-    await TenancyModel.EnsureTablesAsync(db);
-    await OtpModel.EnsureTableAsync(db);
+    await AccountModel.EnsureIndexesAsync(db);
+    if (authOptions.MultiTenancy.Enabled)
+    {
+        await TenancyModel.EnsureTablesAsync(db);
+    }
+
+    if (authOptions.Otp.Enabled)
+    {
+        await OtpModel.EnsureTableAsync(db);
+    }
     await SeedData.SeedAsync(scope.ServiceProvider, authOptions);
 }
 

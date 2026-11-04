@@ -92,7 +92,7 @@ internal sealed class ContactVerificationService(
 
     public Task<OtpSendResult> SendEmailCodeAsync(ApplicationUser user, CancellationToken cancellationToken)
     {
-        var email = ContactNormalizer.Email(user.Email) ?? throw IdentityException.Invalid("Hesapta e-posta yok.");
+        var email = RequireEmail(user);
         if (user.EmailConfirmed)
         {
             throw IdentityException.Conflict("E-posta zaten doğrulanmış.");
@@ -103,7 +103,7 @@ internal sealed class ContactVerificationService(
 
     public async Task ConfirmEmailAsync(ApplicationUser user, string code, CancellationToken cancellationToken)
     {
-        var email = ContactNormalizer.Email(user.Email) ?? throw IdentityException.Invalid("Hesapta e-posta yok.");
+        var email = RequireEmail(user);
         if (!await otp.VerifyAsync(OtpChannel.Email, email, OtpPurpose.VerifyEmail, code, cancellationToken))
         {
             throw IdentityException.Invalid(InvalidCode);
@@ -114,11 +114,13 @@ internal sealed class ContactVerificationService(
         await memberships.ClaimInvitationsAsync(user, cancellationToken);
     }
 
-    private string NormalizePhone(string phone)
-        => ContactNormalizer.Phone(phone, options.Otp.DefaultCountryCode) ?? throw IdentityException.Invalid("Telefon numarası geçersiz.");
+    private string NormalizePhone(string phone) => ContactNormalizer.RequirePhone(phone, options.Otp.DefaultCountryCode);
+
+    private static string RequireEmail(ApplicationUser user)
+        => ContactNormalizer.Email(user.Email) ?? throw IdentityException.Invalid("Hesapta e-posta yok.");
 
     private Task<ApplicationUser?> FindByConfirmedPhoneAsync(string phone, CancellationToken cancellationToken)
-        => userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phone && u.PhoneNumberConfirmed, cancellationToken);
+        => userManager.Users.FindByConfirmedPhoneAsync(phone, cancellationToken);
 
     // Doğrulanmış bir numara tek hesaba aittir.
     private async Task EnsurePhoneFreeAsync(ApplicationUser user, string phone, CancellationToken cancellationToken)

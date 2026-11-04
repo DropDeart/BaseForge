@@ -28,7 +28,6 @@ internal sealed class OtpService(
     AuthOptions authOptions,
     TimeProvider clock) : IOtpService
 {
-    private static readonly TimeSpan Retention = TimeSpan.FromDays(1);
     private readonly OtpOptions _options = authOptions.Otp;
 
     private DbSet<OtpChallenge> Challenges => db.Set<OtpChallenge>();
@@ -64,7 +63,6 @@ internal sealed class OtpService(
             ExpiresAt = now.AddSeconds(_options.LifetimeSeconds),
         });
         await db.SaveChangesAsync(cancellationToken);
-        await Challenges.Where(c => c.CreatedAt < now - Retention).ExecuteDeleteAsync(cancellationToken);
 
         var message = string.Format(CultureInfo.InvariantCulture, "Doğrulama kodunuz: {0}. {1} dakika geçerlidir; kimseyle paylaşmayın.",
             code, Math.Max(1, _options.LifetimeSeconds / 60));

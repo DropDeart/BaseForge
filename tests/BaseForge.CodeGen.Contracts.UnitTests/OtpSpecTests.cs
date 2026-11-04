@@ -3,19 +3,7 @@ namespace BaseForge.CodeGen.Contracts.UnitTests;
 /// <summary>auth.yaml otp bölümü (0.6.4).</summary>
 public class OtpSpecTests
 {
-    private static AuthSpec Load(string yaml)
-    {
-        var path = System.IO.Path.GetTempFileName();
-        try
-        {
-            File.WriteAllText(path, yaml);
-            return SpecLoader.Load<AuthSpec>(path);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
+    private static AuthSpec Load(string yaml) => SampleSpecs.LoadYaml<AuthSpec>(yaml);
 
     private const string Base = """
         service: identity

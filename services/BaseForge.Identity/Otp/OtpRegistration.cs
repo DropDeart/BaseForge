@@ -12,9 +12,6 @@ public static class OtpRegistration
     /// <summary>Telefonla giriş grant tipi (client grants: <c>otp</c>).</summary>
     public const string GrantType = "urn:baseforge:grant-type:otp";
 
-    /// <summary>Cookie ve Bearer birlikte.</summary>
-    public const string AuthSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore";
-
     /// <summary>Kod gönderme uçlarının IP başına sınırı.</summary>
     public const string SendPolicy = "otp.send";
 
@@ -27,21 +24,25 @@ public static class OtpRegistration
     public static IServiceCollection AddOtp(this IServiceCollection services, AuthOptions options, IHostEnvironment environment)
     {
         var otp = options.Otp;
-        if (otp.Enabled && !environment.IsDevelopment()
-            && (otp.SmsProvider == LogProvider || otp.EmailProvider == LogProvider))
+        EnsureKnownProvider(otp.SmsProvider, "SmsProvider");
+        EnsureKnownProvider(otp.EmailProvider, "EmailProvider");
+
+        // Şimdilik tek sağlayıcı 'Log': production'da kod hiçbir yere gitmeyeceği için açılmaz.
+        if (otp.Enabled && !environment.IsDevelopment())
         {
             throw new InvalidOperationException(
                 "Auth:Otp açık ama SMS/e-posta sağlayıcısı 'Log' (yalnız geliştirme). Gerçek bir sağlayıcı ekleyin ya da Otp'yi kapatın.");
         }
-
-        EnsureKnownProvider(otp.SmsProvider, "SmsProvider");
-        EnsureKnownProvider(otp.EmailProvider, "EmailProvider");
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<LogMessageSender>();
         services.AddSingleton<ISmsSender>(sp => sp.GetRequiredService<LogMessageSender>());
         services.AddSingleton<IEmailSender>(sp => sp.GetRequiredService<LogMessageSender>());
         services.AddScoped<IOtpService, OtpService>();
+        if (otp.Enabled)
+        {
+            services.AddHostedService<OtpCleanupService>();
+        }
 
         services.AddRateLimiter(limiter =>
         {

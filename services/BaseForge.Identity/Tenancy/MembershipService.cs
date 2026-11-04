@@ -31,7 +31,7 @@ public interface IMembershipService
     /// <summary>Şirketten ayrılır ya da isteğini geri çeker.</summary>
     Task LeaveAsync(Guid userId, Guid membershipId, CancellationToken cancellationToken);
 
-    /// <summary>Doğrulanmış e-posta/telefona gelmiş davetleri kullanıcıya bağlar.</summary>
+    /// <summary>Doğrulanmış e-posta/telefona gelmiş davetleri kullanıcıya bağlar (kiracı yönetimi kapalıysa bir şey yapmaz).</summary>
     Task ClaimInvitationsAsync(ApplicationUser user, CancellationToken cancellationToken);
 }
 
@@ -44,13 +44,14 @@ internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdmi
     public async Task<IReadOnlyList<MyMembershipDto>> ListMineAsync(ApplicationUser user, CancellationToken cancellationToken)
     {
         await ClaimInvitationsAsync(user, cancellationToken);
-        var rows = await Memberships
-            .Include(m => m.Tenant)
-            .Where(m => m.UserId == user.Id
-                        && (m.Status == MembershipStatus.Invited || m.Status == MembershipStatus.Requested || m.Status == MembershipStatus.Active))
+        return await Memberships.AsNoTracking()
+            .OpenFor(user.Id)
             .OrderBy(m => m.Tenant!.Name)
+            .Select(m => new MyMembershipDto(
+                m.Id,
+                new TenantDto(m.Tenant!.Id, m.Tenant.Name, m.Tenant.Slug, m.Tenant.TaxNo, m.Tenant.Status, m.Tenant.CreatedAt),
+                m.Status, m.Roles, m.IsDefault))
             .ToListAsync(cancellationToken);
-        return rows.Select(m => new MyMembershipDto(m.Id, TenantDto.From(m.Tenant!), m.Status, m.Roles, m.IsDefault)).ToList();
     }
 
     public async Task<TenantLookupDto> LookupAsync(string slug, CancellationToken cancellationToken)
@@ -62,8 +63,7 @@ internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdmi
     public async Task<MyMembershipDto> RequestJoinAsync(Guid userId, string slug, CancellationToken cancellationToken)
     {
         var tenant = await FindActiveBySlugAsync(slug, cancellationToken);
-        if (await Memberships.AnyAsync(m => m.TenantId == tenant.Id && m.UserId == userId
-                && (m.Status == MembershipStatus.Invited || m.Status == MembershipStatus.Requested || m.Status == MembershipStatus.Active), cancellationToken))
+        if (await Memberships.OpenFor(userId).AnyAsync(m => m.TenantId == tenant.Id, cancellationToken))
         {
             throw IdentityException.Conflict("Bu şirkette zaten üyeliğiniz, davetiniz ya da bekleyen isteğiniz var.");
         }
@@ -91,7 +91,7 @@ internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdmi
         }
 
         membership.Accept(clock.GetUtcNow());
-        membership.IsDefault = !await Memberships.AnyAsync(m => m.UserId == userId && m.IsDefault, cancellationToken);
+        membership.IsDefault = !await Memberships.HasDefaultAsync(userId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -129,7 +129,7 @@ internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdmi
         // Yalnız doğrulanmış iletişim bilgisi: başkasının e-postasıyla kayıt olup daveti sahiplenmek engellenir.
         var email = user.EmailConfirmed ? ContactNormalizer.Email(user.Email) : null;
         var phone = user.PhoneNumberConfirmed ? ContactNormalizer.Phone(user.PhoneNumber, options.Otp.DefaultCountryCode) : null;
-        if (email is null && phone is null)
+        if (!options.MultiTenancy.Enabled || (email is null && phone is null))
         {
             return;
         }
@@ -143,11 +143,7 @@ internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdmi
             return;
         }
 
-        var openTenants = await Memberships
-            .Where(m => m.UserId == user.Id
-                        && (m.Status == MembershipStatus.Invited || m.Status == MembershipStatus.Requested || m.Status == MembershipStatus.Active))
-            .Select(m => m.TenantId)
-            .ToListAsync(cancellationToken);
+        var openTenants = await Memberships.OpenFor(user.Id).Select(m => m.TenantId).ToListAsync(cancellationToken);
 
         foreach (var invitation in invitations)
         {
@@ -166,7 +162,7 @@ internal sealed class MembershipService(IdentityServiceDbContext db, ITenantAdmi
 
     private async Task<Tenant> FindActiveBySlugAsync(string slug, CancellationToken cancellationToken)
     {
-        var normalized = slug?.Trim().ToLowerInvariant() ?? string.Empty;
+        var normalized = slug.Trim().ToLowerInvariant();
         return await db.Set<Tenant>().FirstOrDefaultAsync(t => t.Slug == normalized && t.Status == TenantStatus.Active, cancellationToken)
             ?? throw IdentityException.NotFound("Bu kodla aktif bir şirket bulunamadı.");
     }

@@ -1,6 +1,6 @@
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Entities;
-using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -12,11 +12,11 @@ namespace BaseForge.Identity.Controllers;
 [ApiController]
 [Route("api/tenants/{tenantId:guid}/members")]
 [RequireFeature(AuthFeature.MultiTenancy)]
-[Authorize(AuthenticationSchemes = TenancyRegistration.AuthSchemes)]
+[Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
 public sealed class TenantMembersApiController(
     UserManager<ApplicationUser> userManager,
     IMemberAdministrationService members,
-    AuthOptions authOptions) : ControllerBase
+    IAuthorizationService authorization) : ControllerBase
 {
     /// <summary>Üyeler, davetler, istekler.</summary>
     [HttpGet]
@@ -60,10 +60,8 @@ public sealed class TenantMembersApiController(
         return NoContent();
     }
 
+    // Platform yöneticisi = şirket onaylayan politika (üye olmadan da yönetebilir).
     private async Task<TenantActor> ActorAsync()
-    {
-        var user = await userManager.GetUserAsync(User) ?? throw IdentityException.Forbidden("Kullanıcı bulunamadı.");
-        var isPlatformAdmin = authOptions.MultiTenancy.ApproverRoles.Any(User.IsInRole);
-        return new TenantActor(user.Id, isPlatformAdmin);
-    }
+        => new(userManager.GetRequiredUserId(User),
+            (await authorization.AuthorizeAsync(User, TenancyRegistration.ApproverPolicy)).Succeeded);
 }

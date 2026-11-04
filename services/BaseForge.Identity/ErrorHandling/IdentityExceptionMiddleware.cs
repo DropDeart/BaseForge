@@ -13,6 +13,12 @@ public sealed partial class IdentityExceptionMiddleware(RequestDelegate next, IL
         {
             await next(context);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            // Eşzamanlı aynı kayıt (ör. aynı şirkete iki davet): 500 değil 409.
+            LogRuleViolation(logger, "db.unique_violation", ex.InnerException.Message);
+            await WriteAsync(context, HttpStatusCode.Conflict, "db.unique_violation", "Bu kayıt zaten var.");
+        }
         catch (IdentityException ex)
         {
             LogRuleViolation(logger, ex.ErrorCode, ex.Message);
