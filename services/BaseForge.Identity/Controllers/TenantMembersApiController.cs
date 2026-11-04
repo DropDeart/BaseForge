@@ -60,8 +60,5 @@ public sealed class TenantMembersApiController(
         return NoContent();
     }
 
-    // Platform yöneticisi = şirket onaylayan politika (üye olmadan da yönetebilir).
-    private async Task<TenantActor> ActorAsync()
-        => new(userManager.GetRequiredUserId(User),
-            (await authorization.AuthorizeAsync(User, TenancyRegistration.ApproverPolicy)).Succeeded);
+    private Task<TenantActor> ActorAsync() => authorization.GetTenantActorAsync(userManager, User);
 }

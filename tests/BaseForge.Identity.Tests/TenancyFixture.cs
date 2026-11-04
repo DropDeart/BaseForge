@@ -26,6 +26,7 @@ public sealed class TenancyFixture : IAsyncLifetime
         Roles = ["SuperAdmin", "TenantAdmin", "Operator", "Driver"],
         Registration = new RegistrationOptions { Enabled = true, DefaultRole = "User", SelfAssignableRoles = ["Driver"] },
         Otp = new OtpOptions { Enabled = true, ResendCooldownSeconds = 60, MaxPerHour = 3, MaxAttempts = 3 },
+        PasswordReset = new PasswordResetOptions { Enabled = true, ResetUrl = "https://app.test/sifre-sifirla", CooldownSeconds = 60 },
         MultiTenancy = new MultiTenancyOptions
         {
             Enabled = true,
@@ -54,14 +55,18 @@ public sealed class TenancyFixture : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<IdentityServiceDbContext>(o => o.UseNpgsql(_container.GetConnectionString()));
+        services.AddDataProtection();   // şifre sıfırlama token'ları (uygulamada AddIdentity ekler)
+        services.AddDbContext<IdentityServiceDbContext>(o => o.UseNpgsql(_container.GetConnectionString()).UseOpenIddict());
         services.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
-            .AddEntityFrameworkStores<IdentityServiceDbContext>();
+            .AddEntityFrameworkStores<IdentityServiceDbContext>()
+            .AddDefaultTokenProviders();
+        services.AddOpenIddict().AddCore(o => o.UseEntityFrameworkCore().UseDbContext<IdentityServiceDbContext>());
         services.AddSingleton(Options);
         services.AddTenancy(Options);
-        services.AddAccounts();
-        services.AddOtp(Options, new DevelopmentEnvironment());
+        services.AddAccounts(Options);
+        services.AddMessaging(Options, new DevelopmentEnvironment());
+        services.AddOtp(Options);
         services.AddSingleton<ISmsSender>(Messages);
         services.AddSingleton<IEmailSender>(Messages);
         _provider = services.BuildServiceProvider();
@@ -151,18 +156,21 @@ public sealed class CapturingSender : ISmsSender, IEmailSender
         return Task.CompletedTask;
     }
 
-    public Task SendAsync(string email, string subject, string body, CancellationToken cancellationToken)
-        => SendAsync(email, body, cancellationToken);
+    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+        => SendAsync(message.To, message.Text, cancellationToken);
 
-    /// <summary>Hedefe giden son mesajdaki kod.</summary>
-    public string LastCodeFor(string to)
+    /// <summary>Hedefe giden son mesaj (yoksa null).</summary>
+    public string? LastTo(string to)
     {
         lock (_sent)
         {
-            var text = _sent.Last(m => m.To == to).Text;
-            return new string(text.SkipWhile(c => !char.IsAsciiDigit(c)).TakeWhile(char.IsAsciiDigit).ToArray());
+            return _sent.LastOrDefault(m => m.To == to).Text;
         }
     }
+
+    /// <summary>Hedefe giden son mesajdaki kod (4-8 haneli son sayı).</summary>
+    public string LastCodeFor(string to)
+        => System.Text.RegularExpressions.Regex.Matches(LastTo(to) ?? string.Empty, @"\b\d{4,8}\b")[^1].Value;
 }
 
 /// <summary>Testte "Development" ortamı (Log sağlayıcısına izin).</summary>

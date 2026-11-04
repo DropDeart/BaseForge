@@ -16,7 +16,8 @@ namespace BaseForge.Identity.Controllers;
 public sealed class TenantsApiController(
     UserManager<ApplicationUser> userManager,
     IMembershipService memberships,
-    ITenantOnboardingService onboarding) : ControllerBase
+    ITenantOnboardingService onboarding,
+    IAuthorizationService authorization) : ControllerBase
 {
     /// <summary>Üyelikler, davetler ve bekleyen istekler.</summary>
     [HttpGet("mine")]
@@ -27,6 +28,11 @@ public sealed class TenantsApiController(
     [HttpPost]
     public async Task<MyMembershipDto> Create(CreateTenantRequest request, CancellationToken cancellationToken)
         => await onboarding.CreateAsync(userManager.GetRequiredUserId(User), request, cancellationToken);
+
+    /// <summary>Şirketin adını ve vergi numarasını günceller (şirket yöneticisi).</summary>
+    [HttpPut("{tenantId:guid}")]
+    public async Task<TenantDto> Update(Guid tenantId, UpdateTenantRequest request, CancellationToken cancellationToken)
+        => await onboarding.UpdateAsync(tenantId, await authorization.GetTenantActorAsync(userManager, User), request, cancellationToken);
 
     /// <summary>Şirket kodundan ad (katılmadan önce).</summary>
     [HttpGet("lookup/{slug}")]

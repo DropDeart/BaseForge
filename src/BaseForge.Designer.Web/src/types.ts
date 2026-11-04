@@ -148,9 +148,50 @@ export interface AuthSpec {
   /** Seed edilecek ek roller — Admin ve User her zaman var. */
   roles?: string[];
   /** Kendi kendine kayıt (varsayılan kapalı). Kapalıyken dış sağlayıcıyla da yeni hesap açılmaz. */
-  registration?: { enabled: boolean; defaultRole: string };
+  registration?: { enabled: boolean; defaultRole: string; selfAssignableRoles?: string[] };
+  /** Şirketler (kiracılar) — 0.6.4. */
+  multiTenancy?: MultiTenancySpec;
+  /** Tek kullanımlık kod (SMS/e-posta) — 0.6.4. */
+  otp?: OtpSpec;
+  /** E-posta/SMS göndericileri (SMTP parolası .env'de) — 0.6.4. */
+  messaging?: MessagingSpec;
+  /** Şifremi unuttum — 0.6.4. */
+  passwordReset?: PasswordResetSpec;
+  /** Access token ömrü (dk). */
+  accessTokenLifetimeMinutes?: number;
   /** Kullanıcıya eklenecek domain alanları (docs/ARCH.md §6.3). */
   userProfile?: { props: Record<string, PropSpec> } | null;
+}
+
+export interface MultiTenancySpec {
+  enabled: boolean;
+  adminRole: string;
+  memberRoles: string[];
+  requireApproval: boolean;
+  approverRoles: string[];
+}
+
+export interface OtpSpec {
+  enabled: boolean;
+  codeLength: number;
+  lifetimeSeconds: number;
+  maxAttempts: number;
+  resendCooldownSeconds: number;
+  maxPerHour: number;
+  defaultCountryCode: string;
+}
+
+export interface MessagingSpec {
+  emailProvider: string;
+  smsProvider: string;
+  smtp: { host: string; port: number; username?: string | null; fromAddress: string; fromName: string };
+}
+
+export interface PasswordResetSpec {
+  enabled: boolean;
+  resetUrl: string;
+  tokenLifetimeHours: number;
+  cooldownSeconds: number;
 }
 
 /** Identity'de her zaman var olan roller (AuthSpecValidator.AllRoles ile aynı). */

@@ -16,7 +16,7 @@ namespace BaseForge.Identity.Controllers;
 [ApiController]
 [Route("api/account")]
 [RequireFeature(AuthFeature.Otp)]
-[EnableRateLimiting(OtpRegistration.SendPolicy)]
+[EnableRateLimiting(AccountRegistration.MessageSendPolicy)]
 public sealed class VerificationApiController(UserManager<ApplicationUser> userManager, IContactVerificationService verification)
     : ControllerBase
 {

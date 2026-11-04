@@ -33,7 +33,7 @@ public class OtpSpecTests
     [Fact]
     public void InvalidValues_AreRejected()
     {
-        var spec = Load(Base + "otp:\n  enabled: true\n  codeLength: 12\n  defaultCountryCode: \"90\"\n  smsProvider: Twilio\n");
+        var spec = Load(Base + "otp:\n  enabled: true\n  codeLength: 12\n  defaultCountryCode: \"90\"\nmessaging:\n  smsProvider: Twilio\n");
 
         var errors = AuthSpecValidator.Validate(spec);
         Assert.Contains(errors, e => e.Contains("codeLength", StringComparison.Ordinal));

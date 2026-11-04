@@ -4,6 +4,7 @@ using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
+using BaseForge.Identity.Messaging;
 using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Otp;
 using BaseForge.Identity.Tenancy;
@@ -157,6 +158,7 @@ builder.Services.AddOpenIddict()
 
         // Access token JWS (şifresiz) olsun ki downstream public key ile offline doğrulayabilsin.
         options.DisableAccessTokenEncryption();
+        options.SetAccessTokenLifetime(TimeSpan.FromMinutes(authOptions.AccessTokenLifetimeMinutes));
 
         options.UseAspNetCore()
                .EnableTokenEndpointPassthrough()
@@ -174,9 +176,10 @@ builder.Services.AddControllers()
 
 // Kiracı (şirket) yönetimi: Auth:MultiTenancy:Enabled kapalıyken uçlar 404 döner.
 builder.Services.AddTenancy(authOptions);
-builder.Services.AddAccounts();
+builder.Services.AddAccounts(authOptions);
+builder.Services.AddMessaging(authOptions, builder.Environment);
 // Tek kullanımlık kod (SMS/e-posta): Auth:Otp:Enabled kapalıyken uçlar 404, otp grant'ı reddedilir.
-builder.Services.AddOtp(authOptions, builder.Environment);
+builder.Services.AddOtp(authOptions);
 
 // Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin gRPC ile salt-okunur erişimi.
 builder.Services.AddGrpc();

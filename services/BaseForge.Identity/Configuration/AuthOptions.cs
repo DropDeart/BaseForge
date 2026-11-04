@@ -17,6 +17,12 @@ public sealed class AuthOptions
     /// <summary>İmza sertifikası parolası.</summary>
     public string? SigningCertificatePassword { get; set; }
 
+    /// <summary>
+    /// Access token ömrü (dk). Şirketten çıkarma/askı ve rol değişikliği en geç bu sürede yansır
+    /// (refresh token yenilendiğinde şirket ve roller veritabanından yeniden okunur).
+    /// </summary>
+    public int AccessTokenLifetimeMinutes { get; set; } = 60;
+
     /// <summary>Tanımlı API scope'ları.</summary>
     public List<ScopeOptions> Scopes { get; set; } = [];
 
@@ -40,6 +46,12 @@ public sealed class AuthOptions
 
     /// <summary>Tek kullanımlık kod: SMS ile giriş, telefon/e-posta doğrulama (varsayılan: kapalı).</summary>
     public OtpOptions Otp { get; set; } = new();
+
+    /// <summary>E-posta/SMS göndericileri.</summary>
+    public MessagingOptions Messaging { get; set; } = new();
+
+    /// <summary>Şifremi unuttum (varsayılan: kapalı).</summary>
+    public PasswordResetOptions PasswordReset { get; set; } = new();
 }
 
 /// <summary>Tek kullanımlık kod (OTP) kuralları ve gönderici sağlayıcıları.</summary>
@@ -65,12 +77,63 @@ public sealed class OtpOptions
 
     /// <summary>Ülke kodsuz yazılan telefonlar için (örn. 0555… → +90555…).</summary>
     public string DefaultCountryCode { get; set; } = "+90";
+}
 
-    /// <summary>SMS sağlayıcısı. Şimdilik yalnız <c>Log</c> (kod log'a yazılır, yalnız Development).</summary>
-    public string SmsProvider { get; set; } = "Log";
+/// <summary>E-posta ve SMS göndericileri.</summary>
+public sealed class MessagingOptions
+{
+    /// <summary>Geliştirme sağlayıcısı: mesaj log'a yazılır (production'da kullanılamaz).</summary>
+    public const string LogProvider = "Log";
 
-    /// <summary>E-posta sağlayıcısı. Şimdilik yalnız <c>Log</c>.</summary>
-    public string EmailProvider { get; set; } = "Log";
+    /// <summary>SMTP sağlayıcısı.</summary>
+    public const string SmtpProvider = "Smtp";
+
+    /// <summary>E-posta: <c>Log</c> ya da <c>Smtp</c>.</summary>
+    public string EmailProvider { get; set; } = LogProvider;
+
+    /// <summary>SMS: şimdilik yalnız <c>Log</c> (sağlayıcı <c>ISmsSender</c> ile eklenir).</summary>
+    public string SmsProvider { get; set; } = LogProvider;
+
+    /// <summary>SMTP bağlantısı (EmailProvider = Smtp).</summary>
+    public SmtpOptions Smtp { get; set; } = new();
+}
+
+/// <summary>SMTP bağlantısı. Parola .env'de: <c>Auth__Messaging__Smtp__Password</c>.</summary>
+public sealed class SmtpOptions
+{
+    /// <summary>Sunucu (örn. smtp.resend.com, smtp.gmail.com).</summary>
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>Port: 465 doğrudan TLS, 587 STARTTLS.</summary>
+    public int Port { get; set; } = 587;
+
+    /// <summary>Kullanıcı adı (boşsa kimlik doğrulama yapılmaz).</summary>
+    public string? Username { get; set; }
+
+    /// <summary>Parola / API anahtarı.</summary>
+    public string? Password { get; set; }
+
+    /// <summary>Gönderen adresi.</summary>
+    public string FromAddress { get; set; } = string.Empty;
+
+    /// <summary>Gönderen adı; e-posta şablonunda ürün adı olarak da görünür.</summary>
+    public string FromName { get; set; } = "BaseForge";
+}
+
+/// <summary>Şifremi unuttum: e-postaya süreli sıfırlama bağlantısı.</summary>
+public sealed class PasswordResetOptions
+{
+    /// <summary>Açık mı? Kapalıyken uçlar 404 döner.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Sıfırlama sayfası; bağlantıya <c>?userId=…&amp;token=…</c> eklenir (örn. https://app.ornek.com/sifre-sifirla).</summary>
+    public string ResetUrl { get; set; } = string.Empty;
+
+    /// <summary>Bağlantının geçerlilik süresi (saat).</summary>
+    public int TokenLifetimeHours { get; set; } = 2;
+
+    /// <summary>Aynı adrese yeniden gönderim beklemesi (sn).</summary>
+    public int CooldownSeconds { get; set; } = 60;
 }
 
 /// <summary>Kiracı (şirket) yönetimi: şirketler, üyelikler, token'da tenant_id.</summary>

@@ -104,6 +104,7 @@ internal static class IdentityGenerator
           <ItemGroup>
             <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
             <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+            <PackageReference Include="MailKit" Version="4.17.0" />
             <PackageReference Include="OpenIddict.AspNetCore" Version="7.5.0" />
             <!-- OpenIddict 7.5.0 geçişli olarak açıklı System.Security.Cryptography.Pkcs 10.0.7 getiriyor (GHSA-846f-f764-76mx); yamalı sürüme sabitlenir.
                  System.Security.Cryptography.Xml paylaşılan çerçeveden gelir, sabitlemeye gerek yok. -->
@@ -164,6 +165,7 @@ internal static class IdentityGenerator
                 ["SigningCertificatePath"] = spec.Signing?.CertificatePath ?? string.Empty,
                 // Bilerek boş — gerçek değer '.env'de (Auth__SigningCertificatePassword); appsettings commit edilir.
                 ["SigningCertificatePassword"] = string.Empty,
+                ["AccessTokenLifetimeMinutes"] = spec.AccessTokenLifetimeMinutes,
                 ["Scopes"] = spec.Scopes.Select(s => new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["Name"] = s.Name,
@@ -186,6 +188,22 @@ internal static class IdentityGenerator
                 ["Registration"] = spec.Registration,
                 ["Otp"] = spec.Otp,
                 ["MultiTenancy"] = spec.MultiTenancy,
+                ["PasswordReset"] = spec.PasswordReset,
+                // SMTP parolası bilerek boş — gerçek değer '.env'de (Auth__Messaging__Smtp__Password).
+                ["Messaging"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["EmailProvider"] = spec.Messaging.EmailProvider,
+                    ["SmsProvider"] = spec.Messaging.SmsProvider,
+                    ["Smtp"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        ["Host"] = spec.Messaging.Smtp.Host,
+                        ["Port"] = spec.Messaging.Smtp.Port,
+                        ["Username"] = spec.Messaging.Smtp.Username,
+                        ["Password"] = string.Empty,
+                        ["FromAddress"] = spec.Messaging.Smtp.FromAddress,
+                        ["FromName"] = spec.Messaging.Smtp.FromName,
+                    },
+                },
                 ["SeedAdmin"] = spec.SeedAdmin is null ? null : new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
                     ["Email"] = spec.SeedAdmin.Email,
@@ -268,6 +286,12 @@ internal static class IdentityGenerator
                 sb.AppendLine(CultureInfo.InvariantCulture, $"# {spec.Clients[i].ClientId}");
                 sb.AppendLine(CultureInfo.InvariantCulture, $"Auth__Clients__{i}__Secret=");
             }
+        }
+
+        if (spec.Messaging.EmailProvider == "Smtp")
+        {
+            sb.AppendLine("# SMTP parolası / API anahtarı (örn. Resend API key, Google uygulama şifresi)");
+            sb.AppendLine("Auth__Messaging__Smtp__Password=");
         }
 
         sb.AppendLine();

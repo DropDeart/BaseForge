@@ -54,6 +54,7 @@ public static class AuthSpecValidator
         }
 
         ValidateOtp(spec, errors);
+        ValidateMessaging(spec, errors);
 
         if (spec.UserProfile is not null)
         {
@@ -144,12 +145,40 @@ public static class AuthSpecValidator
             errors.Add("'otp.defaultCountryCode' '+' ile başlamalı (örn. +90).");
         }
 
-        foreach (var (name, provider) in new[] { ("smsProvider", otp.SmsProvider), ("emailProvider", otp.EmailProvider) })
+    }
+
+    private static void ValidateMessaging(AuthSpec spec, List<string> errors)
+    {
+        var messaging = spec.Messaging;
+        if (!MessagingSpec.EmailProviders.Contains(messaging.EmailProvider, StringComparer.Ordinal))
         {
-            if (!OtpSpec.Providers.Contains(provider, StringComparer.Ordinal))
-            {
-                errors.Add($"'otp.{name}' '{provider}' desteklenmiyor (şimdilik: {string.Join(", ", OtpSpec.Providers)}).");
-            }
+            errors.Add($"'messaging.emailProvider' '{messaging.EmailProvider}' desteklenmiyor ({string.Join(", ", MessagingSpec.EmailProviders)}).");
+        }
+
+        if (!MessagingSpec.SmsProviders.Contains(messaging.SmsProvider, StringComparer.Ordinal))
+        {
+            errors.Add($"'messaging.smsProvider' '{messaging.SmsProvider}' desteklenmiyor (şimdilik: {string.Join(", ", MessagingSpec.SmsProviders)}).");
+        }
+
+        if (messaging.EmailProvider == "Smtp" && (string.IsNullOrWhiteSpace(messaging.Smtp.Host) || string.IsNullOrWhiteSpace(messaging.Smtp.FromAddress)))
+        {
+            errors.Add("'messaging.smtp' için host ve fromAddress zorunlu.");
+        }
+
+        var reset = spec.PasswordReset;
+        if (reset.Enabled && !Uri.TryCreate(reset.ResetUrl, UriKind.Absolute, out _))
+        {
+            errors.Add("'passwordReset.resetUrl' mutlak bir URL olmalı (örn. https://app.ornek.com/sifre-sifirla).");
+        }
+
+        if (reset.Enabled && (reset.TokenLifetimeHours < 1 || reset.CooldownSeconds < 0))
+        {
+            errors.Add("'passwordReset' süreleri pozitif olmalı (tokenLifetimeHours ≥ 1).");
+        }
+
+        if (spec.AccessTokenLifetimeMinutes is < 5 or > 1440)
+        {
+            errors.Add("'accessTokenLifetimeMinutes' 5-1440 arasında olmalı.");
         }
     }
 

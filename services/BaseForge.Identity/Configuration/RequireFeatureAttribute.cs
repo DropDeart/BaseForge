@@ -11,6 +11,9 @@ public enum AuthFeature
 
     /// <summary>Tek kullanımlık kod (SMS/e-posta).</summary>
     Otp,
+
+    /// <summary>Şifremi unuttum.</summary>
+    PasswordReset,
 }
 
 /// <summary>Özellik kapalıysa uç yokmuş gibi 404 döner.</summary>
@@ -26,6 +29,7 @@ public sealed class RequireFeatureAttribute(AuthFeature feature) : Attribute, IR
         {
             AuthFeature.MultiTenancy => options.MultiTenancy.Enabled,
             AuthFeature.Otp => options.Otp.Enabled,
+            AuthFeature.PasswordReset => options.PasswordReset.Enabled,
             _ => false,
         };
         if (!enabled)

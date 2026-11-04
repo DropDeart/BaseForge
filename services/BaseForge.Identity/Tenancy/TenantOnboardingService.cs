@@ -11,6 +11,9 @@ public interface ITenantOnboardingService
     /// <summary>Şirketi açar; açan kişi şirket yöneticisi olur.</summary>
     Task<MyMembershipDto> CreateAsync(Guid userId, CreateTenantRequest request, CancellationToken cancellationToken);
 
+    /// <summary>Şirketin adını ve vergi numarasını günceller (şirket yöneticisi ya da platform yöneticisi).</summary>
+    Task<TenantDto> UpdateAsync(Guid tenantId, TenantActor actor, UpdateTenantRequest request, CancellationToken cancellationToken);
+
     /// <summary>Şirketler (duruma göre süzülür).</summary>
     Task<IReadOnlyList<TenantDto>> ListAsync(TenantStatus? status, CancellationToken cancellationToken);
 
@@ -19,26 +22,21 @@ public interface ITenantOnboardingService
 }
 
 /// <inheritdoc cref="ITenantOnboardingService" />
-internal sealed class TenantOnboardingService(IdentityServiceDbContext db, AuthOptions options, TimeProvider clock)
+internal sealed class TenantOnboardingService(IdentityServiceDbContext db, ITenantAdminGuard guard, AuthOptions options, TimeProvider clock)
     : ITenantOnboardingService
 {
     private readonly MultiTenancyOptions _tenancy = options.MultiTenancy;
 
     public async Task<MyMembershipDto> CreateAsync(Guid userId, CreateTenantRequest request, CancellationToken cancellationToken)
     {
-        var name = request.Name?.Trim() ?? string.Empty;
-        if (name.Length is < 2 or > 200)
-        {
-            throw IdentityException.Invalid("Şirket adı 2-200 karakter olmalı.");
-        }
-
+        var name = ValidName(request.Name);
         var now = clock.GetUtcNow();
         var tenant = new Tenant
         {
             Id = Guid.NewGuid(),
             Name = name,
             Slug = await UniqueSlugAsync(name, cancellationToken),
-            TaxNo = string.IsNullOrWhiteSpace(request.TaxNo) ? null : request.TaxNo.Trim(),
+            TaxNo = NullIfEmpty(request.TaxNo),
             Status = _tenancy.RequireApproval ? TenantStatus.Pending : TenantStatus.Active,
             CreatedByUserId = userId,
             CreatedAt = now,
@@ -62,6 +60,16 @@ internal sealed class TenantOnboardingService(IdentityServiceDbContext db, AuthO
         return new MyMembershipDto(membership.Id, TenantDto.From(tenant), membership.Status, membership.Roles, membership.IsDefault);
     }
 
+    public async Task<TenantDto> UpdateAsync(Guid tenantId, TenantActor actor, UpdateTenantRequest request, CancellationToken cancellationToken)
+    {
+        await guard.EnsureCanManageAsync(tenantId, actor, cancellationToken);
+        var tenant = await db.Set<Tenant>().GetAsync(tenantId, cancellationToken);
+        tenant.Name = ValidName(request.Name);
+        tenant.TaxNo = NullIfEmpty(request.TaxNo);
+        await db.SaveChangesAsync(cancellationToken);
+        return TenantDto.From(tenant);
+    }
+
     public async Task<IReadOnlyList<TenantDto>> ListAsync(TenantStatus? status, CancellationToken cancellationToken)
         => await db.Set<Tenant>().AsNoTracking()
             .Where(t => status == null || t.Status == status)
@@ -76,6 +84,14 @@ internal sealed class TenantOnboardingService(IdentityServiceDbContext db, AuthO
         await db.SaveChangesAsync(cancellationToken);
         return TenantDto.From(tenant);
     }
+
+    private static string ValidName(string? value)
+    {
+        var name = value?.Trim() ?? string.Empty;
+        return name.Length is >= 2 and <= 200 ? name : throw IdentityException.Invalid("Şirket adı 2-200 karakter olmalı.");
+    }
+
+    private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     // Aynı addan ikinci şirket "-2", "-3" ... ile ayrışır.
     private async Task<string> UniqueSlugAsync(string name, CancellationToken cancellationToken)

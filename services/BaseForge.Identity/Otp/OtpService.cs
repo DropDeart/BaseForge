@@ -64,15 +64,17 @@ internal sealed class OtpService(
         });
         await db.SaveChangesAsync(cancellationToken);
 
-        var message = string.Format(CultureInfo.InvariantCulture, "Doğrulama kodunuz: {0}. {1} dakika geçerlidir; kimseyle paylaşmayın.",
-            code, Math.Max(1, _options.LifetimeSeconds / 60));
+        var minutes = Math.Max(1, _options.LifetimeSeconds / 60);
         if (channel == OtpChannel.Sms)
         {
-            await sms.SendAsync(target, message, cancellationToken);
+            var text = string.Format(CultureInfo.InvariantCulture, "Doğrulama kodunuz: {0}. {1} dakika geçerlidir; kimseyle paylaşmayın.", code, minutes);
+            await sms.SendAsync(target, text, cancellationToken);
         }
         else
         {
-            await email.SendAsync(target, "Doğrulama kodu", message, cancellationToken);
+            await email.SendAsync(EmailTemplate.Build(target, "Doğrulama kodu", authOptions.Messaging.Smtp.FromName, "Doğrulama kodunuz",
+                [$"Kod {minutes} dakika geçerlidir. Bu isteği siz yapmadıysanız e-postayı yok sayın; kodu kimseyle paylaşmayın."],
+                highlight: code), cancellationToken);
         }
 
         return new OtpSendResult(_options.LifetimeSeconds, _options.ResendCooldownSeconds);

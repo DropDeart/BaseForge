@@ -1,5 +1,8 @@
 namespace BaseForge.Identity.Messaging;
 
+/// <summary>Gönderilecek e-posta.</summary>
+public sealed record EmailMessage(string To, string Subject, string Html, string Text);
+
 /// <summary>SMS gönderici. Sağlayıcı (Netgsm, Vatan SMS vb.) bu arayüzle eklenir.</summary>
 public interface ISmsSender
 {
@@ -7,11 +10,11 @@ public interface ISmsSender
     Task SendAsync(string phoneNumber, string message, CancellationToken cancellationToken);
 }
 
-/// <summary>E-posta gönderici. Sağlayıcı (SMTP vb.) bu arayüzle eklenir.</summary>
+/// <summary>E-posta gönderici (SMTP ya da geliştirme için log).</summary>
 public interface IEmailSender
 {
     /// <summary>E-posta gönderir.</summary>
-    Task SendAsync(string email, string subject, string body, CancellationToken cancellationToken);
+    Task SendAsync(EmailMessage message, CancellationToken cancellationToken);
 }
 
 /// <summary>Geliştirme göndericisi: mesajı log'a yazar, dışarı bir şey göndermez.</summary>
@@ -25,9 +28,10 @@ public sealed partial class LogMessageSender(ILogger<LogMessageSender> logger) :
     }
 
     /// <inheritdoc />
-    public Task SendAsync(string email, string subject, string body, CancellationToken cancellationToken)
+    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
-        LogEmail(logger, email, subject, body);
+        ArgumentNullException.ThrowIfNull(message);
+        LogEmail(logger, message.To, message.Subject, message.Text);
         return Task.CompletedTask;
     }
 
