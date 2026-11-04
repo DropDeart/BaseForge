@@ -94,6 +94,9 @@ internal static class CodeGenerator
                     ? null
                     : NameUtil.Pascal(entity.Props.Keys.First(p => string.Equals(p, entity.OwnerField, StringComparison.OrdinalIgnoreCase))),
                 Filters = BuildFilters(entity, fields),
+                RangeFilters = entity.RangeFilters.Select(n => FilterFor(fields, n, "range")).ToList(),
+                InFilters = entity.InFilters.Select(n => FilterFor(fields, n, "in")).ToList(),
+                DefaultSortLiteral = BuildDefaultSortLiteral(fields, entity.DefaultSort),
             };
             if (entity.ReadFilter is { } readFilter)
             {
@@ -197,6 +200,7 @@ internal static class CodeGenerator
             OutboxRetentionDays = spec.RabbitMqTuning?.OutboxRetentionDays,
         };
         written.Add(WriteFile(Path.Combine(outputDir, "Program.cs"), TemplateEngine.Render(Templates.Program, programModel)));
+        written.Add(WriteFile(Path.Combine(outputDir, "ProgramHooks.cs"), TemplateEngine.Render(Templates.ProgramHooks, programModel)));
 
         var host = new HostFileModel
         {
@@ -271,6 +275,16 @@ internal static class CodeGenerator
                 .Select(k => new EntityRef { Name = k, Plural = NameUtil.Pluralize(k) })
                 .ToList(),
             EnumTypes = enumTypes,
+            UniqueIndexes = spec.Entities
+                .SelectMany(e => e.Value.Unique.Select(group => new UniqueIndexModel
+                {
+                    Entity = e.Key,
+                    Columns = string.Join(", ", (spec.MultiTenant ? ["TenantId"] : Array.Empty<string>())
+                        .Concat(group.Select(c => SpecValidator.ScalarFieldTypes(e.Value).Keys.First(k => string.Equals(k, c, StringComparison.OrdinalIgnoreCase))))
+                        .Select(c => "x." + c)),
+                    ExcludeDeleted = true,
+                }))
+                .ToList(),
         };
         written.Add(WriteFile(
             Path.Combine(outputDir, "Data", contextName + ".cs"),
@@ -283,6 +297,63 @@ internal static class CodeGenerator
         ServiceRegistry.UpsertService(outputDir, spec);
 
         return written;
+    }
+
+    /// <summary>Aralık (<c>{Alan}From/To</c>, nullable) ya da çoklu değer (<c>{Alan}In</c>, <c>List&lt;T&gt;?</c>) filtresi.</summary>
+    private static FilterModel FilterFor(List<ScalarModel> fields, string name, string kind)
+    {
+        var field = fields.First(f => string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase));
+        var element = field.Type.TrimEnd('?');
+        return new FilterModel
+        {
+            Name = field.Name,
+            Type = kind == "in" ? $"List<{element}>?" : element + "?",
+            ElementType = element,
+            Var = (kind == "in" ? "in" : "range") + field.Name,
+        };
+    }
+
+    /// <summary><c>defaultSort</c>'u alan adları doğru yazılmış C# literal'ine çevirir (<c>"PlannedAt asc"</c>).</summary>
+    private static string BuildDefaultSortLiteral(List<ScalarModel> fields, string? defaultSort)
+    {
+        if (string.IsNullOrWhiteSpace(defaultSort))
+        {
+            return string.Empty;
+        }
+
+        var known = fields.Select(f => f.Name).Concat(["CreatedAt", "UpdatedAt"]).ToList();
+        var parts = defaultSort.Split(',', StringSplitOptions.TrimEntries).Select(part =>
+        {
+            var tokens = part.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var name = known.First(k => string.Equals(k, tokens[0], StringComparison.OrdinalIgnoreCase));
+            return tokens.Length == 2 && tokens[1].Equals("desc", StringComparison.OrdinalIgnoreCase) ? name + " desc" : name;
+        });
+        return $"\"{string.Join(", ", parts)}\"";
+    }
+
+    /// <summary>Komut doğrulama öznitelikleri: <c>min/max</c> → Range, <c>minLength</c>, <c>pattern</c> → RegularExpression.</summary>
+    private static List<string> BuildValidation(PropSpec prop, string csharpBase)
+    {
+        var rules = new List<string>();
+        if (prop.Min is not null || prop.Max is not null)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            rules.Add(csharpBase == "decimal"
+                ? $"Range(typeof(decimal), \"{(prop.Min ?? decimal.MinValue).ToString(inv)}\", \"{(prop.Max ?? decimal.MaxValue).ToString(inv)}\", ParseLimitsInInvariantCulture = true)"
+                : $"Range({(prop.Min is { } min ? ((double)min).ToString("R", inv) : "double.MinValue")}, {(prop.Max is { } max ? ((double)max).ToString("R", inv) : "double.MaxValue")})");
+        }
+
+        if (prop.MinLength is { } minLength)
+        {
+            rules.Add($"MinLength({minLength})");
+        }
+
+        if (prop.Pattern is { } pattern)
+        {
+            rules.Add($"RegularExpression(@\"{pattern.Replace("\"", "\"\"", StringComparison.Ordinal)}\")");
+        }
+
+        return rules;
     }
 
     /// <summary><c>filterable</c> alanlarını, üretilen skaler alan tipleriyle (nullable) sorgu filtrelerine çevirir.</summary>
@@ -920,6 +991,7 @@ internal static class CodeGenerator
                 Type = csharpBase + (prop.Nullable ? "?" : string.Empty),
                 Init = ComputeInit(prop, csharpBase),
                 MaxLength = prop.MaxLength,
+                Validation = BuildValidation(prop, csharpBase),
                 IsJson = prop.Type.Equals("json", StringComparison.OrdinalIgnoreCase),
                 ServerManaged = prop.ServerManaged,
             });
@@ -938,7 +1010,7 @@ internal static class CodeGenerator
 
         foreach (var externalRef in entity.ExternalRefs.Values)
         {
-            scalars.Add(new ScalarModel { Name = NameUtil.Pascal(externalRef.Store), Type = "Guid" });
+            scalars.Add(new ScalarModel { Name = NameUtil.Pascal(externalRef.Store), Type = externalRef.Nullable ? "Guid?" : "Guid" });
         }
 
         return scalars;

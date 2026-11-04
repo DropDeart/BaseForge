@@ -77,6 +77,9 @@ export const tr: Messages = {
     postgresFailed: "Postgres başlatılamadı.",
   },
   entity: {
+    patternPlaceholder: "pattern (regex)",
+    refNullable: "opsiyonel",
+    refNullableTitle: "Referans boş olabilir (Guid?).",
     serverManaged: "sunucu yönetir",
     serverManagedTitle: "Yalnızca sunucu değiştirir (iş akışı/hesaplanan alan): üretilen Create/Update isteklerine girmez.",
     nameEmpty: "Entity adı boş olamaz.",
@@ -138,6 +141,13 @@ export const tr: Messages = {
   list: {
     sortSearchTitle: "Sıralama ve arama alanları",
     sortSearchDesc: "sortBy ve search için beyaz listeler. Seçim yoksa tüm uygun alanlar; daraltmak için seçin (ör. kimlik numaralarını aramadan çıkarın).",
+    rangeInTitle: "Aralık ve çoklu değer filtreleri",
+    rangeInDesc: "Liste ucunda tarih/sayı aralığı (dahil) ve 'şunlardan biri' filtreleri.",
+    rangeFilters: "Aralık filtreleri",
+    inFilters: "Çoklu değer filtreleri",
+    defaultSort: "Varsayılan sıralama (sortBy boşsa)",
+    unique: "Benzersiz alanlar",
+    uniqueHint: "Gruplar ';', alanlar ',' ile ayrılır. Kiracılı serviste kiracı içinde benzersizdir; silinmiş kayıtlar sayılmaz. EnsureCreated var olan veritabanına index eklemez.",
     sortFields: "Sıralanabilir alanlar",
     searchFields: "Aranabilir alanlar",
     allFields: "tüm uygun alanlar (varsayılan)",

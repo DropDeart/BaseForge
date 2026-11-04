@@ -59,6 +59,18 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
                 case "serverManaged":
                     spec.ServerManaged = bool.Parse(parser.Consume<Scalar>().Value);
                     break;
+                case "min":
+                    spec.Min = decimal.Parse(parser.Consume<Scalar>().Value, CultureInfo.InvariantCulture);
+                    break;
+                case "max":
+                    spec.Max = decimal.Parse(parser.Consume<Scalar>().Value, CultureInfo.InvariantCulture);
+                    break;
+                case "minLength":
+                    spec.MinLength = int.Parse(parser.Consume<Scalar>().Value, CultureInfo.InvariantCulture);
+                    break;
+                case "pattern":
+                    spec.Pattern = parser.Consume<Scalar>().Value;
+                    break;
                 default:
                     // Bilinmeyen anahtar — değerini (skaler veya iç içe yapı olabilir) atla.
                     parser.SkipThisAndNestedEvents();
@@ -75,7 +87,8 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
         var spec = (PropSpec)value!;
 
         if (!spec.Nullable && spec.MaxLength is null && spec.Default is null && spec.Values.Count == 0
-            && spec.EditableBy is null && !spec.InToken && !spec.ServerManaged)
+            && spec.EditableBy is null && !spec.InToken && !spec.ServerManaged
+            && spec.Min is null && spec.Max is null && spec.MinLength is null && spec.Pattern is null)
         {
             emitter.Emit(new Scalar(spec.Type));
             return;
@@ -132,6 +145,30 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
         {
             emitter.Emit(new Scalar("serverManaged"));
             emitter.Emit(new Scalar("true"));
+        }
+
+        if (spec.Min is not null)
+        {
+            emitter.Emit(new Scalar("min"));
+            emitter.Emit(new Scalar(spec.Min.Value.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        if (spec.Max is not null)
+        {
+            emitter.Emit(new Scalar("max"));
+            emitter.Emit(new Scalar(spec.Max.Value.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        if (spec.MinLength is not null)
+        {
+            emitter.Emit(new Scalar("minLength"));
+            emitter.Emit(new Scalar(spec.MinLength.Value.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        if (spec.Pattern is not null)
+        {
+            emitter.Emit(new Scalar("pattern"));
+            emitter.Emit(new Scalar(AnchorName.Empty, TagName.Empty, spec.Pattern, ScalarStyle.SingleQuoted, false, true));
         }
 
         emitter.Emit(new MappingEnd());

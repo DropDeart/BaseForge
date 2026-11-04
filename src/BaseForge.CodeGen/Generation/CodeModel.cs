@@ -19,6 +19,9 @@ internal sealed class ScalarModel
 
     /// <summary>Spec'te <c>serverManaged: true</c> — Create/Update komutlarına girmez (bkz. ARCH §6.4).</summary>
     public bool ServerManaged { get; set; }
+
+    /// <summary>Komutlardaki doğrulama öznitelikleri (köşeli parantezsiz, örn. <c>Range(0, 100)</c>).</summary>
+    public List<string> Validation { get; set; } = [];
 }
 
 /// <summary>Servis içi bir ilişki için navigation property.</summary>
@@ -67,6 +70,20 @@ internal sealed class ContextFileModel
 
     /// <summary>Servisteki enum tiplerinin adları — her biri DB'de string olarak saklanır (ConfigureConventions).</summary>
     public List<string> EnumTypes { get; set; } = [];
+
+    /// <summary>Benzersiz index'ler (<c>unique</c>).</summary>
+    public List<UniqueIndexModel> UniqueIndexes { get; set; } = [];
+}
+
+/// <summary>Bir benzersiz index: entity ve kolon ifadesi (<c>x.TenantId, x.Code</c>).</summary>
+internal sealed class UniqueIndexModel
+{
+    public string Entity { get; set; } = string.Empty;
+
+    public string Columns { get; set; } = string.Empty;
+
+    /// <summary>Soft delete'li entity'de silinmiş kayıtlar index dışında kalır.</summary>
+    public bool ExcludeDeleted { get; set; }
 }
 
 /// <summary>Bir <c>enum</c> alanı için üretilen C# enum dosyasının modeli.</summary>
@@ -180,7 +197,16 @@ internal sealed class FeatureFileModel
     public bool ReadFilterBypassOwner { get; set; }
 
     /// <summary>List sorgusunun sınıf gövdesi (ek alanlar) gerekiyor mu?</summary>
-    public bool ListQueryHasBody => OwnerField is not null || Filters.Count > 0 || HasReadFilter;
+    public bool ListQueryHasBody => OwnerField is not null || Filters.Count > 0 || RangeFilters.Count > 0 || InFilters.Count > 0 || HasReadFilter;
+
+    /// <summary>Aralık filtreleri (<c>{Alan}From</c>/<c>{Alan}To</c>).</summary>
+    public List<FilterModel> RangeFilters { get; set; } = [];
+
+    /// <summary>Çoklu değer filtreleri (<c>{Alan}In</c>).</summary>
+    public List<FilterModel> InFilters { get; set; } = [];
+
+    /// <summary><c>sortBy</c> boşken kullanılan sıralama C# literal'i (<c>"PlannedAt asc"</c>); boşsa yazılmaz.</summary>
+    public string DefaultSortLiteral { get; set; } = string.Empty;
 
     /// <summary>ListPagedAsync'e bir filtre fonksiyonu geçilmeli mi?</summary>
     public bool ListHasConditions => ListQueryHasBody || SearchPredicate is not null;
@@ -197,6 +223,9 @@ internal sealed class FilterModel
 
     /// <summary>Handler'daki yerel değişken adı (çakışmasız, örn. <c>filterStatus</c>).</summary>
     public string Var { get; set; } = string.Empty;
+
+    /// <summary>Çoklu değer filtresinde eleman tipi (<c>OrderStatus</c>).</summary>
+    public string ElementType { get; set; } = string.Empty;
 }
 
 /// <summary>Controller şablonu için model.</summary>

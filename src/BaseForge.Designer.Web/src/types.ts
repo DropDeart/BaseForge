@@ -11,6 +11,8 @@ export interface ExternalRefSpec {
   target: string; // servis/Entity
   store: string; // ID alan adı
   via: string; // grpc | event
+  /** Referans opsiyonel mi (Guid?)? */
+  nullable?: boolean;
 }
 
 export interface PropSpec {
@@ -26,6 +28,12 @@ export interface PropSpec {
   inToken?: boolean;
   /** Sunucu yönetir: üretilen Create/Update komutlarına girmez, istemciden yazılamaz (ARCH §6.4). */
   serverManaged?: boolean;
+  /** Sayısal alanlarda en küçük / en büyük değer (dahil). */
+  min?: number | null;
+  max?: number | null;
+  /** string/text alanlarda en az uzunluk ve düzenli ifade. */
+  minLength?: number | null;
+  pattern?: string | null;
 }
 
 export interface EntitySpec {
@@ -50,6 +58,14 @@ export interface EntitySpec {
   ownerField?: string | null;
   /** Liste ucunda eşitlik filtresi olarak açılan alanlar (?status=Active). Yalnızca sayfalı listelerde. */
   filterable?: string[];
+  /** Aralık filtreleri (?alanFrom=&alanTo=). */
+  rangeFilters?: string[];
+  /** Çoklu değer filtreleri (?alanIn=A&alanIn=B). */
+  inFilters?: string[];
+  /** sortBy verilmezse sıralama (örn. "PlannedAt asc"). */
+  defaultSort?: string | null;
+  /** Benzersiz alan grupları (kiracılı serviste kiracı içinde). */
+  unique?: string[][];
   /** SortBy beyaz listesi; boş = tüm skaler alanlar + CreatedAt/UpdatedAt (ARCH §6.2). */
   sortFields?: string[];
   /** Search'ün arandığı string/text alanlar; boş = hepsi (ARCH §6.2). */

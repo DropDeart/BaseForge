@@ -75,6 +75,9 @@ export const en = {
     postgresFailed: "Postgres could not be started.",
   },
   entity: {
+    patternPlaceholder: "pattern (regex)",
+    refNullable: "optional",
+    refNullableTitle: "The reference may be empty (Guid?).",
     serverManaged: "server-managed",
     serverManagedTitle: "Set by the server only (workflow/calculated field): left out of generated Create/Update requests.",
     nameEmpty: "Entity name cannot be empty.",
@@ -136,6 +139,13 @@ export const en = {
   list: {
     sortSearchTitle: "Sort & search fields",
     sortSearchDesc: "Allow-lists for sortBy and search. Nothing selected = all eligible fields; select to narrow (e.g. keep ID numbers out of search).",
+    rangeInTitle: "Range and multi-value filters",
+    rangeInDesc: "Date/number ranges (inclusive) and one-of filters on the list endpoint.",
+    rangeFilters: "Range filters",
+    inFilters: "Multi-value filters",
+    defaultSort: "Default sort (when sortBy is empty)",
+    unique: "Unique fields",
+    uniqueHint: "Groups separated by ';', fields by ','. In a multi-tenant service uniqueness is per tenant; deleted records are ignored. EnsureCreated does not add the index to an existing database.",
     sortFields: "Sortable fields",
     searchFields: "Searchable fields",
     allFields: "all eligible fields (default)",

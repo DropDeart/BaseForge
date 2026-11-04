@@ -250,6 +250,21 @@ public sealed class EntitySpec
     /// (örn. kimlik no) aramadan çıkarmak için daraltın. Bkz. docs/ARCH.md §6.2.
     /// </summary>
     public List<string> SearchFields { get; set; } = [];
+
+    /// <summary>Aralık filtreleri (tarih/sayı): <c>?alanFrom=…&amp;alanTo=…</c> (dahil). Yalnızca sayfalı listelerde.</summary>
+    public List<string> RangeFilters { get; set; } = [];
+
+    /// <summary>Çoklu değer filtreleri: <c>?alanIn=A&amp;alanIn=B</c>. Yalnızca sayfalı listelerde.</summary>
+    public List<string> InFilters { get; set; } = [];
+
+    /// <summary><c>sortBy</c> verilmediğinde sıralama (örn. <c>PlannedAt asc</c>); boşsa <c>CreatedAt desc</c>.</summary>
+    public string? DefaultSort { get; set; }
+
+    /// <summary>
+    /// Benzersiz alan grupları (örn. <c>[[Code], [StationId, TicketNo]]</c>). Multi-tenant serviste TenantId otomatik
+    /// eklenir (kiracı içinde benzersiz); silinmiş kayıtlar sayılmaz. Var olan veritabanına EnsureCreated eklemez.
+    /// </summary>
+    public List<List<string>> Unique { get; set; } = [];
 }
 
 /// <summary>HTTP okumalarına uygulanan kayıt görünürlük filtresi (bkz. <see cref="EntitySpec.ReadFilter"/>).</summary>
@@ -332,6 +347,18 @@ public sealed class PropSpec
     /// Değerini elle yazılan komutlar değiştirir. Bkz. docs/ARCH.md §6.4.
     /// </summary>
     public bool ServerManaged { get; set; }
+
+    /// <summary>Sayısal alanlarda en küçük değer (dahil).</summary>
+    public decimal? Min { get; set; }
+
+    /// <summary>Sayısal alanlarda en büyük değer (dahil).</summary>
+    public decimal? Max { get; set; }
+
+    /// <summary>string/text alanlarda en az uzunluk.</summary>
+    public int? MinLength { get; set; }
+
+    /// <summary>string/text alanlarda düzenli ifade (tam eşleşme).</summary>
+    public string? Pattern { get; set; }
 }
 
 /// <summary>Başka bir servise ait kayda yapılan dış referans. FK/navigation üretilmez; yalnızca ID tutulur.</summary>
@@ -352,4 +379,7 @@ public sealed class ExternalRefSpec
     /// kullanın.
     /// </summary>
     public string Via { get; set; } = "grpc";
+
+    /// <summary>Referans opsiyonel mi (<c>Guid?</c>)? Varsayılan zorunlu.</summary>
+    public bool Nullable { get; set; }
 }
