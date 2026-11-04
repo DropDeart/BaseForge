@@ -15,13 +15,31 @@ namespace BaseForge.API.Authentication;
 public sealed class CurrentTenant : ICurrentTenant
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly MultiTenancyOptions _options;
 
     /// <summary>Verilen <see cref="IHttpContextAccessor"/> ile yeni bir örnek oluşturur.</summary>
     /// <param name="httpContextAccessor">Aktif HTTP bağlamına erişim.</param>
-    public CurrentTenant(IHttpContextAccessor httpContextAccessor)
+    /// <param name="options">Kiracılar arası okuma rolleri (yoksa kapalı).</param>
+    public CurrentTenant(IHttpContextAccessor httpContextAccessor, MultiTenancyOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(httpContextAccessor);
         _httpContextAccessor = httpContextAccessor;
+        _options = options ?? new MultiTenancyOptions();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Token'ında kiracı olmayan, <see cref="MultiTenancyOptions.CrossTenantRoles"/> rolündeki kullanıcı; yalnız GET/HEAD.</remarks>
+    public bool ReadsAllTenants
+    {
+        get
+        {
+            var context = _httpContextAccessor.HttpContext;
+            return context is not null
+                   && _options.CrossTenantRoles.Count > 0
+                   && (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+                   && TenantId is null
+                   && _options.CrossTenantRoles.Any(context.User.IsInRole);
+        }
     }
 
     /// <inheritdoc />

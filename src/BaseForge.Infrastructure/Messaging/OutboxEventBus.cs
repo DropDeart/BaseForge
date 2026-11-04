@@ -1,6 +1,8 @@
 using System.Text.Json;
+using BaseForge.Core.Interfaces;
 using BaseForge.Core.Logging;
 using BaseForge.Core.Messaging;
+using BaseForge.Core.MultiTenancy;
 using BaseForge.Infrastructure.Data;
 
 namespace BaseForge.Infrastructure.Messaging;
@@ -19,16 +21,19 @@ public sealed class OutboxEventBus : IEventBus
 {
     private readonly BaseForgeDbContext _context;
     private readonly ICorrelationIdAccessor _correlationIdAccessor;
+    private readonly ICurrentTenant? _currentTenant;
 
     /// <summary>Çağıranla aynı scope'taki DbContext ile bir outbox event bus oluşturur.</summary>
     /// <param name="context">Bu isteğin/scope'un DbContext'i (repository'ler ve UnitOfWork ile paylaşılan aynı instance).</param>
     /// <param name="correlationIdAccessor">O anki isteğin/akışın correlation id'sine erişim.</param>
-    public OutboxEventBus(BaseForgeDbContext context, ICorrelationIdAccessor correlationIdAccessor)
+    /// <param name="currentTenant">O anki kiracı (multi-tenant serviste); zarfa yazılır, tüketici aynı kiracıyla işler.</param>
+    public OutboxEventBus(BaseForgeDbContext context, ICorrelationIdAccessor correlationIdAccessor, ICurrentTenant? currentTenant = null)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(correlationIdAccessor);
         _context = context;
         _correlationIdAccessor = correlationIdAccessor;
+        _currentTenant = currentTenant;
     }
 
     /// <inheritdoc />
@@ -42,7 +47,8 @@ public sealed class OutboxEventBus : IEventBus
             integrationEvent.OccurredAt,
             integrationEvent.EventType,
             JsonSerializer.SerializeToElement(integrationEvent, integrationEvent.GetType()),
-            _correlationIdAccessor.Current);
+            _correlationIdAccessor.Current,
+            _currentTenant?.TenantId ?? TenantScope.Current);
 
         var outboxMessage = new OutboxMessage
         {

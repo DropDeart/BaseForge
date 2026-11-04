@@ -1067,7 +1067,12 @@ internal static class Templates
             options.EnableCQRS(typeof(Program).Assembly);
             options.EnableAuditLog();
         {{~ if HasMultiTenancy ~}}
+        {{~ if CrossTenantRolesLiteral != "" ~}}
+            // Token'ında kiracı olmayan bu roller GET/HEAD'de tüm kiracıları okur (yazma yine kiracı ister).
+            options.EnableMultiTenancy(mt => mt.CrossTenantRoles = [{{ CrossTenantRolesLiteral }}]);
+        {{~ else ~}}
             options.EnableMultiTenancy();
+        {{~ end ~}}
         {{~ end ~}}
         {{~ if HasAuth ~}}
             options.EnableJwt(jwt =>

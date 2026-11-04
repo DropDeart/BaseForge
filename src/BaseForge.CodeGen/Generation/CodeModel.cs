@@ -302,6 +302,9 @@ internal sealed class ProgramFileModel
     /// <summary><c>ServiceSpec.MultiTenant</c>'tan türetilir — <c>options.EnableMultiTenancy()</c> bloğu için.</summary>
     public bool HasMultiTenancy { get; set; }
 
+    /// <summary>Kiracılar arası okuma rolleri C# literal'i (<c>"SuperAdmin"</c>); boşsa yazılmaz.</summary>
+    public string CrossTenantRolesLiteral { get; set; } = string.Empty;
+
     /// <summary>Serilog "Service" etiketi ve log dosyası için servis anahtarı (küçük harfli).</summary>
     public string ServiceKey { get; set; } = string.Empty;
 

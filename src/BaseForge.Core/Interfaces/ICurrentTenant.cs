@@ -9,4 +9,10 @@ public interface ICurrentTenant
 {
     /// <summary>O anki kiracının kimliği; çözümlenemiyorsa (örn. anonim istek) <see langword="null"/>.</summary>
     Guid? TenantId { get; }
+
+    /// <summary>
+    /// Kiracı filtresi bu istek için kalkar mı? Yalnızca okuma ve platform yöneticisi rolleri için
+    /// (<c>crossTenantRoles</c>, docs/ARCH.md §5.5). Varsayılan: hayır.
+    /// </summary>
+    bool ReadsAllTenants => false;
 }

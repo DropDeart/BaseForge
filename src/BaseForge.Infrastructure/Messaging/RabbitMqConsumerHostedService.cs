@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using BaseForge.Core.Logging;
 using BaseForge.Core.Messaging;
+using BaseForge.Core.MultiTenancy;
 using BaseForge.Infrastructure.Data;
 using BaseForge.Infrastructure.Logging;
 using MediatR;
@@ -50,6 +51,36 @@ public sealed class RabbitMqConsumerHostedService : BackgroundService
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // GEN-8: broker henüz ayakta değilse host'u düşürme; artan beklemeyle (2 sn → 1 dk) yeniden dene.
+        var delay = InitialRetryDelay;
+        while (true)
+        {
+            try
+            {
+                await StartConsumingAsync(stoppingToken).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "RabbitMQ'ya bağlanılamadı; {Delay} sonra yeniden denenecek.", delay);
+                if (_channel is not null)
+                {
+                    await _channel.DisposeAsync().ConfigureAwait(false);
+                    _channel = null;
+                }
+
+                await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+                delay = TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxRetryDelay.Ticks));
+            }
+        }
+    }
+
+    private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromMinutes(1);
+
+    /// <summary>Exchange/kuyrukları kurar ve her abonelik için tüketiciyi başlatır.</summary>
+    private async Task StartConsumingAsync(CancellationToken stoppingToken)
     {
         _channel = await _connectionManager.CreateChannelAsync(stoppingToken).ConfigureAwait(false);
 
@@ -120,6 +151,8 @@ public sealed class RabbitMqConsumerHostedService : BackgroundService
             var envelope = JsonSerializer.Deserialize<EventEnvelope>(json)
                 ?? throw new InvalidOperationException("Olay zarfı deserialize edilemedi.");
 
+            // MT-1: olayı üreten isteğin kiracısı — handler'daki sorgu filtresi ve damgalama bu kiracıyla çalışır.
+            using var tenantScope = TenantScope.Enter(envelope.TenantId);
             await using var scope = _scopeFactory.CreateAsyncScope();
 
             // Olayı yayınlayan isteğin correlation id'sini geri yükle — bu event'i işleyen

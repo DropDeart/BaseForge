@@ -131,6 +131,12 @@ public sealed class ServiceAuthSpec
     /// sahibi <c>SuperAdmin</c>). Boşsa hiçbir rol kuralları otomatik geçmez.
     /// </summary>
     public List<string> SuperRoles { get; set; } = [];
+
+    /// <summary>
+    /// Multi-tenant serviste token'ında kiracı olmayan bu rollerdeki kullanıcılar GET/HEAD isteklerinde tüm
+    /// kiracıların kayıtlarını okur (örn. SuperAdmin raporları). Yazma yine kiracı ister. Bkz. docs/ARCH.md §5.5.
+    /// </summary>
+    public List<string> CrossTenantRoles { get; set; } = [];
 }
 
 /// <summary>Servise ait bir entity tanımı.</summary>

@@ -119,6 +119,8 @@ export const tr: Messages = {
     defaultAccessHint: "Entity'de ayrıca belirtilmeyen action'lar ve görsel yükleme bunu kullanır.",
     superRoles: "Süper roller",
     superRolesHint: "Bu roller tüm rol ve sahiplik kurallarını otomatik geçer (örn. SaaS'ta platform sahibi SuperAdmin).",
+    crossTenantRoles: "Kiracılar arası okuma rolleri",
+    crossTenantRolesHint: "Yalnız multi-tenant serviste: tenant_id'siz token'la bu roller tüm kiracıların kayıtlarını okur (yalnız GET; yazma yine kiracı ister).",
     title: "Erişim",
     jwtOff: "JWT bağlantısı kapalı — tüm uçlar herkese açık. Rol/sahiplik için servis ayarlarından Identity'ye bağlayın.",
     ownerField: "Sahip alanı",

@@ -82,6 +82,7 @@ public static class ServiceCollectionExtensions
         if (options.MultiTenancyEnabled)
         {
             services.AddHttpContextAccessor();
+            services.AddSingleton(options.MultiTenancy);
             services.AddScoped<ICurrentTenant, CurrentTenant>();
         }
 

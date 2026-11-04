@@ -191,6 +191,7 @@ internal static class CodeGenerator
             HasRabbitMq = hasRabbitMq,
             Subscriptions = subscriptionResolutions,
             HasMultiTenancy = spec.MultiTenant,
+            CrossTenantRolesLiteral = string.Join(", ", (spec.Auth?.CrossTenantRoles ?? []).Select(r => $"\"{r}\"")),
             ServiceKey = spec.Service.ToLowerInvariant(),
             OutboxMaxRetries = spec.RabbitMqTuning?.OutboxMaxRetries,
             OutboxRetentionDays = spec.RabbitMqTuning?.OutboxRetentionDays,

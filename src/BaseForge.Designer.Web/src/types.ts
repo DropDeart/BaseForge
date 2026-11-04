@@ -77,6 +77,8 @@ export interface ServiceAuthSpec {
   defaultAccess?: AccessRule | null;
   /** Tüm rol ve sahiplik kurallarını otomatik geçen roller (örn. SuperAdmin). */
   superRoles?: string[];
+  /** Multi-tenant serviste kiracısız token'la tüm kiracıları okuyabilen roller (yalnız GET). */
+  crossTenantRoles?: string[];
 }
 
 export interface DockerPortsSpec {

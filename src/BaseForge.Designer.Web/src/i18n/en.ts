@@ -117,6 +117,8 @@ export const en = {
     defaultAccessHint: "Actions not set on the entity, and image upload, use this.",
     superRoles: "Super roles",
     superRolesHint: "These roles pass every role and ownership rule automatically (e.g. a SuperAdmin platform owner in SaaS).",
+    crossTenantRoles: "Cross-tenant read roles",
+    crossTenantRolesHint: "Multi-tenant services only: with a token without tenant_id these roles read every tenant's records (GET only; writes still need a tenant).",
     title: "Access",
     jwtOff: "JWT connection is off — every endpoint is public. Connect to Identity in the service settings for roles/ownership.",
     ownerField: "Owner field",

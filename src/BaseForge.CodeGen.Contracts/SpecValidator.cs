@@ -153,6 +153,16 @@ public static class SpecValidator
                     errors.Add($"'auth.superRoles' geçersiz rol adı: '{role}' (harf, rakam, '_' veya '-').");
                 }
             }
+
+            foreach (var role in spec.Auth.CrossTenantRoles.Where(r => !IsValidRoleName(r)))
+            {
+                errors.Add($"'auth.crossTenantRoles' geçersiz rol adı: '{role}' (harf, rakam, '_' veya '-').");
+            }
+
+            if (spec.Auth.CrossTenantRoles.Count > 0 && !spec.MultiTenant)
+            {
+                errors.Add("'auth.crossTenantRoles' yalnızca 'multiTenant: true' serviste kullanılabilir.");
+            }
         }
 
         if (spec.Subscribes is not null)

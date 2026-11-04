@@ -44,4 +44,29 @@ public class CurrentTenantTests
 
         Assert.Null(TenantScope.Current);
     }
+
+    private static CurrentTenant CreateRequest(string method, IEnumerable<Claim> claims, params string[] crossTenantRoles)
+    {
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test", "sub", "role")),
+        };
+        context.Request.Method = method;
+        return new CurrentTenant(new HttpContextAccessor { HttpContext = context }, new MultiTenancyOptions { CrossTenantRoles = crossTenantRoles });
+    }
+
+    [Fact]
+    public void CrossTenantRole_WithoutTenant_ReadsAll_OnGetOnly()
+    {
+        Claim[] superAdmin = [new("role", "SuperAdmin")];
+
+        Assert.True(CreateRequest("GET", superAdmin, "SuperAdmin").ReadsAllTenants);
+        Assert.False(CreateRequest("POST", superAdmin, "SuperAdmin").ReadsAllTenants);   // yazma kiracı ister
+        Assert.False(CreateRequest("GET", [new("role", "Operator")], "SuperAdmin").ReadsAllTenants);
+        Assert.False(CreateRequest("GET", superAdmin).ReadsAllTenants);                   // rol tanımlı değil
+    }
+
+    [Fact]
+    public void CrossTenantRole_WithTenantClaim_StaysInTenant()
+        => Assert.False(CreateRequest("GET", [new("role", "SuperAdmin"), new(BaseForgeClaims.TenantId, TenantA.ToString())], "SuperAdmin").ReadsAllTenants);
 }
