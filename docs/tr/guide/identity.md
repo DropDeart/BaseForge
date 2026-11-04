@@ -133,7 +133,7 @@ Giriş SPA'sı profil ve admin formlarını otomatik çizer, `/api/account/me` b
 
 Bu tasarımların gerekçelerinin tamamı için bkz. [Mimari §6](/tr/architecture#_6-kimlik-dogrulama).
 
-## Şirketler, giriş yöntemleri ve e-posta (0.6.4)
+## Şirketler, giriş yöntemleri ve e-posta (0.6.5)
 
 ```yaml
 registration:
