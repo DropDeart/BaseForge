@@ -34,6 +34,31 @@ public sealed class AuthOptions
 
     /// <summary>Dış kimlik sağlayıcıları (Google/GitHub/Microsoft/Facebook/Apple).</summary>
     public ProvidersOptions Providers { get; set; } = new();
+
+    /// <summary>Kiracı (şirket) yönetimi (varsayılan: kapalı).</summary>
+    public MultiTenancyOptions MultiTenancy { get; set; } = new();
+}
+
+/// <summary>Kiracı (şirket) yönetimi: şirketler, üyelikler, token'da tenant_id.</summary>
+public sealed class MultiTenancyOptions
+{
+    /// <summary>Açık mı? Kapalıyken kiracı uçları 404 döner, token'a tenant_id yazılmaz.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Şirketi açanın ve üye yönetenin rolü.</summary>
+    public string AdminRole { get; set; } = "TenantAdmin";
+
+    /// <summary>Şirket içinde verilebilen roller; yalnızca üyelikten gelir, global atanmaz.</summary>
+    public List<string> MemberRoles { get; set; } = [];
+
+    /// <summary>Self-servis açılan şirket onaylanana kadar beklemede kalır.</summary>
+    public bool RequireApproval { get; set; } = true;
+
+    /// <summary>Şirketleri onaylayan/askıya alan global roller.</summary>
+    public List<string> ApproverRoles { get; set; } = ["SuperAdmin"];
+
+    /// <summary>Admin rolü dahil tüm şirket içi roller.</summary>
+    public IReadOnlyList<string> AllMemberRoles => [.. MemberRoles.Append(AdminRole).Distinct(StringComparer.Ordinal)];
 }
 
 /// <summary>Kendi kendine kayıt ayarları (bkz. BaseForge docs/ARCH.md §6.1).</summary>
@@ -47,6 +72,9 @@ public sealed class RegistrationOptions
 
     /// <summary>Kayıt olan (veya dış sağlayıcıyla ilk kez gelen) kullanıcıya verilecek rol.</summary>
     public string DefaultRole { get; set; } = "User";
+
+    /// <summary>Kullanıcının kendine ekleyebileceği global roller (örn. şoför uygulaması için <c>Driver</c>).</summary>
+    public List<string> SelfAssignableRoles { get; set; } = [];
 }
 
 /// <summary>Bir API scope'u ve eşlendiği kaynak (audience).</summary>

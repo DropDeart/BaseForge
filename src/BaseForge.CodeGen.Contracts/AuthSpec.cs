@@ -37,6 +37,9 @@ public sealed class AuthSpec
     /// <summary>Harici oturum açma sağlayıcıları (Google/GitHub/Microsoft/Facebook).</summary>
     public ProvidersSpec Providers { get; set; } = new();
 
+    /// <summary>Kiracı (şirket) yönetimi (varsayılan: kapalı).</summary>
+    public MultiTenancySpec MultiTenancy { get; set; } = new();
+
     /// <summary>Docker host portları (opsiyonel). Boş alanlar için varsayılanlar kullanılır.</summary>
     public DockerPortsSpec? DockerPorts { get; set; }
 
@@ -89,6 +92,28 @@ public sealed class RegistrationSpec
 
     /// <summary>Kayıt olan (veya dış sağlayıcıyla ilk kez gelen) kullanıcıya verilecek rol.</summary>
     public string DefaultRole { get; set; } = DefaultUserRole;
+
+    /// <summary>Kullanıcının kendine ekleyebileceği global roller (örn. şoför uygulaması için <c>Driver</c>).</summary>
+    public List<string> SelfAssignableRoles { get; set; } = [];
+}
+
+/// <summary>Kiracı (şirket) yönetimi: self-servis şirket, davet/katılma isteği, token'da tenant_id (bkz. docs/ARCH.md §6.6).</summary>
+public sealed class MultiTenancySpec
+{
+    /// <summary>Açık mı?</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Şirketi açanın ve üyeleri yönetenin rolü.</summary>
+    public string AdminRole { get; set; } = "TenantAdmin";
+
+    /// <summary>Şirket içinde verilebilen diğer roller (yalnızca üyelikten gelir).</summary>
+    public List<string> MemberRoles { get; set; } = [];
+
+    /// <summary>Self-servis açılan şirket platform onayı bekler.</summary>
+    public bool RequireApproval { get; set; } = true;
+
+    /// <summary>Şirketleri onaylayan global roller.</summary>
+    public List<string> ApproverRoles { get; set; } = ["SuperAdmin"];
 }
 
 /// <summary>Token imzalama sertifikası ayarları.</summary>

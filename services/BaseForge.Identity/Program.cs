@@ -3,6 +3,8 @@ using BaseForge.Identity.Authentication;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.ErrorHandling;
+using BaseForge.Identity.Tenancy;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -158,7 +160,11 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore();
     });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(json => json.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
+// Kiracı (şirket) yönetimi: Auth:MultiTenancy:Enabled kapalıyken uçlar 404 döner.
+builder.Services.AddTenancy(authOptions);
 
 // Merkez kullanıcı entity'sine (ApplicationUser) diğer servislerin gRPC ile salt-okunur erişimi.
 builder.Services.AddGrpc();
@@ -192,11 +198,14 @@ await using (var scope = app.Services.CreateAsyncScope())
     await db.Database.EnsureCreatedAsync();
     // EnsureCreated var olan tabloyu değiştirmez: sonradan eklenen userProfile alanlarının kolonlarını ekle.
     await BaseForge.Identity.Profile.UserProfile.EnsureColumnsAsync(db);
+    await TenancyModel.EnsureTablesAsync(db);
     await SeedData.SeedAsync(scope.ServiceProvider, authOptions);
 }
 
 app.UseStaticFiles();
 app.UseCors("ConfiguredOrigins");
+// /api uçlarında iş kuralı hataları BaseForge servisleriyle aynı ProblemDetails biçiminde döner.
+app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api"), api => api.UseMiddleware<IdentityExceptionMiddleware>());
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
