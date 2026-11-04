@@ -25,6 +25,7 @@ export const tr: Messages = {
     advancedTitle: "Gelişmiş ayarlar (nullable / maxLength / default / counter)",
   },
   app: {
+    staleConfirm: "Dosyanın üzerine ekrandaki hâliyle yazılsın mı? (İptal: dosya kalır; görmek için sayfayı yenileyin.)",
     loading: "Yükleniyor…",
     closing: "Designer kapatılıyor…",
     closed: "Designer kapatıldı",

@@ -37,9 +37,12 @@ internal static class DesignerEndpoints
             Results.Ok(ServiceRegistry.LoadForWorkspace(ctx.WorkingDirectory)));
 
         // 'new' -> CLI arg'ından seed edilmiş boş spec. 'update' -> diskteki spec.yaml/auth.yaml (varsa) yüklenir.
+        // Diskteki dosyaların hash'i de döner: generate, form açıldıktan sonra dosya değiştiyse üzerine yazmaz (DES-1).
         api.MapGet("/spec", (DesignerContext ctx) => Results.Ok(new SpecResponse(
             Service: LoadServiceOrSeed(ctx),
-            Auth: LoadAuthOrSeed(ctx))));
+            Auth: LoadAuthOrSeed(ctx),
+            ServiceHash: SpecFileGuard.Hash(Path.Combine(ResolveOutput(null, ctx, ctx.ServiceName), "spec.yaml")),
+            AuthHash: SpecFileGuard.Hash(Path.Combine(ResolveOutput(null, ctx, ResolveIdentityFolderName(ctx)), "auth.yaml")))));
 
         // Servis spec doğrulama.
         api.MapPost("/validate", (ServiceSpec spec) =>
@@ -60,12 +63,25 @@ internal static class DesignerEndpoints
             }
 
             var output = ResolveOutput(req.Output, ctx, spec.Service);
+            var portErrors = SpecFileGuard.PortConflicts(ServiceRegistry.LoadForWorkspace(ctx.WorkingDirectory), spec.Service,
+                spec.DockerPorts?.Rest ?? 8080, spec.DockerPorts?.Grpc ?? 8081, spec.DockerPorts?.Postgres ?? 5432);
+            if (portErrors.Count > 0)
+            {
+                return Results.BadRequest(new ValidateResponse(portErrors));
+            }
+
+            var specFile = Path.Combine(output, "spec.yaml");
+            if (!req.Force && SpecFileGuard.IsStale(specFile, req.BaseHash))
+            {
+                return Results.Conflict(new StaleResponse([SpecFileGuard.StaleMessage("spec.yaml")], Stale: true));
+            }
+
             var specPath = YamlSpecWriter.Write(spec, output);
             var files = CodeGenerator.Generate(spec, output, specPath);
             var build = await BuildRunner.BuildAsync(output, ct);
             var solutionMessage = await TryAddToSolutionAsync(req.IncludeInSolution, ctx, files, ct);
 
-            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output, solutionMessage));
+            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output, solutionMessage, SpecFileGuard.Hash(specFile)));
         });
 
         // Merkez Identity üret: auth.yaml yaz + kod üret + dotnet build.
@@ -79,6 +95,19 @@ internal static class DesignerEndpoints
             }
 
             var output = ResolveOutput(null, ctx, spec.Service);
+            var portErrors = SpecFileGuard.PortConflicts(ServiceRegistry.LoadForWorkspace(ctx.WorkingDirectory), spec.Service,
+                spec.DockerPorts?.Rest ?? 8081, spec.DockerPorts?.Grpc ?? 8082, spec.DockerPorts?.Postgres ?? 5432);
+            if (portErrors.Count > 0)
+            {
+                return Results.BadRequest(new ValidateResponse(portErrors));
+            }
+
+            var authFile = Path.Combine(output, "auth.yaml");
+            if (!req.Force && SpecFileGuard.IsStale(authFile, req.BaseHash))
+            {
+                return Results.Conflict(new StaleResponse([SpecFileGuard.StaleMessage("auth.yaml")], Stale: true));
+            }
+
             // Secret'lar yalnızca .env'de tutulur: boş bırakılanları mevcut .env'den geri al, auth.yaml'a secret'sız yaz.
             IdentitySecrets.RestoreUnchanged(spec, output);
             YamlSpecWriter.Write(IdentitySecrets.Redacted(spec), output, "auth.yaml");
@@ -86,7 +115,7 @@ internal static class DesignerEndpoints
             var build = await BuildRunner.BuildAsync(output, ct);
             var solutionMessage = await TryAddToSolutionAsync(req.IncludeInSolution, ctx, files, ct);
 
-            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output, solutionMessage));
+            return Results.Ok(new GenerateResponse(output, files, build.Success, build.Output, solutionMessage, SpecFileGuard.Hash(authFile)));
         });
 
         // Üretilen servisi çalıştır: docker compose up --build -d --wait (tam stack).
@@ -257,20 +286,23 @@ internal static class DesignerEndpoints
         bool ServiceIsNew,
         bool IdentityIsNew);
 
-    private sealed record SpecResponse(ServiceSpec Service, AuthSpec Auth);
+    private sealed record SpecResponse(ServiceSpec Service, AuthSpec Auth, string? ServiceHash, string? AuthHash);
+
+    private sealed record StaleResponse(IReadOnlyList<string> Errors, bool Stale);
 
     private sealed record ValidateResponse(IReadOnlyList<string> Errors);
 
-    private sealed record GenerateServiceRequest(ServiceSpec Spec, string? Output, bool IncludeInSolution);
+    private sealed record GenerateServiceRequest(ServiceSpec Spec, string? Output, bool IncludeInSolution, string? BaseHash = null, bool Force = false);
 
-    private sealed record GenerateIdentityRequest(AuthSpec Spec, bool IncludeInSolution);
+    private sealed record GenerateIdentityRequest(AuthSpec Spec, bool IncludeInSolution, string? BaseHash = null, bool Force = false);
 
     private sealed record GenerateResponse(
         string Output,
         IReadOnlyList<string> Files,
         bool BuildSuccess,
         string BuildOutput,
-        string? SolutionMessage);
+        string? SolutionMessage,
+        string? SpecHash);
 
     private sealed record RunRequest(string Output, int RestPort);
 

@@ -23,6 +23,7 @@ export const en = {
     advancedTitle: "Advanced settings (nullable / maxLength / default / counter)",
   },
   app: {
+    staleConfirm: "Overwrite the file with the form as shown? (Cancel: keep the file; reload the page to see it.)",
     loading: "Loading…",
     closing: "Closing the Designer…",
     closed: "Designer closed",

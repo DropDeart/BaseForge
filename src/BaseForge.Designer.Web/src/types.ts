@@ -242,6 +242,8 @@ export interface WorkspaceEntry {
 }
 
 export interface GenerateResponse {
+  /** Yazılan spec dosyasının yeni hash'i (sonraki generate için). */
+  specHash: string | null;
   output: string;
   files: string[];
   buildSuccess: boolean;
