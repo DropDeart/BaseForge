@@ -112,4 +112,5 @@ public sealed class RabbitMqPublisher : IRabbitMqPublisher
 /// <c>RabbitMqConsumerHostedService</c> bunu geri yükleyerek handler loglarının orijinal
 /// istekle aynı id'yi taşımasını sağlar.
 /// </param>
-internal sealed record EventEnvelope(Guid EventId, DateTimeOffset OccurredAt, string EventType, JsonElement Data, string? CorrelationId = null);
+/// <param name="TenantId">Olayı üreten isteğin kiracısı (varsa); tüketici bu kiracının bağlamında işler.</param>
+internal sealed record EventEnvelope(Guid EventId, DateTimeOffset OccurredAt, string EventType, JsonElement Data, string? CorrelationId = null, Guid? TenantId = null);

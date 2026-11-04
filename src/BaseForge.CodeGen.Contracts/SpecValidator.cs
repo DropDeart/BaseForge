@@ -113,6 +113,9 @@ public static class SpecValidator
             ValidateAccess(spec, entityName, entity, errors);
             ValidateFilterable(entityName, entity, errors);
             ValidateSortAndSearchFields(entityName, entity, errors);
+            ValidateListFilters(entityName, entity, errors);
+            ValidateUnique(entityName, entity, errors);
+            ValidatePropRules(entityName, entity, errors);
             ValidateReadFilter(entityName, entity, errors);
 
             var seenCounters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -152,6 +155,16 @@ public static class SpecValidator
                 {
                     errors.Add($"'auth.superRoles' geçersiz rol adı: '{role}' (harf, rakam, '_' veya '-').");
                 }
+            }
+
+            foreach (var role in spec.Auth.CrossTenantRoles.Where(r => !IsValidRoleName(r)))
+            {
+                errors.Add($"'auth.crossTenantRoles' geçersiz rol adı: '{role}' (harf, rakam, '_' veya '-').");
+            }
+
+            if (spec.Auth.CrossTenantRoles.Count > 0 && !spec.MultiTenant)
+            {
+                errors.Add("'auth.crossTenantRoles' yalnızca 'multiTenant: true' serviste kullanılabilir.");
             }
         }
 
@@ -395,6 +408,119 @@ public static class SpecValidator
         }
 
         return fields;
+    }
+
+    private static readonly string[] RangeTypes = ["int", "long", "short", "decimal", "double", "float", "date", "datetime"];
+
+    private static readonly string[] NumericTypes = ["int", "long", "short", "decimal", "double", "float"];
+
+    private static void ValidateListFilters(string entityName, EntitySpec entity, List<string> errors)
+    {
+        var fields = ScalarFieldTypes(entity);
+        if ((entity.RangeFilters.Count > 0 || entity.InFilters.Count > 0) && !entity.Paginated)
+        {
+            errors.Add($"'{entityName}.rangeFilters/inFilters' yalnızca sayfalı (paginated: true) listelerde kullanılabilir.");
+        }
+
+        foreach (var (key, names, allowed) in new[] { ("rangeFilters", entity.RangeFilters, RangeTypes), ("inFilters", entity.InFilters, FilterableTypes.Where(t => t is not "bool" and not "date").ToArray()) })
+        {
+            foreach (var name in names)
+            {
+                if (!fields.TryGetValue(name, out var type))
+                {
+                    errors.Add($"'{entityName}.{key}' — '{name}' bu entity'nin bir alanı değil.");
+                }
+                else if (!allowed.Contains(type))
+                {
+                    errors.Add($"'{entityName}.{key}' — '{name}' ({type}) uygun değil (desteklenen: {string.Join(", ", allowed)}).");
+                }
+            }
+
+            foreach (var dup in names.GroupBy(n => n, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            {
+                errors.Add($"'{entityName}.{key}' içinde '{dup.Key}' birden fazla kez geçiyor.");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(entity.DefaultSort))
+        {
+            return;
+        }
+
+        var sortable = entity.SortFields.Count > 0
+            ? entity.SortFields.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : fields.Keys.Concat(["CreatedAt", "UpdatedAt"]).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in entity.DefaultSort.Split(',', StringSplitOptions.TrimEntries))
+        {
+            var tokens = part.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var directionOk = tokens.Length == 1 || (tokens.Length == 2 && tokens[1].ToLowerInvariant() is "asc" or "desc");
+            if (tokens.Length is 0 or > 2 || !directionOk || !sortable.Contains(tokens[0]))
+            {
+                errors.Add($"'{entityName}.defaultSort' geçersiz: '{part}' (biçim: 'Alan [asc|desc]', alan sıralanabilir olmalı).");
+            }
+        }
+    }
+
+    private static void ValidateUnique(string entityName, EntitySpec entity, List<string> errors)
+    {
+        var fields = ScalarFieldTypes(entity);
+        foreach (var group in entity.Unique)
+        {
+            if (group.Count == 0)
+            {
+                errors.Add($"'{entityName}.unique' boş grup içeremez.");
+            }
+
+            foreach (var name in group.Where(n => !fields.ContainsKey(n)))
+            {
+                errors.Add($"'{entityName}.unique' — '{name}' bu entity'nin bir alanı değil.");
+            }
+
+            foreach (var json in group.Where(n => fields.TryGetValue(n, out var t) && t == "json"))
+            {
+                errors.Add($"'{entityName}.unique' — '{json}' json alanı benzersiz olamaz.");
+            }
+        }
+    }
+
+    private static void ValidatePropRules(string entityName, EntitySpec entity, List<string> errors)
+    {
+        foreach (var (name, prop) in entity.Props)
+        {
+            var label = $"{entityName}.{name}";
+            var type = prop.Type.Trim().ToLowerInvariant();
+            if ((prop.Min is not null || prop.Max is not null) && !NumericTypes.Contains(type))
+            {
+                errors.Add($"'{label}' — min/max yalnızca sayısal alanlarda kullanılabilir.");
+            }
+
+            if (prop.Min > prop.Max)
+            {
+                errors.Add($"'{label}' — min, max'tan büyük olamaz.");
+            }
+
+            if ((prop.MinLength is not null || prop.Pattern is not null) && type is not ("string" or "text"))
+            {
+                errors.Add($"'{label}' — minLength/pattern yalnızca string/text alanlarda kullanılabilir.");
+            }
+
+            if (prop.MinLength < 0 || (prop.MinLength is { } min && prop.MaxLength is { } max && min > max))
+            {
+                errors.Add($"'{label}' — minLength geçersiz (0 ≤ minLength ≤ maxLength).");
+            }
+
+            if (prop.Pattern is { } pattern)
+            {
+                try
+                {
+                    _ = new System.Text.RegularExpressions.Regex(pattern);
+                }
+                catch (ArgumentException)
+                {
+                    errors.Add($"'{label}.pattern' geçerli bir düzenli ifade değil.");
+                }
+            }
+        }
     }
 
     private static void ValidateSortAndSearchFields(string entityName, EntitySpec entity, List<string> errors)

@@ -89,6 +89,10 @@ subscribes:
 | `paginated` / `sortable` / `searchable` | bool | Liste davranışı (hepsi varsayılan `true`) |
 | `sortFields` | liste | `sortBy`'ın kullanabileceği alanlar (varsayılan: tüm skaler alanlar + `CreatedAt`/`UpdatedAt`); dışındakiler 400 |
 | `searchFields` | liste | `search`'ün aradığı string/text alanlar (varsayılan: hepsi) — hassas alanları dışarıda bırakın |
+| `rangeFilters` | liste | `?xFrom=…&xTo=…` ile süzülen tarih/sayı alanları (dahil) |
+| `inFilters` | liste | `?xIn=A&xIn=B` ile süzülen alanlar |
+| `defaultSort` | string | `sortBy` boşken sıralama, örn. `PlannedAt asc` |
+| `unique` | liste listesi | Benzersiz alan grupları, örn. `[[Code], [StationId, TicketNo]]` — kiracılı serviste kiracı içinde |
 
 ## Alan tipleri
 
@@ -115,7 +119,7 @@ props:
   Status: { type: enum, values: [Draft, Active], default: Draft }
 ```
 
-Zengin form anahtarları: `type`, `nullable`, `maxLength` (yalnızca string/text), `default`, `values` (yalnızca enum), `serverManaged` (üretilen Create/Update komutlarına girmez — yalnızca kendi kodunuz değiştirir; DTO'da yine döner).
+Zengin form anahtarları: `type`, `nullable`, `maxLength` (yalnızca string/text), `default`, `values` (yalnızca enum), `serverManaged` (üretilen Create/Update komutlarına girmez — yalnızca kendi kodunuz değiştirir; DTO'da yine döner), `min`/`max` (sayı), `minLength`/`pattern` (string/text) — üretilen komutlarda doğrulanır.
 
 ## İlişkiler
 

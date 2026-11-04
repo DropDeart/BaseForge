@@ -19,6 +19,8 @@ interface Props {
   onChange: (entity: EntitySpec) => void;
 }
 
+const NUMERIC_TYPES = ["int", "long", "short", "decimal", "double", "float"];
+
 export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles, onRename, onRemove, onChange }: Props) {
   const m = useT();
   const props = entity.props ?? {};
@@ -200,6 +202,13 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                       value={pSpec.maxLength ?? ""}
                       onChange={(e) => updateProp(pName, { maxLength: e.target.value === "" ? null : Number(e.target.value) })}
                     />
+                  ) : NUMERIC_TYPES.includes(pSpec.type) ? (
+                    <span style={{ display: "flex", gap: 4 }}>
+                      <input className="uinput" type="number" placeholder="min" value={pSpec.min ?? ""}
+                        onChange={(e) => updateProp(pName, { min: e.target.value === "" ? null : Number(e.target.value) })} />
+                      <input className="uinput" type="number" placeholder="max" value={pSpec.max ?? ""}
+                        onChange={(e) => updateProp(pName, { max: e.target.value === "" ? null : Number(e.target.value) })} />
+                    </span>
                   ) : isEnum ? (
                     <input
                       className="uinput mono"
@@ -234,6 +243,14 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                       value={pSpec.default ?? ""}
                       onChange={(e) => updateProp(pName, { default: e.target.value === "" ? null : e.target.value })}
                     />
+                  )}
+                  {isStringLike && (
+                    <span style={{ display: "flex", gap: 4 }}>
+                      <input className="uinput" type="number" min={0} placeholder="minLength" value={pSpec.minLength ?? ""}
+                        onChange={(e) => updateProp(pName, { minLength: e.target.value === "" ? null : Number(e.target.value) })} />
+                      <input className="uinput mono" placeholder={m.entity.patternPlaceholder} value={pSpec.pattern ?? ""}
+                        onChange={(e) => updateProp(pName, { pattern: e.target.value === "" ? null : e.target.value })} />
+                    </span>
                   )}
                   {isInt ? (
                     <label title={m.entity.counterTitle}>
@@ -346,6 +363,11 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                   <option key={v} value={v}>{v}</option>
                 ))}
               </select>
+              <label title={m.entity.refNullableTitle}>
+                <input type="checkbox" checked={x.nullable ?? false}
+                  onChange={(e) => onChange({ ...entity, externalRefs: setKey(externalRefs, xName, { ...x, nullable: e.target.checked || undefined }) })} />
+                {m.entity.refNullable}
+              </label>
               <button className="icon-btn" onClick={() => onChange({ ...entity, externalRefs: removeKey(externalRefs, xName) })}>×</button>
             </div>
           ))}

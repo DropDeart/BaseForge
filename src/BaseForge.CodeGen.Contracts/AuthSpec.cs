@@ -40,6 +40,18 @@ public sealed class AuthSpec
     /// <summary>Kiracı (şirket) yönetimi (varsayılan: kapalı).</summary>
     public MultiTenancySpec MultiTenancy { get; set; } = new();
 
+    /// <summary>Tek kullanımlık kod: SMS ile giriş, telefon/e-posta doğrulama (varsayılan: kapalı).</summary>
+    public OtpSpec Otp { get; set; } = new();
+
+    /// <summary>E-posta/SMS göndericileri (SMTP parolası .env'de).</summary>
+    public MessagingSpec Messaging { get; set; } = new();
+
+    /// <summary>Şifremi unuttum (varsayılan: kapalı).</summary>
+    public PasswordResetSpec PasswordReset { get; set; } = new();
+
+    /// <summary>Access token ömrü (dk).</summary>
+    public int AccessTokenLifetimeMinutes { get; set; } = 60;
+
     /// <summary>Docker host portları (opsiyonel). Boş alanlar için varsayılanlar kullanılır.</summary>
     public DockerPortsSpec? DockerPorts { get; set; }
 
@@ -95,6 +107,85 @@ public sealed class RegistrationSpec
 
     /// <summary>Kullanıcının kendine ekleyebileceği global roller (örn. şoför uygulaması için <c>Driver</c>).</summary>
     public List<string> SelfAssignableRoles { get; set; } = [];
+}
+
+/// <summary>Tek kullanımlık kod (OTP) kuralları. Client'ın telefonla giriş yapabilmesi için grants'a <c>otp</c> eklenir.</summary>
+public sealed class OtpSpec
+{
+    /// <summary>Açık mı?</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Kod uzunluğu (4-8).</summary>
+    public int CodeLength { get; set; } = 6;
+
+    /// <summary>Kodun geçerlilik süresi (sn).</summary>
+    public int LifetimeSeconds { get; set; } = 180;
+
+    /// <summary>Bir koda en fazla hatalı deneme.</summary>
+    public int MaxAttempts { get; set; } = 5;
+
+    /// <summary>Yeniden gönderim için bekleme (sn).</summary>
+    public int ResendCooldownSeconds { get; set; } = 60;
+
+    /// <summary>Aynı hedefe saatte en fazla gönderim.</summary>
+    public int MaxPerHour { get; set; } = 5;
+
+    /// <summary>Ülke kodsuz telefonlar için (örn. +90).</summary>
+    public string DefaultCountryCode { get; set; } = "+90";
+}
+
+/// <summary>E-posta/SMS göndericileri.</summary>
+public sealed class MessagingSpec
+{
+    /// <summary>Desteklenen e-posta sağlayıcıları.</summary>
+    public static readonly string[] EmailProviders = ["Log", "Smtp"];
+
+    /// <summary>Desteklenen SMS sağlayıcıları (sağlayıcı ISmsSender ile eklenir).</summary>
+    public static readonly string[] SmsProviders = ["Log"];
+
+    /// <summary>E-posta: Log (geliştirme) ya da Smtp.</summary>
+    public string EmailProvider { get; set; } = "Log";
+
+    /// <summary>SMS: şimdilik Log.</summary>
+    public string SmsProvider { get; set; } = "Log";
+
+    /// <summary>SMTP bağlantısı (parola hariç).</summary>
+    public SmtpSpec Smtp { get; set; } = new();
+}
+
+/// <summary>SMTP bağlantısı; parola .env'de (Auth__Messaging__Smtp__Password).</summary>
+public sealed class SmtpSpec
+{
+    /// <summary>Sunucu (örn. smtp.resend.com).</summary>
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>Port: 465 TLS, 587 STARTTLS.</summary>
+    public int Port { get; set; } = 587;
+
+    /// <summary>Kullanıcı adı.</summary>
+    public string? Username { get; set; }
+
+    /// <summary>Gönderen adresi.</summary>
+    public string FromAddress { get; set; } = string.Empty;
+
+    /// <summary>Gönderen adı (e-posta şablonunda ürün adı).</summary>
+    public string FromName { get; set; } = "BaseForge";
+}
+
+/// <summary>Şifremi unuttum.</summary>
+public sealed class PasswordResetSpec
+{
+    /// <summary>Açık mı?</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Sıfırlama sayfası (mutlak URL; ?userId=&amp;token= eklenir).</summary>
+    public string ResetUrl { get; set; } = string.Empty;
+
+    /// <summary>Bağlantı süresi (saat).</summary>
+    public int TokenLifetimeHours { get; set; } = 2;
+
+    /// <summary>Aynı adrese yeniden gönderim beklemesi (sn).</summary>
+    public int CooldownSeconds { get; set; } = 60;
 }
 
 /// <summary>Kiracı (şirket) yönetimi: self-servis şirket, davet/katılma isteği, token'da tenant_id (bkz. docs/ARCH.md §6.6).</summary>

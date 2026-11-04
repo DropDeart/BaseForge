@@ -1,7 +1,10 @@
 using System.Security.Claims;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Configuration;
+using BaseForge.Identity.ErrorHandling;
+using BaseForge.Identity.Otp;
 using BaseForge.Identity.Profile;
 using BaseForge.Identity.Tenancy;
 using Microsoft.AspNetCore;
@@ -23,6 +26,7 @@ public sealed class AuthorizationController : ControllerBase
     private readonly IOpenIddictScopeManager _scopeManager;
     private readonly ITenantTokenResolver _tenantResolver;
     private readonly IMembershipService _memberships;
+    private readonly IContactVerificationService _verification;
     private readonly MultiTenancyOptions _tenancy;
 
     public AuthorizationController(
@@ -31,6 +35,7 @@ public sealed class AuthorizationController : ControllerBase
         IOpenIddictScopeManager scopeManager,
         ITenantTokenResolver tenantResolver,
         IMembershipService memberships,
+        IContactVerificationService verification,
         AuthOptions authOptions)
     {
         _userManager = userManager;
@@ -38,11 +43,15 @@ public sealed class AuthorizationController : ControllerBase
         _scopeManager = scopeManager;
         _tenantResolver = tenantResolver;
         _memberships = memberships;
+        _verification = verification;
         _tenancy = authOptions.MultiTenancy;
     }
 
-    /// <summary>Aktif şirketi seçen istek parametresi (password, refresh_token, authorize).</summary>
-    private const string TenantParameter = "tenant_id";
+    /// <summary>Aktif şirket claim'i; aynı adlı istek parametresi şirket seçer/değiştirir.</summary>
+    private const string TenantIdClaim = "tenant_id";
+
+    /// <summary>Aktif şirketin adı.</summary>
+    private const string TenantNameClaim = "tenant_name";
 
     [HttpGet("~/connect/authorize")]
     [HttpPost("~/connect/authorize")]
@@ -64,7 +73,7 @@ public sealed class AuthorizationController : ControllerBase
         var user = await _userManager.GetUserAsync(result.Principal!)
             ?? throw new InvalidOperationException("Oturum açan kullanıcı bulunamadı.");
 
-        return await SignInUserAsync(user, request.GetScopes(), RequestedTenant(request), previousTenantId: null);
+        return await SignInUserAsync(user, request.GetScopes());
     }
 
     [HttpPost("~/connect/token")]
@@ -77,6 +86,11 @@ public sealed class AuthorizationController : ControllerBase
         if (request.IsPasswordGrantType())
         {
             return await HandlePasswordAsync(request);
+        }
+
+        if (request.GrantType == OtpRegistration.GrantType)
+        {
+            return await HandleOtpAsync(request);
         }
 
         if (request.IsClientCredentialsGrantType())
@@ -109,7 +123,28 @@ public sealed class AuthorizationController : ControllerBase
             return Forbidden("Kullanıcı adı veya parola hatalı.");
         }
 
-        return await SignInUserAsync(user, request.GetScopes(), RequestedTenant(request), previousTenantId: null);
+        return await SignInUserAsync(user, request.GetScopes());
+    }
+
+    /// <summary>Telefon + SMS kodu: doğrulanmış telefonun sahibi ya da (kayıt açıksa) yeni hesap.</summary>
+    /// <remarks>Grant yalnız otp.enabled iken kayıtlıdır (Program.cs); kapalıyken OpenIddict reddeder.</remarks>
+    private async Task<IActionResult> HandleOtpAsync(OpenIddictRequest request)
+    {
+        ApplicationUser user;
+        try
+        {
+            user = await _verification.SignInWithPhoneAsync(
+                (string?)request.GetParameter("phone") ?? string.Empty,
+                (string?)request.GetParameter("code") ?? string.Empty,
+                (string?)request.GetParameter("role"),
+                HttpContext.RequestAborted);
+        }
+        catch (IdentityException ex)
+        {
+            return Forbidden(ex.Message);
+        }
+
+        return await SignInUserAsync(user, request.GetScopes());
     }
 
     private async Task<IActionResult> HandleClientCredentialsAsync(OpenIddictRequest request)
@@ -144,17 +179,22 @@ public sealed class AuthorizationController : ControllerBase
             return Forbidden("Yetkilendirme kodu ya da refresh token geçersiz.");
         }
 
-        // Refresh'te şirket korunur; tenant_id parametresiyle başka şirkete geçilir.
-        var request = HttpContext.GetOpenIddictServerRequest();
-        return await SignInUserAsync(user, result.Principal!.GetScopes(),
-            request is null ? null : RequestedTenant(request), result.Principal!.GetClaim(TenantParameter));
+        // Refresh'te şirket korunur (tenant_id parametresiyle başka şirkete geçilir); davetler girişte bağlandı.
+        return await SignInUserAsync(user, result.Principal!.GetScopes(), renewal: true, result.Principal!.GetClaim(TenantIdClaim));
     }
 
-    private static string? RequestedTenant(OpenIddictRequest request) => (string?)request.GetParameter(TenantParameter);
-
-    private async Task<IActionResult> SignInUserAsync(ApplicationUser user, IEnumerable<string> scopes, string? requestedTenantId, string? previousTenantId)
+    /// <summary>
+    /// Kullanıcı token'ı: aktif şirket sırayla istek parametresi, (yenilemede) önceki token, varsayılan üyelikten seçilir.
+    /// Yeni girişte doğrulanmış iletişim bilgisine gelen davetler hesaba bağlanır.
+    /// </summary>
+    private async Task<IActionResult> SignInUserAsync(ApplicationUser user, IEnumerable<string> scopes, bool renewal = false, string? previousTenantId = null)
     {
-        await _memberships.ClaimInvitationsAsync(user, HttpContext.RequestAborted);
+        if (!renewal)
+        {
+            await _memberships.ClaimInvitationsAsync(user, HttpContext.RequestAborted);
+        }
+
+        var requestedTenantId = (string?)HttpContext.GetOpenIddictServerRequest()?.GetParameter(TenantIdClaim);
         var selection = await _tenantResolver.ResolveAsync(user.Id, requestedTenantId, previousTenantId, HttpContext.RequestAborted);
         if (selection.Error is not null)
         {
@@ -181,8 +221,8 @@ public sealed class AuthorizationController : ControllerBase
         var roles = (await _userManager.GetRolesAsync(user)).Where(r => !memberRoles.Contains(r, StringComparer.Ordinal));
         if (tenant is not null)
         {
-            identity.AddClaim(TenantParameter, tenant.TenantId.ToString());
-            identity.AddClaim("tenant_name", tenant.Name);
+            identity.AddClaim(TenantIdClaim, tenant.TenantId.ToString());
+            identity.AddClaim(TenantNameClaim, tenant.Name);
             roles = roles.Concat(tenant.Roles);
         }
 
@@ -224,7 +264,7 @@ public sealed class AuthorizationController : ControllerBase
             var destinations = new List<string> { Destinations.AccessToken };
 
             // Profil/email/rol claim'leri id_token'a da yazılsın (ilgili scope verildiyse).
-            if (claim.Type is Claims.Name or Claims.Email or Claims.Role or TenantParameter or "tenant_name" || UserProfile.Fields.Any(f => f.InToken && f.Name == claim.Type))
+            if (claim.Type is Claims.Name or Claims.Email or Claims.Role or TenantIdClaim or TenantNameClaim || UserProfile.Fields.Any(f => f.InToken && f.Name == claim.Type))
             {
                 destinations.Add(Destinations.IdentityToken);
             }

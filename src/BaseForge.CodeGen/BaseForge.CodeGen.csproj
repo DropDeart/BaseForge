@@ -34,42 +34,15 @@
     <EmbeddedResource Include="..\..\grafana\provisioning\datasources\loki.yaml" LogicalName="observability/grafana/provisioning/datasources/loki.yaml" />
     <EmbeddedResource Include="..\..\grafana\provisioning\dashboards\dashboards.yaml" LogicalName="observability/grafana/provisioning/dashboards/dashboards.yaml" />
     <EmbeddedResource Include="..\..\grafana\dashboards\baseforge-logs.json" LogicalName="observability/grafana/dashboards/baseforge-logs.json" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Program.cs" LogicalName="identity/Program.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Configuration\AuthOptions.cs" LogicalName="identity/Configuration/AuthOptions.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Entities\ApplicationUser.cs" LogicalName="identity/Entities/ApplicationUser.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\IdentityServiceDbContext.cs" LogicalName="identity/Data/IdentityServiceDbContext.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\SeedData.cs" LogicalName="identity/Data/SeedData.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Data\PostgresHealthCheck.cs" LogicalName="identity/Data/PostgresHealthCheck.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AuthorizationController.cs" LogicalName="identity/Controllers/AuthorizationController.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AccountApiController.cs" LogicalName="identity/Controllers/AccountApiController.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AdminUsersApiController.cs" LogicalName="identity/Controllers/AdminUsersApiController.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\ServicesApiController.cs" LogicalName="identity/Controllers/ServicesApiController.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Authentication\ExternalProviders.cs" LogicalName="identity/Authentication/ExternalProviders.cs" />
     <!-- Merkez kullanıcı (User) gRPC servisi: new-identity için kopyalanır. Aynı "identity/Protos/user.proto"
          kaynağı, "identity/User" dış referansı çözümlenirken CodeGenerator tarafından da doğrudan okunur
          (tek fiziksel kaynak, tek LogicalName — SDK aynı yolu iki LogicalName ile içermeyi reddediyor). -->
+    <!-- Identity kaynak kodunun tamamı (yeni dosya için burayı düzenlemek gerekmez). Hariç: Razor sayfaları (üretilen
+         serviste SPA var) ve auth.yaml userProfile'dan üretilen UserProfile.cs / ApplicationUser.Profile.cs (UserProfileGenerator). -->
+    <EmbeddedResource Include="..\..\services\BaseForge.Identity\**\*.cs"
+                      Exclude="..\..\services\BaseForge.Identity\bin\**;..\..\services\BaseForge.Identity\obj\**;..\..\services\BaseForge.Identity\Pages\**;..\..\services\BaseForge.Identity\Profile\UserProfile.cs;..\..\services\BaseForge.Identity\Entities\ApplicationUser.Profile.cs"
+                      LogicalName="identity/$([System.String]::Copy('%(RecursiveDir)').Replace('\','/'))%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\..\services\BaseForge.Identity\Protos\user.proto" LogicalName="identity/Protos/user.proto" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Grpc\UserGrpcService.cs" LogicalName="identity/Grpc/UserGrpcService.cs" />
-    <!-- Profil yardımcıları (şemadan bağımsız). UserProfile.cs, ApplicationUser.Profile.cs ve user.proto ise
-         auth.yaml userProfile'dan üretilir (UserProfileGenerator); repodaki kopyaları boş profil çıktısıdır. -->
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Profile\ProfileJson.cs" LogicalName="identity/Profile/ProfileJson.cs" />
-    <!-- Kiracı (şirket) yönetimi ve /api hata middleware'i (0.6.4). -->
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\ErrorHandling\IdentityException.cs" LogicalName="identity/ErrorHandling/IdentityException.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\ErrorHandling\IdentityExceptionMiddleware.cs" LogicalName="identity/ErrorHandling/IdentityExceptionMiddleware.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\Tenant.cs" LogicalName="identity/Tenancy/Tenant.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantMembership.cs" LogicalName="identity/Tenancy/TenantMembership.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyModel.cs" LogicalName="identity/Tenancy/TenancyModel.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyText.cs" LogicalName="identity/Tenancy/TenancyText.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyDtos.cs" LogicalName="identity/Tenancy/TenancyDtos.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantAdminGuard.cs" LogicalName="identity/Tenancy/TenantAdminGuard.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantOnboardingService.cs" LogicalName="identity/Tenancy/TenantOnboardingService.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\MembershipService.cs" LogicalName="identity/Tenancy/MembershipService.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\MemberAdministrationService.cs" LogicalName="identity/Tenancy/MemberAdministrationService.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenantTokenResolver.cs" LogicalName="identity/Tenancy/TenantTokenResolver.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Tenancy\TenancyRegistration.cs" LogicalName="identity/Tenancy/TenancyRegistration.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\TenantsApiController.cs" LogicalName="identity/Controllers/TenantsApiController.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\TenantMembersApiController.cs" LogicalName="identity/Controllers/TenantMembersApiController.cs" />
-    <EmbeddedResource Include="..\..\services\BaseForge.Identity\Controllers\AdminTenantsApiController.cs" LogicalName="identity/Controllers/AdminTenantsApiController.cs" />
   </ItemGroup>
 
   <!-- Designer React arayüzü: npm build çıktısını (dist) 'web/...' logical name'leriyle gömer.

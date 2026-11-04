@@ -74,6 +74,18 @@ internal static class Templates
         {{~ end ~}}
             }
         {{~ end ~}}
+        {{~ if UniqueIndexes.size > 0 ~}}
+
+            /// <summary>Benzersiz alanlar (spec <c>unique</c>); kiracılı serviste kiracı içinde, silinmiş kayıtlar hariç.</summary>
+            protected override void OnModelCreating(ModelBuilder modelBuilder)
+            {
+                ArgumentNullException.ThrowIfNull(modelBuilder);
+                base.OnModelCreating(modelBuilder);
+        {{~ for u in UniqueIndexes ~}}
+                modelBuilder.Entity<{{ u.Entity }}>().HasIndex(x => new { {{ u.Columns }} }).IsUnique(){{ if u.ExcludeDeleted }}.HasFilter("\"IsDeleted\" = false"){{ end }};
+        {{~ end ~}}
+            }
+        {{~ end ~}}
         }
 
         """;
@@ -154,6 +166,9 @@ internal static class Templates
         {{~ if f.MaxLength ~}}
             [MaxLength({{ f.MaxLength }})]
         {{~ end ~}}
+        {{~ for a in f.Validation ~}}
+            [{{ a }}]
+        {{~ end ~}}
             public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
         {{~ end ~}}
         {{~ end ~}}
@@ -211,6 +226,9 @@ internal static class Templates
             /// <summary>{{ f.Name }}.</summary>
         {{~ if f.MaxLength ~}}
             [MaxLength({{ f.MaxLength }})]
+        {{~ end ~}}
+        {{~ for a in f.Validation ~}}
+            [{{ a }}]
         {{~ end ~}}
             public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
         {{~ end ~}}
@@ -450,6 +468,19 @@ internal static class Templates
             /// <summary>Verilirse yalnızca {{ f.Name }} değeri buna eşit kayıtlar döner (<c>?{{ f.Name | string.downcase }}=...</c>).</summary>
             public {{ f.Type }} {{ f.Name }} { get; set; }
         {{~ end ~}}
+        {{~ for f in RangeFilters ~}}
+
+            /// <summary>Verilirse {{ f.Name }} bu değerden küçük olmayan kayıtlar (dahil).</summary>
+            public {{ f.Type }} {{ f.Name }}From { get; set; }
+
+            /// <summary>Verilirse {{ f.Name }} bu değerden büyük olmayan kayıtlar (dahil).</summary>
+            public {{ f.Type }} {{ f.Name }}To { get; set; }
+        {{~ end ~}}
+        {{~ for f in InFilters ~}}
+
+            /// <summary>Verilirse {{ f.Name }} bu değerlerden biri olan kayıtlar (<c>?{{ f.Name | string.downcase }}In=A&amp;{{ f.Name | string.downcase }}In=B</c>).</summary>
+            public {{ f.Type }} {{ f.Name }}In { get; set; }
+        {{~ end ~}}
         {{~ if OwnerField ~}}
         {{~ if Filters.size > 0 ~}}
 
@@ -498,7 +529,7 @@ internal static class Templates
                     request.Skip,
                     request.PageSize,
         {{~ if Sortable ~}}
-                    SortExpression.Normalize(request.SortBy, SortFields),
+                    SortExpression.Normalize(request.SortBy, SortFields){{ if DefaultSortLiteral != "" }} ?? {{ DefaultSortLiteral }}{{ end }},
         {{~ else ~}}
                     null,
         {{~ end ~}}
@@ -528,6 +559,25 @@ internal static class Templates
                         if (request.{{ f.Name }} is { } {{ f.Var }})
                         {
                             query = query.Where(x => x.{{ f.Name }} == {{ f.Var }});
+                        }
+
+        {{~ end ~}}
+        {{~ for f in RangeFilters ~}}
+                        if (request.{{ f.Name }}From is { } {{ f.Var }}From)
+                        {
+                            query = query.Where(x => x.{{ f.Name }} >= {{ f.Var }}From);
+                        }
+
+                        if (request.{{ f.Name }}To is { } {{ f.Var }}To)
+                        {
+                            query = query.Where(x => x.{{ f.Name }} <= {{ f.Var }}To);
+                        }
+
+        {{~ end ~}}
+        {{~ for f in InFilters ~}}
+                        if (request.{{ f.Name }}In is { Count: > 0 } {{ f.Var }})
+                        {
+                            query = query.Where(x => {{ f.Var }}.Contains(x.{{ f.Name }}));
                         }
 
         {{~ end ~}}
@@ -985,6 +1035,48 @@ internal static class Templates
 
         """;
 
+    public const string ProgramHooks =
+        """
+        {{~ if HasRabbitMq ~}}
+        using BaseForge.Infrastructure.Messaging;
+
+        {{~ end ~}}
+        namespace {{ Namespace }};
+
+        /// <summary>
+        /// Program.cs genişletme noktaları (BaseForge.CodeGen üretir; bu dosya her üretimde ezilir). Gövdeleri elle,
+        /// ayrı bir dosyada yazın — örn. <c>Custom/ProgramHooks.Custom.cs</c>:
+        /// <code>
+        /// namespace {{ Namespace }};
+        /// internal static partial class ProgramHooks
+        /// {
+        ///     static partial void ConfigureServices(WebApplicationBuilder builder) { /* builder.Services.Add... */ }
+        /// }
+        /// </code>
+        /// Yazılmayan kanca derlemede yok sayılır.
+        /// </summary>
+        internal static partial class ProgramHooks
+        {
+            /// <summary>Servis kayıtları (Build öncesi).</summary>
+            public static void Services(WebApplicationBuilder builder) => ConfigureServices(builder);
+
+            /// <summary>Middleware ve endpoint'ler (MapControllers öncesi).</summary>
+            public static void App(WebApplication app) => ConfigureApp(app);
+        {{~ if HasRabbitMq ~}}
+
+            /// <summary>Ek RabbitMQ abonelikleri (CRUD dışı olaylar dahil): <c>mq.Subscribe&lt;T&gt;("servis/Olay", "kuyruk")</c>.</summary>
+            public static void RabbitMq(RabbitMqOptions mq) => ConfigureRabbitMq(mq);
+
+            static partial void ConfigureRabbitMq(RabbitMqOptions mq);
+        {{~ end ~}}
+
+            static partial void ConfigureServices(WebApplicationBuilder builder);
+
+            static partial void ConfigureApp(WebApplication app);
+        }
+
+        """;
+
     public const string Program =
         """
         using BaseForge.API.Extensions;
@@ -1067,7 +1159,12 @@ internal static class Templates
             options.EnableCQRS(typeof(Program).Assembly);
             options.EnableAuditLog();
         {{~ if HasMultiTenancy ~}}
+        {{~ if CrossTenantRolesLiteral != "" ~}}
+            // Token'ında kiracı olmayan bu roller GET/HEAD'de tüm kiracıları okur (yazma yine kiracı ister).
+            options.EnableMultiTenancy(mt => mt.CrossTenantRoles = [{{ CrossTenantRolesLiteral }}]);
+        {{~ else ~}}
             options.EnableMultiTenancy();
+        {{~ end ~}}
         {{~ end ~}}
         {{~ if HasAuth ~}}
             options.EnableJwt(jwt =>
@@ -1101,6 +1198,8 @@ internal static class Templates
         {{~ for s in Subscriptions ~}}
                 mq.Subscribe<{{ Namespace }}.Integration.{{ s.SourceEntity }}{{ s.Kind }}Event>("{{ s.EventType }}", "{{ Namespace | string.downcase }}.{{ s.Handler }}");
         {{~ end ~}}
+                // CRUD dışı olaylara abonelik: Custom/ altında ProgramHooks.ConfigureRabbitMq (bkz. ProgramHooks.cs).
+                {{ Namespace }}.ProgramHooks.RabbitMq(mq);
             });
         {{~ end ~}}
         });
@@ -1123,6 +1222,9 @@ internal static class Templates
         // hedef serviste.
         builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
         {{~ end ~}}
+
+        // Elle yazılan servis kayıtları: Custom/ altında ProgramHooks.ConfigureServices (bu dosya her üretimde ezilir).
+        {{ Namespace }}.ProgramHooks.Services(builder);
 
         var app = builder.Build();
 
@@ -1182,6 +1284,8 @@ internal static class Templates
         app.UseCors("ConfiguredOrigins");
         app.UseStaticFiles(); // wwwroot/uploads — MediaController'ın fiziksel olarak kaydettiği dosyalar için
         app.UseBaseForge();
+        // Elle yazılan middleware/endpoint'ler: Custom/ altında ProgramHooks.ConfigureApp.
+        {{ Namespace }}.ProgramHooks.App(app);
         app.MapControllers();
         {{~ if GatewayTargets.size > 0 ~}}
         app.MapReverseProxy();

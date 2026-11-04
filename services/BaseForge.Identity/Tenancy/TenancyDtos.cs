@@ -27,6 +27,9 @@ public sealed record TenantLookupDto(string Name, string Slug);
 /// <summary>Şirket açma isteği.</summary>
 public sealed record CreateTenantRequest(string Name, string? TaxNo);
 
+/// <summary>Şirket bilgisi güncelleme (kod/slug değişmez; katılım bağlantıları bozulmasın).</summary>
+public sealed record UpdateTenantRequest(string Name, string? TaxNo);
+
 /// <summary>Katılma isteği (şirket kodu ile).</summary>
 public sealed record JoinTenantRequest(string Slug);
 

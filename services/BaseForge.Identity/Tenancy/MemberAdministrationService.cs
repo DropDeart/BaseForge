@@ -1,3 +1,6 @@
+using BaseForge.Identity.Accounts;
+using BaseForge.Identity.Configuration;
+using BaseForge.Identity.Contacts;
 using BaseForge.Identity.Data;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
@@ -33,6 +36,7 @@ internal sealed class MemberAdministrationService(
     IdentityServiceDbContext db,
     UserManager<ApplicationUser> userManager,
     ITenantAdminGuard guard,
+    AuthOptions options,
     TimeProvider clock) : IMemberAdministrationService
 {
     private DbSet<TenantMembership> Memberships => db.Set<TenantMembership>();
@@ -42,8 +46,7 @@ internal sealed class MemberAdministrationService(
         await guard.EnsureCanManageAsync(tenantId, actor, cancellationToken);
         return await (
             from m in Memberships
-            where m.TenantId == tenantId
-                  && (m.Status == MembershipStatus.Invited || m.Status == MembershipStatus.Requested || m.Status == MembershipStatus.Active)
+            where m.TenantId == tenantId && TenantMembership.OpenStatuses.Contains(m.Status)
             join u in db.Users on m.UserId equals u.Id into users
             from u in users.DefaultIfEmpty()
             orderby m.Status, m.CreatedAt
@@ -56,8 +59,9 @@ internal sealed class MemberAdministrationService(
     {
         await guard.EnsureCanManageAsync(tenantId, actor, cancellationToken);
         var roles = guard.ValidateRoles(request.Roles);
-        var email = TenancyText.Email(request.Email);
-        var phone = TenancyText.Phone(request.Phone);
+        var email = ContactNormalizer.Email(request.Email);
+        var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : ContactNormalizer.RequirePhone(request.Phone, options.Otp.DefaultCountryCode);
+
         if ((email is null) == (phone is null))
         {
             throw IdentityException.Invalid("E-posta ya da telefondan yalnızca biri verilmeli.");
@@ -65,11 +69,11 @@ internal sealed class MemberAdministrationService(
 
         var user = email is not null
             ? await userManager.FindByEmailAsync(email)
-            : await db.Users.FirstOrDefaultAsync(u => u.PhoneNumber == phone, cancellationToken);
+            : await db.Users.FindByConfirmedPhoneAsync(phone!, cancellationToken);
         var now = clock.GetUtcNow();
 
         var existing = await Memberships.FirstOrDefaultAsync(m => m.TenantId == tenantId
-            && (m.Status == MembershipStatus.Invited || m.Status == MembershipStatus.Requested || m.Status == MembershipStatus.Active)
+            && TenantMembership.OpenStatuses.Contains(m.Status)
             && (user != null ? m.UserId == user.Id : (email != null ? m.InvitedEmail == email : m.InvitedPhone == phone)), cancellationToken);
 
         TenantMembership membership;
@@ -109,7 +113,7 @@ internal sealed class MemberAdministrationService(
         await guard.EnsureCanManageAsync(tenantId, actor, cancellationToken);
         var membership = await FindAsync(tenantId, membershipId, cancellationToken);
         membership.Approve(guard.ValidateRoles(roles), clock.GetUtcNow());
-        membership.IsDefault = !await Memberships.AnyAsync(m => m.UserId == membership.UserId && m.IsDefault, cancellationToken);
+        membership.IsDefault = !await Memberships.HasDefaultAsync(membership.UserId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
     }
 

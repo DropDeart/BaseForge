@@ -12,7 +12,7 @@ public sealed record TenantActor(Guid UserId, bool IsPlatformAdmin);
 public interface ITenantAdminGuard
 {
     /// <summary>Şirket aktif ve işlemi yapan şirket yöneticisi (ya da platform yöneticisi) olmalı.</summary>
-    Task<Tenant> EnsureCanManageAsync(Guid tenantId, TenantActor actor, CancellationToken cancellationToken);
+    Task EnsureCanManageAsync(Guid tenantId, TenantActor actor, CancellationToken cancellationToken);
 
     /// <summary>Roller şirket içi roller olmalı ve en az bir rol verilmeli.</summary>
     IReadOnlyList<string> ValidateRoles(IReadOnlyList<string>? roles);
@@ -26,28 +26,30 @@ internal sealed class TenantAdminGuard(IdentityServiceDbContext db, AuthOptions 
 {
     private readonly MultiTenancyOptions _tenancy = options.MultiTenancy;
 
-    public async Task<Tenant> EnsureCanManageAsync(Guid tenantId, TenantActor actor, CancellationToken cancellationToken)
+    public async Task EnsureCanManageAsync(Guid tenantId, TenantActor actor, CancellationToken cancellationToken)
     {
-        var tenant = await db.Set<Tenant>().FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken)
+        // Şirket durumu ve yöneticilik tek sorguda.
+        var adminRole = _tenancy.AdminRole;
+        var check = await db.Set<Tenant>().AsNoTracking()
+            .Where(t => t.Id == tenantId)
+            .Select(t => new
+            {
+                t.Status,
+                IsAdmin = db.Set<TenantMembership>().Any(m => m.TenantId == tenantId && m.UserId == actor.UserId
+                    && m.Status == MembershipStatus.Active && m.Roles.Contains(adminRole)),
+            })
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw IdentityException.NotFound("Şirket bulunamadı.");
 
-        if (!actor.IsPlatformAdmin)
+        if (!actor.IsPlatformAdmin && !check.IsAdmin)
         {
-            var isAdmin = await db.Set<TenantMembership>().AnyAsync(m =>
-                m.TenantId == tenantId && m.UserId == actor.UserId && m.Status == MembershipStatus.Active
-                && m.Roles.Contains(_tenancy.AdminRole), cancellationToken);
-            if (!isAdmin)
-            {
-                throw IdentityException.Forbidden("Bu şirketin yöneticisi değilsiniz.");
-            }
+            throw IdentityException.Forbidden("Bu şirketin yöneticisi değilsiniz.");
         }
 
-        if (tenant.Status != TenantStatus.Active)
+        if (check.Status != TenantStatus.Active)
         {
             throw IdentityException.Conflict("Şirket aktif değil (onay bekliyor ya da askıda).");
         }
-
-        return tenant;
     }
 
     public IReadOnlyList<string> ValidateRoles(IReadOnlyList<string>? roles)

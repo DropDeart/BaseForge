@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Entities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -10,12 +10,12 @@ namespace BaseForge.Identity.Pages.Account;
 public sealed class LoginModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IExternalAccountService _externalAccounts;
 
-    public LoginModel(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
+    public LoginModel(SignInManager<ApplicationUser> signInManager, IExternalAccountService externalAccounts)
     {
+        _externalAccounts = externalAccounts;
         _signInManager = signInManager;
-        _userManager = userManager;
     }
 
     [BindProperty]
@@ -83,28 +83,20 @@ public sealed class LoginModel : PageModel
             return LocalRedirect(ReturnUrl);
         }
 
-        // İlk kez: kullanıcıyı oluştur + dış girişi bağla.
-        var email = info.Principal.FindFirstValue(ClaimTypes.Email) ?? info.Principal.FindFirstValue(ClaimTypes.Name);
-        if (string.IsNullOrWhiteSpace(email))
+        // İlk kez: API ile aynı kurallarla hesabı bul/aç ve dış girişi bağla.
+        var account = await _externalAccounts.ResolveAsync(info);
+        if (account.User is null)
         {
-            Error = "Sağlayıcıdan e-posta alınamadı.";
+            Error = account.Error switch
+            {
+                ExternalAccountService.RegistrationClosed => "Kayıt kapalı; bu hesapla giriş yapılamaz.",
+                ExternalAccountService.AccountExists => "Bu e-postayla parolalı bir hesap var; parolanızla giriş yapın.",
+                _ => "Sağlayıcıdan e-posta alınamadı.",
+            };
             return Page();
         }
 
-        var user = await _userManager.FindByEmailAsync(email);
-        if (user is null)
-        {
-            user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
-            var created = await _userManager.CreateAsync(user);
-            if (!created.Succeeded)
-            {
-                Error = "Kullanıcı oluşturulamadı.";
-                return Page();
-            }
-        }
-
-        await _userManager.AddLoginAsync(user, info);
-        await _signInManager.SignInAsync(user, isPersistent: false);
+        await _signInManager.SignInAsync(account.User, isPersistent: false);
         return LocalRedirect(ReturnUrl);
     }
 }

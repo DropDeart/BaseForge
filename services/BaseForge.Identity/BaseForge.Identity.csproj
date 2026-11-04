@@ -19,10 +19,11 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.9" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="OpenIddict.AspNetCore" Version="7.5.0" />
-    <!-- OpenIddict 7.5.0 geçişli olarak açıklı 10.0.7 sürümlerini getiriyor (GHSA-846f-f764-76mx vb.); yamalı sürüme sabitlenir. -->
+    <!-- OpenIddict 7.5.0 geçişli olarak açıklı System.Security.Cryptography.Pkcs 10.0.7 getiriyor (GHSA-846f-f764-76mx); yamalı sürüme sabitlenir.
+         System.Security.Cryptography.Xml paylaşılan çerçeveden gelir, sabitlemeye gerek yok. -->
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.14" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.5.0" />
     <!-- Merkez kullanıcı (User) entity'sine diğer servislerin gRPC ile salt-okunur erişimi -->
     <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />

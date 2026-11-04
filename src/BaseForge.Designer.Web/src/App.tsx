@@ -51,11 +51,14 @@ export function App() {
   const [workspace, setWorkspace] = useState<WorkspaceEntry[]>([]);
   const [suggested, setSuggested] = useState<{ ports: DockerPortsSpec; authority: string } | null>(null);
   const [closing, setClosing] = useState<"open" | "closing" | "closed">("open");
+  // Diskteki spec.yaml / auth.yaml'ın formun yüklendiği andaki hash'i (bayat form koruması).
+  const [hashes, setHashes] = useState<{ service: string | null; auth: string | null }>({ service: null, auth: null });
 
   useEffect(() => {
     Promise.all([api.meta(), api.spec(), api.workspace()]).then(([m, s, ws]) => {
       setMeta(m);
       setWorkspace(ws);
+      setHashes({ service: s.serviceHash, auth: s.authHash });
       setIncludeInSolution(m.solutionFound);
 
       const suggestedPorts = suggestPorts(ws, false);
@@ -163,14 +166,20 @@ export function App() {
     setErrors([]);
     setResult(null);
     try {
-      const res =
-        view === "identity"
-          ? await api.generateIdentity(auth, includeInSolution)
-          : await api.generateService(spec, includeInSolution);
+      const isIdentity = view === "identity";
+      const send = (force: boolean) =>
+        isIdentity
+          ? api.generateIdentity(auth, includeInSolution, hashes.auth, force)
+          : api.generateService(spec, includeInSolution, hashes.service, force);
+      let res = await send(false);
+      if ("stale" in res && res.stale && window.confirm(`${res.errors[0]}\n\n${m.app.staleConfirm}`)) {
+        res = await send(true);
+      }
       if ("errors" in res) {
         setErrors(res.errors);
       } else {
         setResult(res);
+        setHashes((h) => (isIdentity ? { ...h, auth: res.specHash } : { ...h, service: res.specHash }));
 
         // Identity ve normal bir servis aynı Designer oturumundan art arda üretilebildiği için,
         // az önce üretilen servisin portu/authority'si diğer sekmenin önerisini etkileyebilir.

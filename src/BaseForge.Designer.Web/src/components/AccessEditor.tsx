@@ -127,6 +127,17 @@ export function ServiceAccessEditor({
           {m.access.superRolesHint}
         </div>
       </div>
+      <div className="field">
+        <span className="field-label">{m.access.crossTenantRoles}</span>
+        <RoleChips
+          roles={knownRoles.filter((r) => r !== "User")}
+          selected={auth.crossTenantRoles ?? []}
+          onChange={(next) => onChange({ ...auth, crossTenantRoles: next })}
+        />
+        <div className="hint" style={{ marginTop: 4 }}>
+          {m.access.crossTenantRolesHint}
+        </div>
+      </div>
     </div>
   );
 }

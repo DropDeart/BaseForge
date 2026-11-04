@@ -41,8 +41,11 @@ public sealed class TenantMembership
     /// <summary>Kabul/ret/çıkarma zamanı.</summary>
     public DateTimeOffset? RespondedAt { get; set; }
 
+    /// <summary>Sonuçlanmamış ya da aktif durumlar; sorgular ve benzersiz index filtresi bunu kullanır.</summary>
+    public static readonly MembershipStatus[] OpenStatuses = [MembershipStatus.Invited, MembershipStatus.Requested, MembershipStatus.Active];
+
     /// <summary>Henüz sonuçlanmamış ya da aktif mi?</summary>
-    public bool IsOpen => Status is MembershipStatus.Invited or MembershipStatus.Requested or MembershipStatus.Active;
+    public bool IsOpen => OpenStatuses.Contains(Status);
 
     /// <summary>Kişi daveti kabul eder.</summary>
     public void Accept(DateTimeOffset at) => Move(MembershipStatus.Invited, MembershipStatus.Active, at);

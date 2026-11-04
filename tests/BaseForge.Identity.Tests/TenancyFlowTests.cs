@@ -9,23 +9,12 @@ namespace BaseForge.Identity.Tests;
 /// <summary>Şirket açma, onay, davet, katılma isteği ve token şirket seçimi (gerçek Postgres).</summary>
 public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<TenancyFixture>
 {
-    private static string Email() => $"u{Guid.NewGuid():N}@test.local";
-
-    /// <summary>Şirket açar ve platform onayından geçirir; açanın (yönetici) kimliğini döner.</summary>
-    private static async Task<(Guid TenantId, Guid AdminId, string Slug)> ActiveTenantAsync(IServiceProvider sp, string name)
-    {
-        var admin = await TenancyFixture.CreateUserAsync(sp, Email());
-        var created = await sp.GetRequiredService<ITenantOnboardingService>().CreateAsync(admin.Id, new CreateTenantRequest(name, null), default);
-        await sp.GetRequiredService<ITenantOnboardingService>().ReviewAsync(created.Tenant.Id, TenantStatus.Active, Guid.NewGuid(), null, default);
-        return (created.Tenant.Id, admin.Id, created.Tenant.Slug);
-    }
-
     [DbFact]
     public async Task SelfServiceTenant_IsPendingUntilApproved()
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        var owner = await TenancyFixture.CreateUserAsync(sp, Email());
+        var owner = await TenancyFixture.CreateUserAsync(sp, TenancyFixture.Email());
         var onboarding = sp.GetRequiredService<ITenantOnboardingService>();
         var resolver = sp.GetRequiredService<ITenantTokenResolver>();
 
@@ -47,8 +36,8 @@ public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<Ten
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        var (tenantId, adminId, slug) = await ActiveTenantAsync(sp, "Katılım Ltd");
-        var operatorUser = await TenancyFixture.CreateUserAsync(sp, Email());
+        var (tenantId, adminId, slug) = await TenancyFixture.ActiveTenantAsync(sp, "Katılım Ltd");
+        var operatorUser = await TenancyFixture.CreateUserAsync(sp, TenancyFixture.Email());
         var memberships = sp.GetRequiredService<IMembershipService>();
         var admin = new TenantActor(adminId, false);
 
@@ -68,8 +57,8 @@ public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<Ten
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        var (tenantId, adminId, _) = await ActiveTenantAsync(sp, "Davet AŞ");
-        var invitee = await TenancyFixture.CreateUserAsync(sp, Email());
+        var (tenantId, adminId, _) = await TenancyFixture.ActiveTenantAsync(sp, "Davet AŞ");
+        var invitee = await TenancyFixture.CreateUserAsync(sp, TenancyFixture.Email());
         var admin = new TenantActor(adminId, false);
 
         var invitation = await sp.GetRequiredService<IMemberAdministrationService>()
@@ -90,8 +79,8 @@ public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<Ten
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        var (tenantId, adminId, _) = await ActiveTenantAsync(sp, "Bekleyen Davet");
-        var email = Email();
+        var (tenantId, adminId, _) = await TenancyFixture.ActiveTenantAsync(sp, "Bekleyen Davet");
+        var email = TenancyFixture.Email();
 
         await sp.GetRequiredService<IMemberAdministrationService>()
             .InviteAsync(tenantId, new TenantActor(adminId, false), new InviteMemberRequest(email, null, ["Operator"]), default);
@@ -110,8 +99,8 @@ public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<Ten
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        var (tenantId, adminId, slug) = await ActiveTenantAsync(sp, "Telefon Nakliyat");
-        var driver = await TenancyFixture.CreateUserAsync(sp, Email(), phone: $"+90555{Random.Shared.Next(1_000_000, 9_999_999)}");
+        var (tenantId, adminId, slug) = await TenancyFixture.ActiveTenantAsync(sp, "Telefon Nakliyat");
+        var driver = await TenancyFixture.CreateUserAsync(sp, TenancyFixture.Email(), phone: TenancyFixture.Phone());
         await sp.GetRequiredService<IMembershipService>().RequestJoinAsync(driver.Id, slug, default);
 
         var member = await sp.GetRequiredService<IMemberAdministrationService>()
@@ -125,16 +114,16 @@ public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<Ten
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        var (tenantId, adminId, _) = await ActiveTenantAsync(sp, "Kural AŞ");
-        var stranger = await TenancyFixture.CreateUserAsync(sp, Email());
+        var (tenantId, adminId, _) = await TenancyFixture.ActiveTenantAsync(sp, "Kural AŞ");
+        var stranger = await TenancyFixture.CreateUserAsync(sp, TenancyFixture.Email());
         var admin = sp.GetRequiredService<IMemberAdministrationService>();
 
         var forbidden = await Assert.ThrowsAsync<IdentityException>(() =>
-            admin.InviteAsync(tenantId, new TenantActor(stranger.Id, false), new InviteMemberRequest(Email(), null, ["Operator"]), default));
+            admin.InviteAsync(tenantId, new TenantActor(stranger.Id, false), new InviteMemberRequest(TenancyFixture.Email(), null, ["Operator"]), default));
         Assert.Equal(System.Net.HttpStatusCode.Forbidden, forbidden.Status);
 
         await Assert.ThrowsAsync<IdentityException>(() =>
-            admin.InviteAsync(tenantId, new TenantActor(adminId, false), new InviteMemberRequest(Email(), null, ["SuperAdmin"]), default));
+            admin.InviteAsync(tenantId, new TenantActor(adminId, false), new InviteMemberRequest(TenancyFixture.Email(), null, ["SuperAdmin"]), default));
 
         var adminMembership = await sp.GetRequiredService<IdentityServiceDbContext>().Set<TenantMembership>()
             .SingleAsync(m => m.TenantId == tenantId && m.UserId == adminId);
@@ -151,9 +140,9 @@ public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<Ten
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        var (firstId, firstAdmin, _) = await ActiveTenantAsync(sp, "Birinci Şirket");
-        var (secondId, secondAdmin, _) = await ActiveTenantAsync(sp, "İkinci Şirket");
-        var user = await TenancyFixture.CreateUserAsync(sp, Email());
+        var (firstId, firstAdmin, _) = await TenancyFixture.ActiveTenantAsync(sp, "Birinci Şirket");
+        var (secondId, secondAdmin, _) = await TenancyFixture.ActiveTenantAsync(sp, "İkinci Şirket");
+        var user = await TenancyFixture.CreateUserAsync(sp, TenancyFixture.Email());
         var admin = sp.GetRequiredService<IMemberAdministrationService>();
         var memberships = sp.GetRequiredService<IMembershipService>();
         var resolver = sp.GetRequiredService<ITenantTokenResolver>();
@@ -189,7 +178,7 @@ public sealed class TenancyFlowTests(TenancyFixture fixture) : IClassFixture<Ten
         await TenancyModel.EnsureTablesAsync(db);
         await TenancyModel.EnsureTablesAsync(db);
 
-        var (tenantId, _, _) = await ActiveTenantAsync(scope.ServiceProvider, "Sonradan Eklenen");
+        var (tenantId, _, _) = await TenancyFixture.ActiveTenantAsync(scope.ServiceProvider, "Sonradan Eklenen");
         Assert.True(await db.Set<TenantMembership>().AnyAsync(m => m.TenantId == tenantId));
     }
 }

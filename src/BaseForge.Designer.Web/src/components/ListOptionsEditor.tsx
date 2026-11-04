@@ -22,6 +22,8 @@ function scalarFields(entity: EntitySpec): { name: string; type: string }[] {
   return out;
 }
 
+const RANGE_TYPES = ["int", "long", "short", "decimal", "double", "float", "date", "datetime"];
+
 export function ListOptionsEditor({
   entity,
   knownRoles,
@@ -61,6 +63,14 @@ export function ListOptionsEditor({
     .map(([n]) => pascal(n));
   const toggleIn = (list: string[], name: string) => (list.includes(name) ? list.filter((f) => f !== name) : [...list, name]);
   const sortable = paginated && entity.sortable !== false;
+  const rangeFilters = entity.rangeFilters ?? [];
+  const inFilters = entity.inFilters ?? [];
+  const rangeCandidates = scalarFields(entity).filter((f) => RANGE_TYPES.includes(f.type)).map((f) => f.name);
+  const inCandidates = candidates.filter((f) => f.type !== "bool" && f.type !== "date").map((f) => f.name);
+  const unique = entity.unique ?? [];
+  const uniqueText = unique.map((g) => g.join(", ")).join("; ");
+  const parseUnique = (text: string) =>
+    text.split(";").map((g) => g.split(",").map((s) => s.trim()).filter(Boolean)).filter((g) => g.length > 0);
   const searchable = paginated && entity.searchable !== false;
 
   return (
@@ -93,6 +103,43 @@ export function ListOptionsEditor({
             </div>
             <div className="opt-example">
               GET /api/…?{filterable.length > 0 ? exampleQuery : <span className="opt-muted">{m.list.pickField}</span>}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Aralık ve çoklu değer filtreleri */}
+      <section className="opt-card">
+        <div className="opt-head">
+          <div>
+            <div className="opt-title">{m.list.rangeInTitle}</div>
+            <div className="opt-desc">{m.list.rangeInDesc}</div>
+          </div>
+        </div>
+        {!paginated ? (
+          <div className="opt-empty">{m.list.needsPagination}</div>
+        ) : (
+          <>
+            <div className="field-label">{m.list.rangeFilters}</div>
+            <div className="chips roomy">
+              {rangeCandidates.map((n) => (
+                <button key={n} type="button" className={`chip ${rangeFilters.includes(n) ? "on" : ""}`}
+                  onClick={() => onChange({ ...entity, rangeFilters: toggleIn(rangeFilters, n) })}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="field-label" style={{ marginTop: 10 }}>{m.list.inFilters}</div>
+            <div className="chips roomy">
+              {inCandidates.map((n) => (
+                <button key={n} type="button" className={`chip ${inFilters.includes(n) ? "on" : ""}`}
+                  onClick={() => onChange({ ...entity, inFilters: toggleIn(inFilters, n) })}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="opt-example">
+              {[...rangeFilters.map((f) => `${camel(f)}From=…&${camel(f)}To=…`), ...inFilters.map((f) => `${camel(f)}In=A&${camel(f)}In=B`)].join("&") || m.list.pickField}
             </div>
           </>
         )}
@@ -134,6 +181,25 @@ export function ListOptionsEditor({
           <div className="opt-empty">{m.list.searchOff}</div>
         )}
         <div className="opt-example">{searchFields.length === 0 ? m.list.allFields : `search: ${searchFields.join(", ")}`}</div>
+        {sortable && (
+          <>
+            <div className="field-label" style={{ marginTop: 10 }}>{m.list.defaultSort}</div>
+            <input
+              className="uinput mono"
+              placeholder="CreatedAt desc"
+              value={entity.defaultSort ?? ""}
+              onChange={(e) => onChange({ ...entity, defaultSort: e.target.value === "" ? null : e.target.value })}
+            />
+          </>
+        )}
+        <div className="field-label" style={{ marginTop: 10 }}>{m.list.unique}</div>
+        <input
+          className="uinput mono"
+          placeholder="Code; StationId, TicketNo"
+          defaultValue={uniqueText}
+          onBlur={(e) => onChange({ ...entity, unique: parseUnique(e.target.value) })}
+        />
+        <div className="hint">{m.list.uniqueHint}</div>
       </section>
 
       {/* Görünürlük filtresi */}

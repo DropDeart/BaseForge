@@ -1,7 +1,7 @@
-using System.Security.Claims;
 using System.Text.Json;
 using BaseForge.Identity.Configuration;
 using BaseForge.Identity.Data;
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Entities;
 using BaseForge.Identity.ErrorHandling;
 using BaseForge.Identity.Profile;
@@ -18,14 +18,6 @@ namespace BaseForge.Identity.Controllers;
 [Route("api/account")]
 public sealed class AccountApiController : ControllerBase
 {
-    /// <summary>
-    /// Profil uçları hem Ortak Giriş SPA'sının çerezini (cookie) hem de bağımsız SPA'ların
-    /// ROPC ile aldığı Bearer access token'ını kabul eder — ikisi de aynı kullanıcıyı temsil eder.
-    /// Değerler literal yazılır çünkü öznitelik argümanı derleme-zamanı sabiti olmalı
-    /// (OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme const değil).
-    /// </summary>
-    private const string ProfileAuthSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore";
-
     private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg", "image/png", "image/webp", "image/gif",
@@ -37,21 +29,24 @@ public sealed class AccountApiController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IWebHostEnvironment _env;
     private readonly RegistrationOptions _registration;
+    private readonly IExternalAccountService _externalAccounts;
 
     public AccountApiController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
         IWebHostEnvironment env,
-        AuthOptions authOptions)
+        AuthOptions authOptions,
+        IExternalAccountService externalAccounts)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _env = env;
         _registration = authOptions.Registration;
+        _externalAccounts = externalAccounts;
     }
 
     [HttpGet("me")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> Me()
     {
         var user = await _userManager.GetUserAsync(User);
@@ -66,7 +61,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpPut("profile")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -92,11 +87,11 @@ public sealed class AccountApiController : ControllerBase
 
     /// <summary>auth.yaml <c>userProfile</c> alan metadata'sı — SPA profil/admin formlarını buradan çizer.</summary>
     [HttpGet("profile-schema")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public IActionResult ProfileSchema() => Ok(UserProfile.Fields);
 
     [HttpPost("change-password")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
     {
         var user = await _userManager.GetUserAsync(User);
@@ -124,7 +119,7 @@ public sealed class AccountApiController : ControllerBase
     }
 
     [HttpPost("avatar")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     [RequestSizeLimit(MaxAvatarBytes + 4096)]
     public async Task<IActionResult> UploadAvatar(IFormFile? file)
     {
@@ -214,15 +209,15 @@ public sealed class AccountApiController : ControllerBase
 
     /// <summary>Kendine izinli bir global rol ekler (örn. şoför uygulaması <c>Driver</c>); yeni token'da görünür.</summary>
     [HttpPost("roles/{role}")]
-    [Authorize(AuthenticationSchemes = ProfileAuthSchemes)]
+    [Authorize(AuthenticationSchemes = AuthSchemes.CookieOrBearer)]
     public async Task<IActionResult> AssignSelfRole(string role)
     {
-        if (!_registration.SelfAssignableRoles.Contains(role, StringComparer.Ordinal))
+        if (!RegistrationRoles.IsSelfAssignable(_registration, role))
         {
             throw IdentityException.Forbidden("Bu rol kendinize eklenemez.");
         }
 
-        var user = await _userManager.GetUserAsync(User) ?? throw IdentityException.Forbidden("Kullanıcı bulunamadı.");
+        var user = await _userManager.GetRequiredUserAsync(User);
         if (!await _userManager.IsInRoleAsync(user, role))
         {
             await _userManager.AddToRoleAsync(user, role);
@@ -258,11 +253,7 @@ public sealed class AccountApiController : ControllerBase
             return BadRequest(new ErrorResponse(string.Join(" ", result.Errors.Select(e => e.Description))));
         }
 
-        await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
-        if (request.Role is { } role && role != _registration.DefaultRole && _registration.SelfAssignableRoles.Contains(role, StringComparer.Ordinal))
-        {
-            await _userManager.AddToRoleAsync(user, role);
-        }
+        await RegistrationRoles.AssignAsync(_userManager, user, _registration, request.Role);
 
         await _signInManager.SignInAsync(user, isPersistent: false);
         return Ok();
@@ -301,50 +292,13 @@ public sealed class AccountApiController : ControllerBase
             return Redirect(returnUrl);
         }
 
-        var email = info.Principal.FindFirstValue(ClaimTypes.Email) ?? info.Principal.FindFirstValue(ClaimTypes.Name);
-        if (string.IsNullOrWhiteSpace(email))
+        var account = await _externalAccounts.ResolveAsync(info);
+        if (account.User is null)
         {
-            return Redirect("/Account/Login?error=external");
+            return Redirect($"/Account/Login?error={account.Error}");
         }
 
-        var user = await _userManager.FindByEmailAsync(email);
-        if (user is null)
-        {
-            // Dış giriş de bir kayıt yoludur: kayıt kapalıyken sistemde olmayan biri Google vb. ile hesap açamaz.
-            if (!_registration.Enabled)
-            {
-                return Redirect("/Account/Login?error=registration-closed");
-            }
-
-            var displayName = info.Principal.FindFirstValue(ClaimTypes.Name);
-            var picture = info.Principal.FindFirstValue("picture");
-            user = new ApplicationUser
-            {
-                UserName = email,
-                Email = email,
-                EmailConfirmed = true,
-                FullName = string.IsNullOrWhiteSpace(displayName) || displayName == email ? null : displayName,
-                AvatarUrl = string.IsNullOrWhiteSpace(picture) ? null : picture,
-            };
-            var created = await _userManager.CreateAsync(user);
-            if (!created.Succeeded)
-            {
-                return Redirect("/Account/Login?error=external");
-            }
-
-            await _userManager.AddToRoleAsync(user, _registration.DefaultRole);
-        }
-        else if (await _userManager.HasPasswordAsync(user))
-        {
-            // Parolalı bir hesaba dış girişi e-posta eşleşmesiyle otomatik BAĞLAMA: sağlayıcı e-postayı doğrulamadan
-            // kabul ediyorsa (bazıları ediyor), saldırgan kurbanın e-postasıyla orada hesap açıp buradaki hesabı ele
-            // geçirebilirdi. Parolalı hesabın sahibi zaten parolasıyla girebilir. Parolasız hesaplar (admin panelinden
-            // eklenen, ilk girişini dış sağlayıcıyla yapacak kullanıcılar) bağlanmaya devam eder.
-            return Redirect("/Account/Login?error=account-exists");
-        }
-
-        await _userManager.AddLoginAsync(user, info);
-        await _signInManager.SignInAsync(user, isPersistent: false);
+        await _signInManager.SignInAsync(account.User, isPersistent: false);
         return Redirect(returnUrl);
     }
 }

@@ -1,6 +1,9 @@
+using System.Security.Claims;
+using BaseForge.Identity.Accounts;
 using BaseForge.Identity.Configuration;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
+using BaseForge.Identity.Entities;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BaseForge.Identity.Tenancy;
@@ -8,9 +11,6 @@ namespace BaseForge.Identity.Tenancy;
 /// <summary>Kiracı yönetimi servis kayıtları.</summary>
 public static class TenancyRegistration
 {
-    /// <summary>Cookie (Ortak Giriş SPA) ve Bearer (diğer uygulamalar) birlikte kabul edilir.</summary>
-    public const string AuthSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore";
-
     /// <summary>Şirket onaylayan platform yöneticisi politikası.</summary>
     public const string ApproverPolicy = "tenancy.approver";
 
@@ -24,29 +24,15 @@ public static class TenancyRegistration
         services.AddScoped<IMemberAdministrationService, MemberAdministrationService>();
         services.AddScoped<ITenantTokenResolver, TenantTokenResolver>();
 
-        var approverRoles = options.MultiTenancy.ApproverRoles.Count > 0 ? options.MultiTenancy.ApproverRoles : ["SuperAdmin"];
+        // Roller boş olamaz (auth.yaml doğrulaması); şirket onayı ve üye yönetiminde platform yöneticisini bu politika belirler.
         services.AddAuthorizationBuilder().AddPolicy(ApproverPolicy, policy => policy
-            .AddAuthenticationSchemes(AuthSchemes.Split(','))
-            .RequireRole(approverRoles));
+            .AddAuthenticationSchemes(AuthSchemes.CookieOrBearer.Split(','))
+            .RequireRole(options.MultiTenancy.ApproverRoles));
         return services;
     }
-}
 
-/// <summary>Kiracı yönetimi kapalıysa uç yokmuş gibi 404 döner.</summary>
-[AttributeUsage(AttributeTargets.Class)]
-public sealed class RequireTenancyAttribute : Attribute, IResourceFilter
-{
-    /// <inheritdoc />
-    public void OnResourceExecuting(ResourceExecutingContext context)
-    {
-        if (!context.HttpContext.RequestServices.GetRequiredService<AuthOptions>().MultiTenancy.Enabled)
-        {
-            context.Result = new NotFoundResult();
-        }
-    }
-
-    /// <inheritdoc />
-    public void OnResourceExecuted(ResourceExecutedContext context)
-    {
-    }
+    /// <summary>İsteği yapan; platform yöneticisi = şirket onaylayan politika (üye olmadan da yönetebilir).</summary>
+    public static async Task<TenantActor> GetTenantActorAsync(
+        this IAuthorizationService authorization, UserManager<ApplicationUser> userManager, ClaimsPrincipal user)
+        => new(userManager.GetRequiredUserId(user), (await authorization.AuthorizeAsync(user, ApproverPolicy)).Succeeded);
 }

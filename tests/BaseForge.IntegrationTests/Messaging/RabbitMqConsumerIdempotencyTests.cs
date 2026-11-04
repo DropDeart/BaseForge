@@ -95,7 +95,50 @@ public sealed class RabbitMqConsumerIdempotencyTests : IClassFixture<PostgresFix
         Assert.Equal(1, await verify.InboxMessages.CountAsync(m => m.Id == eventId));
     }
 
-    private static string BuildEnvelopeJson(Guid eventId, string eventType)
+    [DockerFact]
+    public async Task Handler_RunsInEnvelopeTenantScope()
+    {
+        var connectionString = TestDbContextFactory.UniqueConnectionString(_postgres.ConnectionString, "inbox");
+        var eventType = $"tenanttest/{Guid.NewGuid():N}";
+        var queueName = $"tenanttest.queue.{Guid.NewGuid():N}";
+        var tenantId = Guid.NewGuid();
+
+        var options = new RabbitMqOptions { Host = _rabbit.Host, Port = _rabbit.Port, Username = _rabbit.Username, Password = _rabbit.Password };
+        options.Subscribe<TestNotification>(eventType, queueName);
+
+        var counter = new HandlerCallCounter();
+        var services = new ServiceCollection();
+        services.AddDbContext<TestDbContext>(o => o.UseNpgsql(connectionString));
+        services.AddScoped<BaseForgeDbContext>(sp => sp.GetRequiredService<TestDbContext>());
+        services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
+        services.AddSingleton(counter);
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<TestNotificationHandler>());
+        await using var provider = services.BuildServiceProvider();
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<TestDbContext>().Database.EnsureCreatedAsync();
+        }
+
+        await using var connectionManager = new RabbitMqConnectionManager(options);
+        var rawPublisher = new RabbitMqPublisher(connectionManager, options);
+        var consumer = new RabbitMqConsumerHostedService(connectionManager, options, provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<RabbitMqConsumerHostedService>.Instance);
+        await consumer.StartAsync(CancellationToken.None);
+
+        var envelopeJson = BuildEnvelopeJson(Guid.NewGuid(), eventType, tenantId);
+        for (var i = 0; i < 5 && counter.Count == 0; i++)
+        {
+            await rawPublisher.PublishRawAsync(eventType, envelopeJson);
+            await Task.Delay(300);
+        }
+
+        await PollingHelpers.WaitUntilAsync(() => counter.Count >= 1, TimeSpan.FromSeconds(15));
+        await consumer.StopAsync(CancellationToken.None);
+
+        Assert.Equal(tenantId, counter.LastTenant);
+    }
+
+    private static string BuildEnvelopeJson(Guid eventId, string eventType, Guid? tenantId = null)
     {
         var data = JsonSerializer.SerializeToElement(new TestNotification
         {
@@ -105,7 +148,7 @@ public sealed class RabbitMqConsumerIdempotencyTests : IClassFixture<PostgresFix
             Message = "hello",
         });
 
-        var envelope = new EventEnvelope(eventId, DateTimeOffset.UtcNow, eventType, data, null);
+        var envelope = new EventEnvelope(eventId, DateTimeOffset.UtcNow, eventType, data, null, tenantId);
         return JsonSerializer.Serialize(envelope);
     }
 
@@ -124,6 +167,7 @@ public sealed class RabbitMqConsumerIdempotencyTests : IClassFixture<PostgresFix
     {
         public Task Handle(TestNotification notification, CancellationToken cancellationToken)
         {
+            counter.LastTenant = BaseForge.Core.MultiTenancy.TenantScope.Current;
             counter.Increment();
             return Task.CompletedTask;
         }
@@ -134,6 +178,8 @@ public sealed class RabbitMqConsumerIdempotencyTests : IClassFixture<PostgresFix
         private int _count;
 
         public int Count => _count;
+
+        public Guid? LastTenant { get; set; }
 
         public void Increment() => Interlocked.Increment(ref _count);
     }

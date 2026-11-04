@@ -29,6 +29,17 @@ public abstract class BaseForgeDbContext : DbContext
     {
         _currentUser = currentUser;
         _currentTenant = currentTenant;
+
+        // MT-2: kiracılı entity eklendiği anda TenantId'yi alır (SaveChanges'i beklemeden okunabilir).
+        // SaveChanges yine damgalar ve kiracı yoksa hata verir.
+        ChangeTracker.Tracked += (_, e) =>
+        {
+            if (e.Entry.State == EntityState.Added && e.Entry.Entity is ITenantEntity tenantEntity
+                && tenantEntity.TenantId == Guid.Empty && _currentTenant?.TenantId is { } tenantId)
+            {
+                tenantEntity.TenantId = tenantId;
+            }
+        };
     }
 
     /// <summary>
@@ -38,6 +49,9 @@ public abstract class BaseForgeDbContext : DbContext
     /// DbContext instance'ının o anki değerini okur).
     /// </summary>
     private Guid? CurrentTenantId => _currentTenant?.TenantId;
+
+    /// <summary>Kiracılar arası okuma (MT-5); filtre ifadesi bunu sorgu anında okur.</summary>
+    private bool ReadsAllTenants => _currentTenant?.ReadsAllTenants ?? false;
 
     /// <summary>
     /// Transactional outbox tablosu — bir olay yayınlandığında (<c>OutboxEventBus.PublishAsync</c>)
@@ -131,7 +145,9 @@ public abstract class BaseForgeDbContext : DbContext
                 // FlattenHierarchy ile miras alınmaz).
                 var currentTenantId = Expression.Property(
                     Expression.Constant(this, typeof(BaseForgeDbContext)), nameof(CurrentTenantId));
-                var tenantMatches = Expression.Equal(tenantId, currentTenantId);
+                var readsAll = Expression.Property(
+                    Expression.Constant(this, typeof(BaseForgeDbContext)), nameof(ReadsAllTenants));
+                var tenantMatches = Expression.OrElse(readsAll, Expression.Equal(tenantId, currentTenantId));
                 body = body is null ? tenantMatches : Expression.AndAlso(body, tenantMatches);
             }
 

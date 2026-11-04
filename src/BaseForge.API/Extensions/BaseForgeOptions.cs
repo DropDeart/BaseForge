@@ -80,11 +80,15 @@ public sealed class BaseForgeOptions
     /// query filter için kullanır.
     /// </summary>
     /// <returns>Zincirleme için aynı seçenek nesnesi.</returns>
-    public BaseForgeOptions EnableMultiTenancy()
+    /// <param name="configure">Kiracılar arası okuma rolleri vb. (opsiyonel).</param>
+    public BaseForgeOptions EnableMultiTenancy(Action<Authentication.MultiTenancyOptions>? configure = null)
     {
         MultiTenancyEnabled = true;
+        configure?.Invoke(MultiTenancy);
         return this;
     }
+
+    internal Authentication.MultiTenancyOptions MultiTenancy { get; } = new();
 
     /// <summary>JWT bearer kimlik doğrulamasını yapılandırıp etkinleştirir.</summary>
     /// <param name="configure">JWT ayarlarını dolduran delege (issuer, audience, signing key).</param>

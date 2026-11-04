@@ -53,6 +53,9 @@ public static class AuthSpecValidator
             ValidateMultiTenancy(spec, errors);
         }
 
+        ValidateOtp(spec, errors);
+        ValidateMessaging(spec, errors);
+
         if (spec.UserProfile is not null)
         {
             ValidateUserProfile(spec.UserProfile, errors);
@@ -110,6 +113,73 @@ public static class AuthSpecValidator
         foreach (var name in duplicates)
         {
             errors.Add($"'userProfile' — '{name}' alanı büyük/küçük harf farkıyla birden fazla kez tanımlı.");
+        }
+    }
+
+    private static void ValidateOtp(AuthSpec spec, List<string> errors)
+    {
+        var otp = spec.Otp;
+        var usesGrant = spec.Clients.Any(c => c.Grants.Contains("otp", StringComparer.OrdinalIgnoreCase));
+        if (usesGrant && !otp.Enabled)
+        {
+            errors.Add("Bir client 'otp' grant'ı kullanıyor ama 'otp.enabled' kapalı.");
+        }
+
+        if (!otp.Enabled)
+        {
+            return;
+        }
+
+        if (otp.CodeLength is < 4 or > 8)
+        {
+            errors.Add("'otp.codeLength' 4-8 arasında olmalı.");
+        }
+
+        if (otp.LifetimeSeconds < 30 || otp.MaxAttempts < 1 || otp.MaxPerHour < 1 || otp.ResendCooldownSeconds < 0)
+        {
+            errors.Add("'otp' süre/sınır değerleri pozitif olmalı (lifetimeSeconds ≥ 30).");
+        }
+
+        if (!otp.DefaultCountryCode.StartsWith('+') || otp.DefaultCountryCode.Length < 2)
+        {
+            errors.Add("'otp.defaultCountryCode' '+' ile başlamalı (örn. +90).");
+        }
+
+    }
+
+    private static void ValidateMessaging(AuthSpec spec, List<string> errors)
+    {
+        var messaging = spec.Messaging;
+        if (!MessagingSpec.EmailProviders.Contains(messaging.EmailProvider, StringComparer.Ordinal))
+        {
+            errors.Add($"'messaging.emailProvider' '{messaging.EmailProvider}' desteklenmiyor ({string.Join(", ", MessagingSpec.EmailProviders)}).");
+        }
+
+        if (!MessagingSpec.SmsProviders.Contains(messaging.SmsProvider, StringComparer.Ordinal))
+        {
+            errors.Add($"'messaging.smsProvider' '{messaging.SmsProvider}' desteklenmiyor (şimdilik: {string.Join(", ", MessagingSpec.SmsProviders)}).");
+        }
+
+        if (messaging.EmailProvider == "Smtp" && (string.IsNullOrWhiteSpace(messaging.Smtp.Host) || string.IsNullOrWhiteSpace(messaging.Smtp.FromAddress)))
+        {
+            errors.Add("'messaging.smtp' için host ve fromAddress zorunlu.");
+        }
+
+        var reset = spec.PasswordReset;
+        // Linux'ta "/yol" da mutlak (file://) sayılır; yalnızca http/https kabul edilir.
+        if (reset.Enabled && !(Uri.TryCreate(reset.ResetUrl, UriKind.Absolute, out var resetUri) && resetUri.Scheme is "http" or "https"))
+        {
+            errors.Add("'passwordReset.resetUrl' mutlak bir URL olmalı (örn. https://app.ornek.com/sifre-sifirla).");
+        }
+
+        if (reset.Enabled && (reset.TokenLifetimeHours < 1 || reset.CooldownSeconds < 0))
+        {
+            errors.Add("'passwordReset' süreleri pozitif olmalı (tokenLifetimeHours ≥ 1).");
+        }
+
+        if (spec.AccessTokenLifetimeMinutes is < 5 or > 1440)
+        {
+            errors.Add("'accessTokenLifetimeMinutes' 5-1440 arasında olmalı.");
         }
     }
 

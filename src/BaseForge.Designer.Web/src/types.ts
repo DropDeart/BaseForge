@@ -11,6 +11,8 @@ export interface ExternalRefSpec {
   target: string; // servis/Entity
   store: string; // ID alan adı
   via: string; // grpc | event
+  /** Referans opsiyonel mi (Guid?)? */
+  nullable?: boolean;
 }
 
 export interface PropSpec {
@@ -26,6 +28,12 @@ export interface PropSpec {
   inToken?: boolean;
   /** Sunucu yönetir: üretilen Create/Update komutlarına girmez, istemciden yazılamaz (ARCH §6.4). */
   serverManaged?: boolean;
+  /** Sayısal alanlarda en küçük / en büyük değer (dahil). */
+  min?: number | null;
+  max?: number | null;
+  /** string/text alanlarda en az uzunluk ve düzenli ifade. */
+  minLength?: number | null;
+  pattern?: string | null;
 }
 
 export interface EntitySpec {
@@ -50,6 +58,14 @@ export interface EntitySpec {
   ownerField?: string | null;
   /** Liste ucunda eşitlik filtresi olarak açılan alanlar (?status=Active). Yalnızca sayfalı listelerde. */
   filterable?: string[];
+  /** Aralık filtreleri (?alanFrom=&alanTo=). */
+  rangeFilters?: string[];
+  /** Çoklu değer filtreleri (?alanIn=A&alanIn=B). */
+  inFilters?: string[];
+  /** sortBy verilmezse sıralama (örn. "PlannedAt asc"). */
+  defaultSort?: string | null;
+  /** Benzersiz alan grupları (kiracılı serviste kiracı içinde). */
+  unique?: string[][];
   /** SortBy beyaz listesi; boş = tüm skaler alanlar + CreatedAt/UpdatedAt (ARCH §6.2). */
   sortFields?: string[];
   /** Search'ün arandığı string/text alanlar; boş = hepsi (ARCH §6.2). */
@@ -77,6 +93,8 @@ export interface ServiceAuthSpec {
   defaultAccess?: AccessRule | null;
   /** Tüm rol ve sahiplik kurallarını otomatik geçen roller (örn. SuperAdmin). */
   superRoles?: string[];
+  /** Multi-tenant serviste kiracısız token'la tüm kiracıları okuyabilen roller (yalnız GET). */
+  crossTenantRoles?: string[];
 }
 
 export interface DockerPortsSpec {
@@ -148,9 +166,50 @@ export interface AuthSpec {
   /** Seed edilecek ek roller — Admin ve User her zaman var. */
   roles?: string[];
   /** Kendi kendine kayıt (varsayılan kapalı). Kapalıyken dış sağlayıcıyla da yeni hesap açılmaz. */
-  registration?: { enabled: boolean; defaultRole: string };
+  registration?: { enabled: boolean; defaultRole: string; selfAssignableRoles?: string[] };
+  /** Şirketler (kiracılar) — 0.6.4. */
+  multiTenancy?: MultiTenancySpec;
+  /** Tek kullanımlık kod (SMS/e-posta) — 0.6.4. */
+  otp?: OtpSpec;
+  /** E-posta/SMS göndericileri (SMTP parolası .env'de) — 0.6.4. */
+  messaging?: MessagingSpec;
+  /** Şifremi unuttum — 0.6.4. */
+  passwordReset?: PasswordResetSpec;
+  /** Access token ömrü (dk). */
+  accessTokenLifetimeMinutes?: number;
   /** Kullanıcıya eklenecek domain alanları (docs/ARCH.md §6.3). */
   userProfile?: { props: Record<string, PropSpec> } | null;
+}
+
+export interface MultiTenancySpec {
+  enabled: boolean;
+  adminRole: string;
+  memberRoles: string[];
+  requireApproval: boolean;
+  approverRoles: string[];
+}
+
+export interface OtpSpec {
+  enabled: boolean;
+  codeLength: number;
+  lifetimeSeconds: number;
+  maxAttempts: number;
+  resendCooldownSeconds: number;
+  maxPerHour: number;
+  defaultCountryCode: string;
+}
+
+export interface MessagingSpec {
+  emailProvider: string;
+  smsProvider: string;
+  smtp: { host: string; port: number; username?: string | null; fromAddress: string; fromName: string };
+}
+
+export interface PasswordResetSpec {
+  enabled: boolean;
+  resetUrl: string;
+  tokenLifetimeHours: number;
+  cooldownSeconds: number;
 }
 
 /** Identity'de her zaman var olan roller (AuthSpecValidator.AllRoles ile aynı). */
@@ -183,6 +242,8 @@ export interface WorkspaceEntry {
 }
 
 export interface GenerateResponse {
+  /** Yazılan spec dosyasının yeni hash'i (sonraki generate için). */
+  specHash: string | null;
   output: string;
   files: string[];
   buildSuccess: boolean;
