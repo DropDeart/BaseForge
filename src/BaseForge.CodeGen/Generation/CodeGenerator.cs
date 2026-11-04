@@ -6,7 +6,7 @@ namespace BaseForge.CodeGen.Generation;
 internal static class CodeGenerator
 {
     /// <summary>Üretilen kodun referans verdiği BaseForge NuGet paket sürümü.</summary>
-    private const string BaseForgeVersion = "0.6.2-beta";
+    private const string BaseForgeVersion = "0.6.3-beta";
 
     /// <summary>Identity'nin gömülü <c>user.proto</c> kaynağındaki referans namespace'i.</summary>
     private const string IdentityReferenceNamespace = "BaseForge.Identity";
@@ -86,9 +86,10 @@ internal static class CodeGenerator
                 IncludeUpdate = !entity.AppendOnly,
                 IncludeDelete = !entity.AppendOnly,
                 Counters = counters,
-                SearchPredicate = entity.Searchable ? BuildSearchPredicate(fields) : null,
+                SearchPredicate = entity.Searchable ? BuildSearchPredicate(fields, entity.SearchFields) : null,
                 Paginated = entity.Paginated,
                 Sortable = entity.Sortable,
+                SortFieldsLiteral = BuildSortFieldsLiteral(fields, entity.SortFields),
                 OwnerField = string.IsNullOrWhiteSpace(entity.OwnerField)
                     ? null
                     : NameUtil.Pascal(entity.Props.Keys.First(p => string.Equals(p, entity.OwnerField, StringComparison.OrdinalIgnoreCase))),
@@ -121,6 +122,7 @@ internal static class CodeGenerator
                 CreateAccess = BuildActionAccess(spec, entity, "create"),
                 UpdateAccess = BuildActionAccess(spec, entity, "update"),
                 DeleteAccess = BuildActionAccess(spec, entity, "delete"),
+                CounterAccess = BuildCounterAccess(spec, entity),
                 OwnerField = feature.OwnerField,
                 HasReadFilter = feature.HasReadFilter,
                 ReadFilterBypassOwner = feature.ReadFilterBypassOwner,
@@ -133,7 +135,7 @@ internal static class CodeGenerator
                 Paginated = entity.Paginated,
             };
             controllerModel.UsesAuthorization = isProtected
-                || new[] { controllerModel.ListAccess, controllerModel.GetByIdAccess, controllerModel.CreateAccess, controllerModel.UpdateAccess, controllerModel.DeleteAccess }
+                || new[] { controllerModel.ListAccess, controllerModel.GetByIdAccess, controllerModel.CreateAccess, controllerModel.UpdateAccess, controllerModel.DeleteAccess, controllerModel.CounterAccess }
                     .Any(a => a.Attribute is not null);
             var controller = TemplateEngine.Render(Templates.Controller, controllerModel);
             written.Add(WriteFile(Path.Combine(outputDir, "Controllers", name + "sController.cs"), controller));
@@ -211,12 +213,15 @@ internal static class CodeGenerator
             HasAuth = spec.Auth is not null,
             LocalAuthority = spec.Auth?.Authority.Replace(CrossServiceHost, "localhost", StringComparison.OrdinalIgnoreCase),
         };
+        // appsettings'i ezmeden önce: 0.6.2 ve öncesinde üretilmiş (volume'u change_me ile kurulmuş) servis mi?
+        var legacyPassword = ServiceSecrets.DetectLegacyPassword(outputDir);
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), TemplateEngine.Render(Templates.AppSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), TemplateEngine.Render(Templates.LaunchSettings, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "Dockerfile"), TemplateEngine.Render(Templates.Dockerfile, host)));
         written.Add(WriteFile(Path.Combine(outputDir, ".dockerignore"), TemplateEngine.Render(Templates.DockerIgnore, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.yml"), TemplateEngine.Render(Templates.DockerCompose, host)));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.snippet.yml"), TemplateEngine.Render(Templates.ComposeSnippet, host)));
+        written.AddRange(ServiceSecrets.Write(outputDir, host, legacyPassword));
 
         // gRPC client'ları (via: grpc olan dış referanslar için). Rich (kardeş spec veya identity/User
         // özel durumu bulunan) ise gerçek proto+client üretilir; aksi halde minimal (yalnızca Id) fallback.
@@ -378,6 +383,15 @@ internal static class CodeGenerator
 
         return spec.Auth.DefaultAccess ?? AccessRule.Keyword(AccessRule.Authenticated);
     }
+
+    /// <summary>
+    /// Sayaç uçlarının erişimi: <c>access.counters</c> verilmişse o kural, verilmemişse geriye dönük uyumluluk için
+    /// herkese açık (servisin <c>defaultAccess</c>'i uygulanmaz). Uçlar her durumda rate limit'lidir.
+    /// </summary>
+    private static ActionAccessModel BuildCounterAccess(ServiceSpec spec, EntitySpec entity)
+        => entity.Access.Keys.Any(k => string.Equals(k, "counters", StringComparison.OrdinalIgnoreCase))
+            ? BuildActionAccess(spec, entity, "counters")
+            : new ActionAccessModel { Attribute = spec.Auth?.Protect == true ? "[AllowAnonymous]" : null };
 
     /// <summary>Bir action'ın kuralını controller şablonunun anlayacağı attribute/sahiplik modeline çevirir.</summary>
     private static ActionAccessModel BuildActionAccess(ServiceSpec spec, EntitySpec entity, string action)
@@ -893,6 +907,7 @@ internal static class CodeGenerator
                     Name = NameUtil.Pascal(propName),
                     Type = enumType + (prop.Nullable ? "?" : string.Empty),
                     Init = prop.Default is null ? string.Empty : $" = {enumType}.{prop.Default};",
+                    ServerManaged = prop.ServerManaged,
                 });
                 continue;
             }
@@ -905,6 +920,7 @@ internal static class CodeGenerator
                 Init = ComputeInit(prop, csharpBase),
                 MaxLength = prop.MaxLength,
                 IsJson = prop.Type.Equals("json", StringComparison.OrdinalIgnoreCase),
+                ServerManaged = prop.ServerManaged,
             });
         }
 
@@ -932,16 +948,32 @@ internal static class CodeGenerator
     /// <c>||</c> ile birleştirilmiş <c>EF.Functions.ILike(...)</c> ifadesini üretir. Hiç string alan
     /// yoksa <see langword="null"/> döner (üretilen handler arama desteği sunmaz).
     /// </summary>
-    private static string? BuildSearchPredicate(List<ScalarModel> fields)
+    private static string? BuildSearchPredicate(List<ScalarModel> fields, List<string> searchFields)
     {
-        var stringFields = fields.Where(f => f.Type is "string" or "string?").ToList();
+        var stringFields = fields
+            .Where(f => f.Type is "string" or "string?" && !f.IsJson)
+            .Where(f => searchFields.Count == 0 || searchFields.Contains(f.Name, StringComparer.OrdinalIgnoreCase))
+            .ToList();
         return stringFields.Count == 0
             ? null
             : string.Join(" || ", stringFields.Select(f =>
             {
                 var accessor = f.Type == "string?" ? $"(x.{f.Name} ?? string.Empty)" : $"x.{f.Name}";
-                return "EF.Functions.ILike(" + accessor + ", $\"%{request.Search}%\")";
+                return "EF.Functions.ILike(" + accessor + ", searchPattern, LikePattern.EscapeCharacter)";
             }));
+    }
+
+    /// <summary>
+    /// Sıralama beyaz listesini C# dizi literal içeriği olarak üretir: spec'teki <c>sortFields</c> (kanonik
+    /// PascalCase) ya da varsayılan olarak tüm skaler alanlar + <c>CreatedAt</c>, <c>UpdatedAt</c>.
+    /// </summary>
+    private static string BuildSortFieldsLiteral(List<ScalarModel> fields, List<string> sortFields)
+    {
+        var names = sortFields.Count > 0
+            ? sortFields.Select(s => fields.FirstOrDefault(f => string.Equals(f.Name, s, StringComparison.OrdinalIgnoreCase))?.Name
+                ?? NameUtil.Pascal(s))
+            : fields.Where(f => !f.IsJson).Select(f => f.Name).Concat(["CreatedAt", "UpdatedAt"]);
+        return string.Join(", ", names.Distinct(StringComparer.Ordinal).Select(n => $"\"{n}\""));
     }
 
     /// <summary>

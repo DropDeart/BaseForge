@@ -149,11 +149,13 @@ internal static class Templates
         public sealed class Create{{ Name }}Command : ICommand<Guid>
         {
         {{~ for f in Fields ~}}
+        {{~ if !f.ServerManaged ~}}
             /// <summary>{{ f.Name }}.</summary>
         {{~ if f.MaxLength ~}}
             [MaxLength({{ f.MaxLength }})]
         {{~ end ~}}
             public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
+        {{~ end ~}}
         {{~ end ~}}
         }
 
@@ -184,7 +186,9 @@ internal static class Templates
                 var entity = new {{ Name }}
                 {
         {{~ for f in Fields ~}}
+        {{~ if !f.ServerManaged ~}}
                     {{ f.Name }} = request.{{ f.Name }},
+        {{~ end ~}}
         {{~ end ~}}
                 };
                 await _repository.AddAsync(entity, cancellationToken);
@@ -203,11 +207,13 @@ internal static class Templates
             /// <summary>Güncellenecek kaydın kimliği.</summary>
             public Guid Id { get; set; }
         {{~ for f in Fields ~}}
+        {{~ if !f.ServerManaged ~}}
             /// <summary>{{ f.Name }}.</summary>
         {{~ if f.MaxLength ~}}
             [MaxLength({{ f.MaxLength }})]
         {{~ end ~}}
             public {{ f.Type }} {{ f.Name }} { get; set; }{{ f.Init }}
+        {{~ end ~}}
         {{~ end ~}}
         {{~ if OwnerField ~}}
 
@@ -255,7 +261,7 @@ internal static class Templates
 
         {{~ end ~}}
         {{~ for f in Fields ~}}
-        {{~ if f.Name != OwnerField ~}}
+        {{~ if f.Name != OwnerField && !f.ServerManaged ~}}
                 entity.{{ f.Name }} = request.{{ f.Name }};
         {{~ end ~}}
         {{~ end ~}}
@@ -475,16 +481,24 @@ internal static class Templates
         {
             private readonly IRepository<{{ Name }}> _repository;
 
+        {{~ if Sortable ~}}
+            /// <summary>SortBy beyaz listesi (bkz. docs/ARCH.md §6.2).</summary>
+            private static readonly string[] SortFields = [{{ SortFieldsLiteral }}];
+
+        {{~ end ~}}
             public List{{ Name }}Handler(IRepository<{{ Name }}> repository) => _repository = repository;
 
             public async Task<PagedResult<{{ Name }}Dto>> Handle(List{{ Name }}Query request, CancellationToken cancellationToken)
             {
                 ArgumentNullException.ThrowIfNull(request);
+        {{~ if SearchPredicate ~}}
+                var searchPattern = LikePattern.ContainsOrNull(request.Search) ?? string.Empty;
+        {{~ end ~}}
                 var (items, totalCount) = await _repository.ListPagedAsync(
                     request.Skip,
                     request.PageSize,
         {{~ if Sortable ~}}
-                    request.SortBy,
+                    SortExpression.Normalize(request.SortBy, SortFields),
         {{~ else ~}}
                     null,
         {{~ end ~}}
@@ -518,13 +532,13 @@ internal static class Templates
 
         {{~ end ~}}
         {{~ if SearchPredicate ~}}
-                        return string.IsNullOrWhiteSpace(request.Search) ? query : query.Where(x => {{ SearchPredicate }});
+                        return searchPattern.Length == 0 ? query : query.Where(x => {{ SearchPredicate }});
         {{~ else ~}}
                         return query;
         {{~ end ~}}
                     },
         {{~ else if SearchPredicate ~}}
-                    query => string.IsNullOrWhiteSpace(request.Search) ? query : query.Where(x => {{ SearchPredicate }}),
+                    query => searchPattern.Length == 0 ? query : query.Where(x => {{ SearchPredicate }}),
         {{~ else ~}}
                     null,
         {{~ end ~}}
@@ -868,10 +882,11 @@ internal static class Templates
         {{~ end ~}}
         {{~ for counter in Counters ~}}
 
-            /// <summary>{{ counter }} sayacını bir artırır (herkese açık).</summary>
-            {{~ if Protect ~}}
-            [AllowAnonymous]
+            /// <summary>{{ counter }} sayacını bir artırır (istemci başına rate limit'li).</summary>
+            {{~ if CounterAccess.Attribute ~}}
+            {{ CounterAccess.Attribute }}
             {{~ end ~}}
+            [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(BaseForge.API.RateLimiting.BaseForgeRateLimits.CounterPolicy)]
             [HttpPost("{id:guid}/increment-{{ counter | string.downcase }}")]
             public async Task<IActionResult> Increment{{ counter }}(Guid id, CancellationToken cancellationToken)
             {
@@ -984,6 +999,10 @@ internal static class Templates
         // h2c (TLS'siz HTTP/2) desteği — container/yerel ağda düz HTTP üzerinden gRPC istemci çağrıları için.
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
+        // Yerel 'dotnet run': .env'deki secret'ları (ConnectionStrings__Default vb.) process environment'a yükler.
+        // NoClobber: gerçek ortam değişkenleri (docker-compose) her zaman önceliklidir; dosya yoksa no-op.
+        DotNetEnv.Env.NoClobber().Load();
+
         var builder = WebApplication.CreateBuilder(args);
 
         // Merkezi loglama: Serilog + (yapılandırılmışsa) Grafana Loki. Serilog:LokiUrl boşsa
@@ -1061,6 +1080,9 @@ internal static class Templates
                 jwt.Issuer = builder.Configuration["Auth:Issuer"] ?? string.Empty;
                 jwt.Audience = "{{ Audience }}";
                 jwt.RequireHttpsMetadata = {{ if RequireHttpsMetadata }}true{{ else }}false{{ end }};
+                // Arka plan işlerinden yapılan gRPC çağrıları için Identity client_credentials istemcisi (secret .env'de).
+                jwt.ServiceClientId = builder.Configuration["Auth:ServiceClient:ClientId"];
+                jwt.ServiceClientSecret = builder.Configuration["Auth:ServiceClient:ClientSecret"];
             });
         {{~ end ~}}
         {{~ if HasRabbitMq ~}}
@@ -1088,7 +1110,8 @@ internal static class Templates
         builder.Services.AddGrpcClient<{{ c.ProviderNamespace }}.Grpc.{{ c.Entity }}Service.{{ c.Entity }}ServiceClient>(o =>
             o.Address = new Uri(builder.Configuration["Grpc:{{ c.ConfigKey }}"]
                 ?? throw new InvalidOperationException("Grpc:{{ c.ConfigKey }} tanımlı değil.")))
-            .AddInterceptor<BaseForge.API.Grpc.CorrelationIdClientInterceptor>();
+            .AddInterceptor<BaseForge.API.Grpc.CorrelationIdClientInterceptor>(){{ if HasAuth }}
+            .AddBaseForgeCallCredentials(){{ end }};
         builder.Services.AddScoped<{{ Namespace }}.Integration.I{{ c.Entity }}Client, {{ Namespace }}.Integration.{{ c.Entity }}Client>();
         {{~ end ~}}
 
@@ -1163,8 +1186,12 @@ internal static class Templates
         {{~ if GatewayTargets.size > 0 ~}}
         app.MapReverseProxy();
         {{~ end ~}}
+        {{~ if HasAuth && GrpcServerEntities.size > 0 ~}}
+        // gRPC uçları kimlik doğrulaması ister: kullanıcı token'ı (çağıran servis iletir) ya da servis token'ı
+        // (client_credentials). Bkz. docs/ARCH.md §5.1.1.
+        {{~ end ~}}
         {{~ for e in GrpcServerEntities ~}}
-        app.MapGrpcService<{{ Namespace }}.Grpc.{{ e }}GrpcService>();
+        app.MapGrpcService<{{ Namespace }}.Grpc.{{ e }}GrpcService>(){{ if HasAuth }}.RequireAuthorization(){{ end }};
         {{~ end ~}}
         app.Run();
 
@@ -1174,7 +1201,7 @@ internal static class Templates
         """
         {
           "ConnectionStrings": {
-            "Default": "Host=localhost;Port={{ PostgresPort }};Database={{ Database }};Username=baseforge;Password=change_me"
+            "Default": "Host=localhost;Port={{ PostgresPort }};Database={{ Database }};Username=baseforge;Password="
           },
           "Cors": {
             "AllowedOrigins": [{{ for o in CorsOrigins }}"{{ o }}"{{ if !for.last }}, {{ end }}{{ end }}]
@@ -1198,6 +1225,14 @@ internal static class Templates
                 }
               }{{ if !for.last }},{{ end }}
         {{~ end ~}}
+            }
+          },
+        {{~ end ~}}
+        {{~ if HasAuth ~}}
+          "Auth": {
+            "ServiceClient": {
+              "ClientId": "{{ ServiceKey }}-service",
+              "ClientSecret": ""
             }
           },
         {{~ end ~}}
@@ -1225,7 +1260,7 @@ internal static class Templates
             "Host": "host.docker.internal",
             "Port": 5672,
             "Username": "baseforge",
-            "Password": "change_me"
+            "Password": ""
           },
         {{~ end ~}}
           "Serilog": {
@@ -1274,7 +1309,8 @@ internal static class Templates
             image: postgres:17-alpine
             environment:
               POSTGRES_USER: baseforge
-              POSTGRES_PASSWORD: change_me
+              # Gerçek değer bu klasördeki .env'de (gitignore'lu, üretici rastgele oluşturur).
+              POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env dosyasinda tanimli olmali}
               POSTGRES_DB: {{ Database }}
             healthcheck:
               test: ["CMD-SHELL", "pg_isready -U baseforge -d {{ Database }}"]
@@ -1282,7 +1318,7 @@ internal static class Templates
               timeout: 5s
               retries: 5
             ports:
-              - "{{ PostgresPort }}:5432"   # yerelde 'dotnet run' + sadece bu postgres'i container'da çalıştırmak için (appsettings.json ile eşleşir)
+              - "127.0.0.1:{{ PostgresPort }}:5432"   # yalnızca bu makineden (yerel 'dotnet run' için); dış ağa açılmaz
             volumes:
               - {{ Service }}-pgdata:/var/lib/postgresql/data
 
@@ -1290,7 +1326,13 @@ internal static class Templates
             build: .
             environment:
               ASPNETCORE_ENVIRONMENT: Development
-              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=${POSTGRES_PASSWORD}"
+        {{~ if HasRabbitMq ~}}
+              RabbitMq__Password: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD .env dosyasinda tanimli olmali}
+        {{~ end ~}}
+        {{~ if HasAuth ~}}
+              Auth__ServiceClient__ClientSecret: ${Auth__ServiceClient__ClientSecret:-}
+        {{~ end ~}}
         {{~ if HasAuth ~}}
               # Prod'da: Identity'nin gerçek adresi ve onun Auth__Issuer değeri (yedek issuer — Identity yeniden
               # başlarken oluşabilecek 401'leri önler). Boşsa Program.cs'deki varsayılan/metadata kullanılır.
@@ -1328,6 +1370,7 @@ internal static class Templates
         .git/
         docs/
         *.user
+        .env
 
         """;
 
@@ -1342,7 +1385,7 @@ internal static class Templates
           {{ ServiceKey }}-service:
             build: .
             environment:
-              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=change_me"
+              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{ Database }};Username=baseforge;Password=${POSTGRES_PASSWORD}"
             depends_on:
               postgres:
                 condition: service_healthy
@@ -1509,6 +1552,7 @@ internal static class Templates
 
           <ItemGroup>
             <PackageReference Include="BaseForge.API" Version="{{ BaseForgeVersion }}" />
+            <PackageReference Include="DotNetEnv" Version="3.1.1" />
             <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
             <PackageReference Include="Scalar.AspNetCore" Version="2.16.5" />
             <!-- Servisler arası senkron iletişim (gRPC) — sunucu + istemci taraflarını birlikte getirir -->

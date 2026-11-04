@@ -231,6 +231,19 @@ public sealed class EntitySpec
     /// yoksa zaten etkisizdir). Varsayılan <see langword="true"/>.
     /// </summary>
     public bool Searchable { get; set; } = true;
+
+    /// <summary>
+    /// <c>SortBy</c>'da izin verilen alanlar (beyaz liste). Boşsa varsayılan: entity'nin tüm skaler alanları +
+    /// <c>CreatedAt</c>, <c>UpdatedAt</c>. İstemci yalnızca <c>Alan [asc|desc]</c> gönderebilir; serbest ifade
+    /// reddedilir. Bkz. docs/ARCH.md §6.2.
+    /// </summary>
+    public List<string> SortFields { get; set; } = [];
+
+    /// <summary>
+    /// <c>Search</c>'ün aranacağı string/text alanlar. Boşsa varsayılan: tüm string/text alanlar. Hassas alanları
+    /// (örn. kimlik no) aramadan çıkarmak için daraltın. Bkz. docs/ARCH.md §6.2.
+    /// </summary>
+    public List<string> SearchFields { get; set; } = [];
 }
 
 /// <summary>HTTP okumalarına uygulanan kayıt görünürlük filtresi (bkz. <see cref="EntitySpec.ReadFilter"/>).</summary>
@@ -306,6 +319,13 @@ public sealed class PropSpec
 
     /// <summary>Yalnızca auth.yaml <c>userProfile</c> alanlarında: alan JWT claim'i olarak token'a eklensin mi (varsayılan hayır).</summary>
     public bool InToken { get; set; }
+
+    /// <summary>
+    /// <see langword="true"/> ise alan sunucu tarafından yönetilir (örn. iş akışıyla değişen <c>Status</c>, hesaplanan
+    /// <c>NetKg</c>): üretilen Create/Update komutlarında yer almaz, istemciden yazılamaz; yalnızca DTO'da okunur.
+    /// Değerini elle yazılan komutlar değiştirir. Bkz. docs/ARCH.md §6.4.
+    /// </summary>
+    public bool ServerManaged { get; set; }
 }
 
 /// <summary>Başka bir servise ait kayda yapılan dış referans. FK/navigation üretilmez; yalnızca ID tutulur.</summary>

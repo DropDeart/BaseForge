@@ -111,6 +111,10 @@ public sealed class AuthorizationController : ControllerBase
         identity.AddClaim(Claims.Subject, request.ClientId ?? string.Empty);
         identity.AddClaim(Claims.Name, request.ClientId ?? string.Empty);
 
+        // Servis token'ı işareti (BaseForge.Core.MultiTenancy.BaseForgeClaims.ServiceToken): servisler yalnızca bu
+        // claim'i taşıyan çağrılarda x-tenant-id metadata'sına güvenir (bkz. docs/ARCH.md §5.1.1).
+        identity.AddClaim("bf_svc", "1");
+
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(request.GetScopes());
         principal.SetResources(await ResolveResourcesAsync(principal.GetScopes()));

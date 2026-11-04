@@ -16,6 +16,9 @@ internal sealed class ScalarModel
 
     /// <summary>Spec tipi <c>json</c> ise true — entity sınıfında <c>[Column(TypeName = "jsonb")]</c> üretimi için.</summary>
     public bool IsJson { get; set; }
+
+    /// <summary>Spec'te <c>serverManaged: true</c> — Create/Update komutlarına girmez (bkz. ARCH §6.4).</summary>
+    public bool ServerManaged { get; set; }
 }
 
 /// <summary>Servis içi bir ilişki için navigation property.</summary>
@@ -151,6 +154,9 @@ internal sealed class FeatureFileModel
     /// <summary><see cref="Paginated"/>=true iken <c>SortBy</c> dikkate alınsın mı.</summary>
     public bool Sortable { get; set; } = true;
 
+    /// <summary>Sıralama beyaz listesi, C# dizi literal içeriği olarak (örn. <c>"Name", "CreatedAt"</c>).</summary>
+    public string SortFieldsLiteral { get; set; } = string.Empty;
+
     /// <summary>
     /// Sahip alanının adı (PascalCase); yoksa <see langword="null"/>. Doluysa Update/Delete komutları ve
     /// GetById/List sorguları controller'ın doldurduğu <c>RestrictToOwnerId</c> alanını taşır ve Update
@@ -216,6 +222,9 @@ internal sealed class ControllerFileModel
     public ActionAccessModel UpdateAccess { get; set; } = new();
 
     public ActionAccessModel DeleteAccess { get; set; } = new();
+
+    /// <summary>Sayaç (increment) uçlarının erişimi; spec'te <c>access.counters</c> yoksa herkese açık.</summary>
+    public ActionAccessModel CounterAccess { get; set; } = new();
 
     /// <summary>Sahip alanının adı (PascalCase); yoksa <see langword="null"/>. Create'te token'daki kullanıcıyla damgalanır.</summary>
     public string? OwnerField { get; set; }

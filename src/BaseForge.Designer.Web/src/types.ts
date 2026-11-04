@@ -24,6 +24,8 @@ export interface PropSpec {
   editableBy?: string | null;
   /** Yalnızca auth.yaml userProfile: JWT claim'i olarak token'a eklensin mi. */
   inToken?: boolean;
+  /** Sunucu yönetir: üretilen Create/Update komutlarına girmez, istemciden yazılamaz (ARCH §6.4). */
+  serverManaged?: boolean;
 }
 
 export interface EntitySpec {
@@ -48,6 +50,10 @@ export interface EntitySpec {
   ownerField?: string | null;
   /** Liste ucunda eşitlik filtresi olarak açılan alanlar (?status=Active). Yalnızca sayfalı listelerde. */
   filterable?: string[];
+  /** SortBy beyaz listesi; boş = tüm skaler alanlar + CreatedAt/UpdatedAt (ARCH §6.2). */
+  sortFields?: string[];
+  /** Search'ün arandığı string/text alanlar; boş = hepsi (ARCH §6.2). */
+  searchFields?: string[];
   /** HTTP okumalarında görünürlük filtresi (örn. taslakları gizle). Bkz. docs/ARCH.md §6.2. */
   readFilter?: ReadFilterSpec | null;
 }

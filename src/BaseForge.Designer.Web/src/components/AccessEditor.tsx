@@ -9,6 +9,7 @@ const ACTIONS = [
   { key: "create", label: "create" },
   { key: "update", label: "update" },
   { key: "delete", label: "delete" },
+  { key: "counters", label: "counters" },
 ] as const;
 
 type Mode = "default" | "anonymous" | "authenticated" | "roles";
@@ -186,7 +187,11 @@ export function EntityAccessEditor({
     });
   };
 
-  const actions = ACTIONS.filter((a) => !entity.appendOnly || (a.key !== "update" && a.key !== "delete"));
+  const actions = ACTIONS.filter(
+    (a) =>
+      (!entity.appendOnly || (a.key !== "update" && a.key !== "delete")) &&
+      (a.key !== "counters" || (entity.counters?.length ?? 0) > 0),
+  );
 
   return (
     <div>
@@ -210,7 +215,7 @@ export function EntityAccessEditor({
       {actions.map(({ key, label }) => {
         const rule = access[key];
         const mode = modeOf(rule);
-        const ownerAllowed = key !== "create";
+        const ownerAllowed = key !== "create" && key !== "counters";
         return (
           <div className="access-row" key={key}>
             <span className="access-action">{label}</span>

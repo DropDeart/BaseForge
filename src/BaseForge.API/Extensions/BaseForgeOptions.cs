@@ -144,4 +144,16 @@ public sealed class JwtOptions
 
     /// <summary>Simetrik (HMAC) imza anahtarı. Yalnızca <see cref="Authority"/> verilmediğinde kullanılır.</summary>
     public string SigningKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Bu servisin Identity'deki <c>client_credentials</c> istemci kimliği. Arka plan işlerinden (HTTP isteği dışından)
+    /// yapılan gRPC çağrıları bu kimlikle token alır. Boşsa yalnızca kullanıcı token'ı iletilir. Bkz. ARCH §5.1.1.
+    /// </summary>
+    public string? ServiceClientId { get; set; }
+
+    /// <summary><see cref="ServiceClientId"/>'nin secret'ı (.env: <c>Auth__ServiceClient__ClientSecret</c>).</summary>
+    public string? ServiceClientSecret { get; set; }
+
+    /// <summary>Servis token'ı istenirken kullanılan scope (audience'ı veren kaynak). Varsayılan <c>api</c>.</summary>
+    public string ServiceScope { get; set; } = "api";
 }

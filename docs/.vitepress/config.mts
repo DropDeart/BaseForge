@@ -34,6 +34,7 @@ function sidebarEn(): DefaultTheme.Sidebar {
       text: "Release Notes",
       collapsed: true,
       items: [
+        { text: "v0.6.3-beta", link: "/releases/v0.6.3-beta" },
         { text: "v0.6.2-beta", link: "/releases/v0.6.2-beta" },
         { text: "v0.6.1-beta", link: "/releases/v0.6.1-beta" },
         { text: "v0.6.0-beta", link: "/releases/v0.6.0-beta" },
@@ -72,6 +73,7 @@ function sidebarTr(): DefaultTheme.Sidebar {
       text: "Sürüm Notları",
       collapsed: true,
       items: [
+        { text: "v0.6.3-beta", link: "/tr/releases/v0.6.3-beta" },
         { text: "v0.6.2-beta", link: "/tr/releases/v0.6.2-beta" },
         { text: "v0.6.1-beta", link: "/tr/releases/v0.6.1-beta" },
         { text: "v0.6.0-beta", link: "/tr/releases/v0.6.0-beta" },
@@ -86,7 +88,7 @@ export default defineConfig({
   description: "An opinionated base library and code generator for .NET 10 microservices.",
   cleanUrls: true,
   lastUpdated: true,
-  srcExclude: ["logs/**", "**/README*.md"],
+  srcExclude: ["logs/**", "backlog/**", "**/README*.md"],
   // Keep the historic file names in the repo (CLAUDE.md and old links point at them) but publish clean URLs.
   rewrites: {
     "ARCH.md": "architecture.md",
@@ -138,9 +140,9 @@ export default defineConfig({
           { text: "Guide", link: "/guide/getting-started", activeMatch: "/guide/" },
           { text: "Architecture", link: "/architecture" },
           {
-            text: "v0.6.2-beta",
+            text: "v0.6.3-beta",
             items: [
-              { text: "Release notes", link: "/releases/v0.6.2-beta" },
+              { text: "Release notes", link: "/releases/v0.6.3-beta" },
               { text: "NuGet", link: "https://www.nuget.org/packages?q=BaseForge" },
               { text: "Changelog on GitHub", link: `${repo}/releases` },
             ],
@@ -164,9 +166,9 @@ export default defineConfig({
           { text: "Rehber", link: "/tr/guide/getting-started", activeMatch: "/tr/guide/" },
           { text: "Mimari", link: "/tr/architecture" },
           {
-            text: "v0.6.2-beta",
+            text: "v0.6.3-beta",
             items: [
-              { text: "Sürüm notları", link: "/tr/releases/v0.6.2-beta" },
+              { text: "Sürüm notları", link: "/tr/releases/v0.6.3-beta" },
               { text: "NuGet", link: "https://www.nuget.org/packages?q=BaseForge" },
               { text: "GitHub sürümleri", link: `${repo}/releases` },
             ],

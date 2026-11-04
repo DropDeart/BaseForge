@@ -1,5 +1,6 @@
 using System.Text;
 using BaseForge.API.Authentication;
+using BaseForge.API.RateLimiting;
 using BaseForge.Core.Interfaces;
 using BaseForge.Core.Logging;
 using BaseForge.Core.Messaging;
@@ -61,6 +62,9 @@ public static class ServiceCollectionExtensions
             healthChecks.AddCheck("postgresql", new PostgresHealthCheck(options.ConnectionString));
         }
 
+        // 1c) Rate limit politikaları — her zaman kayıtlı (üretilen sayaç uçları kullanır; bkz. ARCH §6.1).
+        services.AddBaseForgeRateLimits();
+
         // 2) CQRS (MediatR)
         if (options.CqrsEnabled)
         {
@@ -94,9 +98,29 @@ public static class ServiceCollectionExtensions
         }
 
         // UseBaseForge'ın auth middleware'i ekleyip eklemeyeceğini bilmesi için işaret.
-        services.AddSingleton(new BaseForgeFeatures { JwtEnabled = options.Jwt is not null });
+        services.AddSingleton(new BaseForgeFeatures
+        {
+            JwtEnabled = options.Jwt is not null,
+            UsesDefaultDbPassword = HasDefaultPassword(options.ConnectionString),
+        });
 
         return services;
+    }
+
+    /// <summary>Bağlantı dizesinde şifre yok/boş ya da üretici varsayılanı (<c>change_me</c>) mı?</summary>
+    private static bool HasDefaultPassword(string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return false;
+        }
+
+        var password = connectionString
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => part.Split('=', 2))
+            .FirstOrDefault(kv => kv.Length == 2 && kv[0].Trim().Equals("Password", StringComparison.OrdinalIgnoreCase))?[1]
+            .Trim();
+        return string.IsNullOrEmpty(password) || password.Equals("change_me", StringComparison.Ordinal);
     }
 
     /// <summary>OpenIddict'in rol claim'inin adı (kısa form; <c>MapInboundClaims = false</c> ile korunur).</summary>
@@ -107,6 +131,13 @@ public static class ServiceCollectionExtensions
 
     private static void AddJwtAuthentication(IServiceCollection services, JwtOptions jwt)
     {
+        // Servis-servis gRPC: gelen kullanıcı token'ını iletmek için HttpContext, arka plan çağrıları için
+        // client_credentials token sağlayıcısı (yapılandırılmamışsa null döner). Bkz. ARCH §5.1.1.
+        services.AddHttpContextAccessor();
+        services.AddHttpClient(nameof(ServiceTokenProvider));
+        services.TryAddSingleton<IServiceTokenProvider>(sp =>
+            new ServiceTokenProvider(sp.GetRequiredService<IHttpClientFactory>(), jwt));
+
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -183,4 +214,10 @@ internal sealed class BaseForgeFeatures
 {
     /// <summary>JWT kimlik doğrulama etkin mi?</summary>
     public bool JwtEnabled { get; init; }
+
+    /// <summary>
+    /// Bağlantı dizesi bilinen varsayılan/boş bir şifre taşıyor mu? (<c>change_me</c> veya boş <c>Password=</c>)
+    /// <c>UseBaseForge</c> Development dışında bunu fail-fast olarak reddeder (bkz. docs/ARCH.md §6.5).
+    /// </summary>
+    public bool UsesDefaultDbPassword { get; init; }
 }

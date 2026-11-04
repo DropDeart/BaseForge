@@ -75,6 +75,8 @@ export const en = {
     postgresFailed: "Postgres could not be started.",
   },
   entity: {
+    serverManaged: "server-managed",
+    serverManagedTitle: "Set by the server only (workflow/calculated field): left out of generated Create/Update requests.",
     nameEmpty: "Entity name cannot be empty.",
     nameTaken: "An entity with this name already exists.",
     name: "Entity name",
@@ -130,6 +132,13 @@ export const en = {
     countersPublic: "Counter (increment) endpoints are always public.",
   },
   list: {
+    sortSearchTitle: "Sort & search fields",
+    sortSearchDesc: "Allow-lists for sortBy and search. Nothing selected = all eligible fields; select to narrow (e.g. keep ID numbers out of search).",
+    sortFields: "Sortable fields",
+    searchFields: "Searchable fields",
+    allFields: "all eligible fields (default)",
+    sortingOff: "Sorting is off (or the list is not paginated).",
+    searchOff: "Search is off, not paginated, or there are no string/text fields.",
     filtersTitle: "List filters",
     filtersDescBefore: "Selected fields become",
     filtersDescStrong: "equality filters",

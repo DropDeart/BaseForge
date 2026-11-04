@@ -79,14 +79,16 @@ subscribes:
 | `relations` | map | Relations to entities in the same service |
 | `externalRefs` | map | References to entities in other services |
 | `publishes` | list | `created` / `updated` / `deleted` — publish integration events via the outbox |
-| `access` | map | Per-action rule: `list`, `getById`, `create`, `update`, `delete` |
+| `access` | map | Per-action rule: `list`, `getById`, `create`, `update`, `delete`, `counters` |
 | `ownerField` | string | A `guid` field stamped with the caller's id on create |
 | `anonymousActions` | list | Legacy shorthand for `access: { action: anonymous }` |
 | `filterable` | list | Fields exposed as equality filters on the list endpoint |
 | `readFilter` | object | Row visibility: `where`, `bypassRoles`, `bypassOwner` |
-| `counters` | list | `int` fields that get a public `POST /{id}/increment-{field}` endpoint |
+| `counters` | list | `int` fields that get a `POST /{id}/increment-{field}` endpoint (public unless `access.counters` is set; rate-limited to 30/min) |
 | `appendOnly` | bool | Never generate Update/Delete (audit/trace records) |
 | `paginated` / `sortable` / `searchable` | bool | List behavior (all default `true`) |
+| `sortFields` | list | Fields `sortBy` may use (default: all scalar fields + `CreatedAt`/`UpdatedAt`); anything else is a 400 |
+| `searchFields` | list | String/text fields `search` looks in (default: all) — keep sensitive fields out |
 
 ## Field types
 
@@ -113,7 +115,7 @@ props:
   Status: { type: enum, values: [Draft, Active], default: Draft }
 ```
 
-Rich-form keys: `type`, `nullable`, `maxLength` (string/text only), `default`, `values` (enum only).
+Rich-form keys: `type`, `nullable`, `maxLength` (string/text only), `default`, `values` (enum only), `serverManaged` (left out of the generated Create/Update commands — only your own code changes it; still returned in the DTO).
 
 ## Relations
 
