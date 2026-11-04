@@ -52,6 +52,17 @@ export function ListOptionsEditor({
   const exampleQuery = filterable.map((f) => `${camel(f)}=…`).join("&");
   const whereCount = rf ? Object.keys(rf.where).length : 0;
 
+  // Sıralama/arama beyaz listeleri (ARCH §6.2) — boş seçim = varsayılan (tüm uygun alanlar).
+  const sortFields = entity.sortFields ?? [];
+  const searchFields = entity.searchFields ?? [];
+  const sortCandidates = [...scalarFields(entity).filter((f) => f.type !== "json").map((f) => f.name), "CreatedAt", "UpdatedAt"];
+  const searchCandidates = Object.entries(entity.props ?? {})
+    .filter(([, p]) => p.type === "string" || p.type === "text")
+    .map(([n]) => pascal(n));
+  const toggleIn = (list: string[], name: string) => (list.includes(name) ? list.filter((f) => f !== name) : [...list, name]);
+  const sortable = paginated && entity.sortable !== false;
+  const searchable = paginated && entity.searchable !== false;
+
   return (
     <div className="opt-stack">
       {/* Liste filtreleri */}
@@ -85,6 +96,44 @@ export function ListOptionsEditor({
             </div>
           </>
         )}
+      </section>
+
+      {/* Sıralama ve arama alanları */}
+      <section className="opt-card">
+        <div className="opt-head">
+          <div>
+            <div className="opt-title">{m.list.sortSearchTitle}</div>
+            <div className="opt-desc">{m.list.sortSearchDesc}</div>
+          </div>
+        </div>
+        <div className="field-label">{m.list.sortFields}</div>
+        {sortable ? (
+          <div className="chips roomy">
+            {sortCandidates.map((n) => (
+              <button key={n} type="button" className={`chip ${sortFields.includes(n) ? "on" : ""}`}
+                onClick={() => onChange({ ...entity, sortFields: toggleIn(sortFields, n) })}>
+                {n}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="opt-empty">{m.list.sortingOff}</div>
+        )}
+        <div className="opt-example">{sortFields.length === 0 ? m.list.allFields : `sortBy: ${sortFields.join(" | ")}`}</div>
+        <div className="field-label" style={{ marginTop: 10 }}>{m.list.searchFields}</div>
+        {searchable && searchCandidates.length > 0 ? (
+          <div className="chips roomy">
+            {searchCandidates.map((n) => (
+              <button key={n} type="button" className={`chip ${searchFields.includes(n) ? "on" : ""}`}
+                onClick={() => onChange({ ...entity, searchFields: toggleIn(searchFields, n) })}>
+                {n}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="opt-empty">{m.list.searchOff}</div>
+        )}
+        <div className="opt-example">{searchFields.length === 0 ? m.list.allFields : `search: ${searchFields.join(", ")}`}</div>
       </section>
 
       {/* Görünürlük filtresi */}

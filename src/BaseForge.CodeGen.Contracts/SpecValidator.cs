@@ -9,7 +9,7 @@ public static class SpecValidator
 
     private static readonly string[] AllowedPublishKinds = ["created", "updated", "deleted"];
 
-    private static readonly string[] AllowedActions = ["list", "getById", "create", "update", "delete"];
+    private static readonly string[] AllowedActions = ["list", "getById", "create", "update", "delete", "counters"];
 
     /// <summary>Spec'i doğrular ve bulunan hataların listesini döndürür (boşsa geçerli).</summary>
     public static IReadOnlyList<string> Validate(ServiceSpec spec)
@@ -112,6 +112,7 @@ public static class SpecValidator
 
             ValidateAccess(spec, entityName, entity, errors);
             ValidateFilterable(entityName, entity, errors);
+            ValidateSortAndSearchFields(entityName, entity, errors);
             ValidateReadFilter(entityName, entity, errors);
 
             var seenCounters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -265,6 +266,10 @@ public static class SpecValidator
             {
                 errors.Add($"'{entityName}.ownerField' ('{entity.OwnerField}') nullable olmayan 'guid' tipinde bir prop olmalı (bulunan: '{prop.Value.Type}'{(prop.Value.Nullable ? ", nullable" : string.Empty)}).");
             }
+            else if (prop.Value.ServerManaged)
+            {
+                errors.Add($"'{entityName}.ownerField' ('{entity.OwnerField}') serverManaged olamaz; sahip alanı zaten create'te token'dan damgalanır.");
+            }
 
             // Create'te sahip token'dan damgalanır — anonim create'te damgalanacak kullanıcı yoktur.
             var createRule = entity.Access.FirstOrDefault(a => string.Equals(a.Key, "create", StringComparison.OrdinalIgnoreCase)).Value;
@@ -306,7 +311,13 @@ public static class SpecValidator
                 continue;
             }
 
-            ValidateRule(rule, label, ownerAllowed: !string.Equals(action, "create", StringComparison.OrdinalIgnoreCase), ownerFieldSet, errors);
+            if (string.Equals(action, "counters", StringComparison.OrdinalIgnoreCase) && entity.Counters.Count == 0)
+            {
+                errors.Add($"'{label}' — entity'nin sayacı (counters) yok.");
+                continue;
+            }
+
+            ValidateRule(rule, label, ownerAllowed: action.ToLowerInvariant() is not ("create" or "counters"), ownerFieldSet, errors);
         }
     }
 
@@ -384,6 +395,39 @@ public static class SpecValidator
         }
 
         return fields;
+    }
+
+    private static void ValidateSortAndSearchFields(string entityName, EntitySpec entity, List<string> errors)
+    {
+        var fields = ScalarFieldTypes(entity);
+        if (entity.SortFields.Count > 0)
+        {
+            if (!entity.Paginated || !entity.Sortable)
+            {
+                errors.Add($"'{entityName}.sortFields' yalnızca sayfalı ve sıralanabilir (paginated/sortable: true) listelerde kullanılabilir.");
+            }
+
+            foreach (var name in entity.SortFields.Where(n => !fields.ContainsKey(n) && n is not ("CreatedAt" or "UpdatedAt")))
+            {
+                errors.Add($"'{entityName}.sortFields' — '{name}' bu entity'nin bir alanı değil (CreatedAt/UpdatedAt de kullanılabilir).");
+            }
+        }
+
+        if (entity.SearchFields.Count > 0)
+        {
+            if (!entity.Paginated || !entity.Searchable)
+            {
+                errors.Add($"'{entityName}.searchFields' yalnızca sayfalı ve aranabilir (paginated/searchable: true) listelerde kullanılabilir.");
+            }
+
+            foreach (var name in entity.SearchFields)
+            {
+                if (!fields.TryGetValue(name, out var type) || type is not ("string" or "text"))
+                {
+                    errors.Add($"'{entityName}.searchFields' — '{name}' string/text tipinde bir alan değil.");
+                }
+            }
+        }
     }
 
     private static void ValidateFilterable(string entityName, EntitySpec entity, List<string> errors)

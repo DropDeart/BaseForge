@@ -1,3 +1,4 @@
+using BaseForge.Core.CQRS;
 using BaseForge.Core.Entities;
 using BaseForge.Core.Exceptions;
 using BaseForge.Core.Interfaces;
@@ -67,15 +68,33 @@ public class GenericRepository<TEntity, TKey> : IRepository<TEntity, TKey>
     }
 
     /// <summary>
-    /// <paramref name="sortBy"/>'ı Dynamic LINQ ile uygular. İfade ayrıştırılamazsa ya da bilinmeyen bir
-    /// alana referans veriyorsa, çağıran tarafın 400'e çevirebilmesi için <see cref="ValidationException"/>
-    /// fırlatılır (ham parse/reflection istisnası sızdırılmaz).
+    /// Sıralanabilir alanlar: entity'nin skaler (değer tipi/string) public özellikleri; kiracı ve silinme
+    /// bilgisi (<c>TenantId</c>, <c>IsDeleted</c>, <c>DeletedAt</c>) bilgi sızdırmaması için hariç.
+    /// Üretilen handler'lar daha dar bir listeyle <see cref="SortExpression.Normalize"/>'ı zaten çağırır.
+    /// </summary>
+    private static readonly string[] SortableProperties = typeof(TEntity)
+        .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+        .Where(p => p.PropertyType == typeof(string) || p.PropertyType.IsValueType)
+        .Select(p => p.Name)
+        .Where(n => n is not ("TenantId" or "IsDeleted" or "DeletedAt"))
+        .ToArray();
+
+    /// <summary>
+    /// <paramref name="sortBy"/>'ı önce <see cref="SortExpression.Normalize"/> ile doğrular (yalnızca
+    /// <c>Alan [asc|desc]</c> parçaları ve <see cref="SortableProperties"/>), sonra Dynamic LINQ ile uygular.
+    /// Geçersiz ifade <see cref="ValidationException"/> (400) olur; serbest Dynamic LINQ ifadesi çalıştırılmaz.
     /// </summary>
     private static IQueryable<TEntity> ApplyDynamicSort(IQueryable<TEntity> query, string sortBy)
     {
+        var normalized = SortExpression.Normalize(sortBy, SortableProperties);
+        if (normalized is null)
+        {
+            return query.OrderByDescending(x => x.CreatedAt);
+        }
+
         try
         {
-            return query.OrderBy(sortBy);
+            return query.OrderBy(normalized);
         }
         catch (Exception ex) when (ex is ParseException or InvalidOperationException)
         {

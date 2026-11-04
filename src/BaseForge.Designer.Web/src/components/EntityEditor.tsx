@@ -85,6 +85,8 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
       readFilter:
         entity.readFilter && entity.ownerField === pName ? { ...entity.readFilter, bypassOwner: false } : entity.readFilter,
       filterable: (entity.filterable ?? []).filter((f) => f.toLowerCase() !== pName.toLowerCase()),
+      sortFields: (entity.sortFields ?? []).filter((f) => f.toLowerCase() !== pName.toLowerCase()),
+      searchFields: (entity.searchFields ?? []).filter((f) => f.toLowerCase() !== pName.toLowerCase()),
     });
 
   const toggleCounter = (pName: string) =>
@@ -180,6 +182,14 @@ export function EntityEditor({ name, entity, meta, allEntities, auth, knownRoles
                       onChange={(e) => updateProp(pName, { nullable: e.target.checked })}
                     />
                     nullable
+                  </label>
+                  <label title={m.entity.serverManagedTitle}>
+                    <input
+                      type="checkbox"
+                      checked={!!pSpec.serverManaged}
+                      onChange={(e) => updateProp(pName, { serverManaged: e.target.checked || undefined })}
+                    />
+                    {m.entity.serverManaged}
                   </label>
                   {isStringLike ? (
                     <input

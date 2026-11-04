@@ -56,6 +56,9 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
                 case "inToken":
                     spec.InToken = bool.Parse(parser.Consume<Scalar>().Value);
                     break;
+                case "serverManaged":
+                    spec.ServerManaged = bool.Parse(parser.Consume<Scalar>().Value);
+                    break;
                 default:
                     // Bilinmeyen anahtar — değerini (skaler veya iç içe yapı olabilir) atla.
                     parser.SkipThisAndNestedEvents();
@@ -72,7 +75,7 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
         var spec = (PropSpec)value!;
 
         if (!spec.Nullable && spec.MaxLength is null && spec.Default is null && spec.Values.Count == 0
-            && spec.EditableBy is null && !spec.InToken)
+            && spec.EditableBy is null && !spec.InToken && !spec.ServerManaged)
         {
             emitter.Emit(new Scalar(spec.Type));
             return;
@@ -122,6 +125,12 @@ public sealed class PropSpecYamlConverter : IYamlTypeConverter
         if (spec.InToken)
         {
             emitter.Emit(new Scalar("inToken"));
+            emitter.Emit(new Scalar("true"));
+        }
+
+        if (spec.ServerManaged)
+        {
+            emitter.Emit(new Scalar("serverManaged"));
             emitter.Emit(new Scalar("true"));
         }
 

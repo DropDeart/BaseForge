@@ -66,12 +66,14 @@ internal static class IdentityGenerator
 
         // 2) Yapılandırma ve altyapı dosyaları.
         written.Add(WriteFile(Path.Combine(outputDir, ns + ".csproj"), BuildProject(ns)));
+        // .env/appsettings ezilmeden önce: Postgres şifresini mevcut .env'den (ya da 0.6.2 öncesi change_me'den) koru.
+        var postgresPassword = ServiceSecrets.ResolvePostgresPassword(outputDir, ServiceSecrets.DetectLegacyPassword(outputDir));
         written.Add(WriteFile(Path.Combine(outputDir, "appsettings.json"), BuildAppSettings(spec)));
-        written.Add(WriteFile(Path.Combine(outputDir, ".env.example"), BuildEnvExample(spec)));
-        written.Add(WriteFile(Path.Combine(outputDir, ".env"), BuildEnvReal(spec)));
+        written.Add(WriteFile(Path.Combine(outputDir, ".env.example"), BuildEnvExample(spec) + PostgresEnvLines(spec, string.Empty)));
+        written.Add(WriteFile(Path.Combine(outputDir, ".env"), BuildEnvReal(spec) + PostgresEnvLines(spec, postgresPassword)));
         written.Add(WriteFile(Path.Combine(outputDir, "Properties", "launchSettings.json"), BuildLaunchSettings(ns)));
         written.Add(WriteFile(Path.Combine(outputDir, "Dockerfile"), BuildDockerfile(ns)));
-        written.Add(WriteFile(Path.Combine(outputDir, ".dockerignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n.git/\n*.user\n"));
+        written.Add(WriteFile(Path.Combine(outputDir, ".dockerignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n.git/\n*.user\n.env\n"));
         written.Add(WriteFile(Path.Combine(outputDir, ".gitignore"), "bin/\nobj/\n**/bin/\n**/obj/\n.vs/\n*.user\n\n# Gerçek secret'lar — commit edilmez (bkz. .env.example)\n.env\n"));
         written.Add(WriteFile(Path.Combine(outputDir, "docker-compose.yml"), BuildCompose(spec)));
 
@@ -130,7 +132,8 @@ internal static class IdentityGenerator
         {
             ["ConnectionStrings"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                ["Default"] = $"Host=localhost;Port={postgresPort};Database={spec.Database};Username=baseforge;Password=change_me",
+                // Şifre bilerek boş — gerçek bağlantı dizesi '.env'de (ConnectionStrings__Default).
+                ["Default"] = $"Host=localhost;Port={postgresPort};Database={spec.Database};Username=baseforge;Password=",
             },
             ["Cors"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
@@ -226,6 +229,19 @@ internal static class IdentityGenerator
             // PrivateKey bilerek boş — gerçek değer '.env'de (Auth__Providers__Apple__PrivateKey).
             ["PrivateKey"] = string.Empty,
         };
+
+    /// <summary>Identity'nin Postgres şifresi ve yerel bağlantı dizesi (.env / .env.example sonuna eklenir).</summary>
+    private static string PostgresEnvLines(AuthSpec spec, string password)
+    {
+        var port = spec.DockerPorts?.Postgres ?? 5432;
+        return string.Create(CultureInfo.InvariantCulture, $$"""
+
+            # PostgreSQL şifresi (docker-compose ${POSTGRES_PASSWORD} ile okur; sonradan değiştirmek volume'u sıfırlamayı gerektirir).
+            POSTGRES_PASSWORD={{password}}
+            ConnectionStrings__Default=Host=localhost;Port={{port}};Database={{spec.Database}};Username=baseforge;Password={{password}}
+
+            """);
+    }
 
     private static string BuildEnvExample(AuthSpec spec)
     {
@@ -365,7 +381,8 @@ internal static class IdentityGenerator
             image: postgres:17-alpine
             environment:
               POSTGRES_USER: baseforge
-              POSTGRES_PASSWORD: change_me
+              # Gerçek değer bu klasördeki .env'de (gitignore'lu, üretici rastgele oluşturur).
+              POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env dosyasinda tanimli olmali}
               POSTGRES_DB: {{spec.Database}}
             healthcheck:
               test: ["CMD-SHELL", "pg_isready -U baseforge -d {{spec.Database}}"]
@@ -373,7 +390,7 @@ internal static class IdentityGenerator
               timeout: 5s
               retries: 5
             ports:
-              - "{{postgresPort}}:5432"   # yerelde 'dotnet run' + sadece bu postgres'i container'da çalıştırmak için (appsettings.json ile eşleşir)
+              - "127.0.0.1:{{postgresPort}}:5432"   # yalnızca bu makineden (yerel 'dotnet run' için); dış ağa açılmaz
             volumes:
               - {{spec.Service}}-pgdata:/var/lib/postgresql/data
 
@@ -384,7 +401,7 @@ internal static class IdentityGenerator
             environment:
               ASPNETCORE_ENVIRONMENT: Development
               Auth__Issuer: "{{issuer}}"
-              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{spec.Database}};Username=baseforge;Password=change_me"
+              ConnectionStrings__Default: "Host=postgres;Port=5432;Database={{spec.Database}};Username=baseforge;Password=${POSTGRES_PASSWORD}"
             ports:
               - "{{restPort}}:8080"   # REST/OpenIddict (HTTP/1.1)
               - "{{grpcPort}}:8081"   # gRPC (h2c) — merkez User entity'sine erişim

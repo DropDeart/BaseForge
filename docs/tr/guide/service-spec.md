@@ -79,14 +79,16 @@ subscribes:
 | `relations` | map | Aynı servisteki entity'lerle ilişkiler |
 | `externalRefs` | map | Diğer servislerdeki entity'lere referanslar |
 | `publishes` | liste | `created` / `updated` / `deleted` — outbox üzerinden integration event yayınla |
-| `access` | map | Action başına kural: `list`, `getById`, `create`, `update`, `delete` |
+| `access` | map | Action başına kural: `list`, `getById`, `create`, `update`, `delete`, `counters` |
 | `ownerField` | string | Create'te çağıranın id'siyle damgalanan bir `guid` alan |
 | `anonymousActions` | liste | `access: { action: anonymous }` için eski kısa yazım |
 | `filterable` | liste | Liste ucunda eşitlik filtresi olarak açılan alanlar |
 | `readFilter` | object | Satır görünürlüğü: `where`, `bypassRoles`, `bypassOwner` |
-| `counters` | liste | Herkese açık `POST /{id}/increment-{alan}` ucu alan `int` alanlar |
+| `counters` | liste | `POST /{id}/increment-{alan}` ucu alan `int` alanlar (`access.counters` verilmezse herkese açık; dakikada 30 istekle sınırlı) |
 | `appendOnly` | bool | Update/Delete hiç üretilmez (audit/trace kayıtları) |
 | `paginated` / `sortable` / `searchable` | bool | Liste davranışı (hepsi varsayılan `true`) |
+| `sortFields` | liste | `sortBy`'ın kullanabileceği alanlar (varsayılan: tüm skaler alanlar + `CreatedAt`/`UpdatedAt`); dışındakiler 400 |
+| `searchFields` | liste | `search`'ün aradığı string/text alanlar (varsayılan: hepsi) — hassas alanları dışarıda bırakın |
 
 ## Alan tipleri
 
@@ -113,7 +115,7 @@ props:
   Status: { type: enum, values: [Draft, Active], default: Draft }
 ```
 
-Zengin form anahtarları: `type`, `nullable`, `maxLength` (yalnızca string/text), `default`, `values` (yalnızca enum).
+Zengin form anahtarları: `type`, `nullable`, `maxLength` (yalnızca string/text), `default`, `values` (yalnızca enum), `serverManaged` (üretilen Create/Update komutlarına girmez — yalnızca kendi kodunuz değiştirir; DTO'da yine döner).
 
 ## İlişkiler
 

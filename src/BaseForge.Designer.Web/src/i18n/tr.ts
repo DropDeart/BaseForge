@@ -77,6 +77,8 @@ export const tr: Messages = {
     postgresFailed: "Postgres başlatılamadı.",
   },
   entity: {
+    serverManaged: "sunucu yönetir",
+    serverManagedTitle: "Yalnızca sunucu değiştirir (iş akışı/hesaplanan alan): üretilen Create/Update isteklerine girmez.",
     nameEmpty: "Entity adı boş olamaz.",
     nameTaken: "Bu adda bir entity zaten var.",
     name: "Entity adı",
@@ -132,6 +134,13 @@ export const tr: Messages = {
     countersPublic: "Sayaç (increment) uçları her zaman herkese açıktır.",
   },
   list: {
+    sortSearchTitle: "Sıralama ve arama alanları",
+    sortSearchDesc: "sortBy ve search için beyaz listeler. Seçim yoksa tüm uygun alanlar; daraltmak için seçin (ör. kimlik numaralarını aramadan çıkarın).",
+    sortFields: "Sıralanabilir alanlar",
+    searchFields: "Aranabilir alanlar",
+    allFields: "tüm uygun alanlar (varsayılan)",
+    sortingOff: "Sıralama kapalı (veya liste sayfalı değil).",
+    searchOff: "Arama kapalı, liste sayfalı değil ya da string/text alan yok.",
     filtersTitle: "Liste filtreleri",
     filtersDescBefore: "Seçilen alanlar liste ucunda",
     filtersDescStrong: "eşitlik filtresi",

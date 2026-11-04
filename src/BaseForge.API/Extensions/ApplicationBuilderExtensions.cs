@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace BaseForge.API.Extensions;
 
@@ -23,6 +24,15 @@ public static class ApplicationBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
+        var features = app.Services.GetService<BaseForgeFeatures>();
+        if (features?.UsesDefaultDbPassword == true && !app.Environment.IsDevelopment())
+        {
+            // Fail-fast: varsayılan/boş veritabanı şifresiyle Development dışında açılmaz (bkz. docs/ARCH.md §6.5).
+            throw new InvalidOperationException(
+                "Veritabanı bağlantı dizesi varsayılan ('change_me') ya da boş bir şifre içeriyor. "
+                + "Development dışında gerçek şifreyi ConnectionStrings__Default ortam değişkeniyle (.env) verin.");
+        }
+
         // En başta: sonraki tüm middleware'lerin (exception handling, request logging) ve
         // handler'ların logları doğru CorrelationId'yi taşısın diye.
         app.UseMiddleware<CorrelationIdMiddleware>();
@@ -32,12 +42,14 @@ public static class ApplicationBuilderExtensions
         app.UseMiddleware<RequestLoggingMiddleware>();
         app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-        var features = app.Services.GetService<BaseForgeFeatures>();
         if (features?.JwtEnabled == true)
         {
             app.UseAuthentication();
             app.UseAuthorization();
         }
+
+        // Kimlik doğrulamadan sonra: politika giriş yapmış kullanıcıyı sub ile bölümler.
+        app.UseRateLimiter();
 
         // JWT etkinse bile kimlik doğrulaması gerektirmez — Identity'nin ve orkestrasyon
         // araçlarının (Docker healthcheck) her zaman erişebilmesi gerekir.
