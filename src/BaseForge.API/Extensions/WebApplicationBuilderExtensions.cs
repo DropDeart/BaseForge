@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Serilog;
 using Serilog.Debugging;
 using Serilog.Sinks.Grafana.Loki;
@@ -14,6 +15,9 @@ namespace BaseForge.API.Extensions;
 /// </summary>
 public static class WebApplicationBuilderExtensions
 {
+    /// <summary>Loki'ye gönderilmeyi bekleyen en fazla log olayı (<c>Serilog:LokiQueueLimit</c> ile değiştirilebilir).</summary>
+    public const int DefaultLokiQueueLimit = 10_000;
+
     /// <summary>
     /// Serilog'u yapılandırır: her zaman konsola yapılandırılmış (structured) log yazar;
     /// <c>Serilog:LokiUrl</c> appsettings/env anahtarı doluysa aynı zamanda Grafana Loki'ye push eder.
@@ -49,9 +53,13 @@ public static class WebApplicationBuilderExtensions
             var lokiUrl = context.Configuration["Serilog:LokiUrl"];
             if (!string.IsNullOrWhiteSpace(lokiUrl))
             {
+                // Sink'in kuyruğu varsayılan olarak sınırsız: Loki'ye erişilemezken gönderilemeyen her olay
+                // bellekte birikir (prod'da 6 günde ~6 GB). Sınır dolunca en eski olaylar düşer.
+                var queueLimit = context.Configuration.GetValue("Serilog:LokiQueueLimit", DefaultLokiQueueLimit);
                 loggerConfiguration.WriteTo.GrafanaLoki(
                     lokiUrl,
-                    labels: [new LokiLabel { Key = "service", Value = serviceName }]);
+                    labels: [new LokiLabel { Key = "service", Value = serviceName }],
+                    queueLimit: queueLimit);
             }
         });
 
